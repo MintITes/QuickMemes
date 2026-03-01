@@ -37,7 +37,7 @@
 ```mermaid
 graph TD
     %% ── 前端层 ──
-    subgraph FRONT ["前端层（Electron + TypeScript + React）"]
+    subgraph FRONT ["前端层（Electron + TypeScript + React + Tailwind CSS）"]
         direction TB
         ELECTRON["Electron 主进程
         ──────────────────
@@ -53,7 +53,7 @@ graph TD
     end
 
     %% ── 通信层 ──
-    subgraph COMM ["通信层（HTTP REST + WebSocket）"]
+    subgraph COMM ["通信层（Boost.Beast HTTP REST + WebSocket）"]
         direction TB
         HTTP_API["HTTP REST 接口
         ──────────────────
@@ -76,7 +76,9 @@ graph TD
         POST   /api/memes/batch/tags
         PATCH  /api/config
         POST   /api/admin/rebuild-embeddings
-        POST   /api/share/link（占位）"]
+        POST   /api/meme/:id/restore
+        GET    /api/memes/trash
+        DELETE /api/memes/trash/purge"]
         WS["WebSocket 推送事件
         ──────────────────
         task:progress
@@ -86,6 +88,8 @@ graph TD
         meme:updated
         meme:deleted
         meme:processing
+        tag:created
+        tag:deleted
         ping（心跳）"]
     end
 
@@ -94,7 +98,7 @@ graph TD
         direction TB
         CORE["C++ 核心模块
         ──────────────────
-        startServer()
+        startServer(bindAddress, port)
         stopServer()
         handleHealth()
         handleImport()
@@ -170,9 +174,9 @@ graph TD
     %% ── 连接关系 ──
     ELECTRON -->|"spawn with CLI args"| CORE
     CONFIG_MOD -->|"buildBackendArgs()"| ELECTRON
-    REACT <-->|"HTTP 请求 / 响应"| HTTP_API
+    REACT <-->|"HTTP 请求 / 响应（携带 Auth Token）"| HTTP_API
     WS -->|"推送事件"| REACT
-    HTTP_API <-->|"路由调度"| CORE
+    HTTP_API <-->|"路由调度（校验 Token）"| CORE
     CORE -->|"推送"| WS
     AI_MOD -.->|"HTTPS REST"| CLOUD
     FRONT -.->|"log()"| LOGGER_MOD
@@ -215,8 +219,10 @@ MemeEntry {
 // ProcessingStatus 枚举
 ProcessingStatus : "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
 
-// 注意：embedding 向量仅在数据库内部存储和使用，HTTP 响应中不包含此字段，
-// 以减少网络传输开销。向量搜索时，结果中会包含 similarityScore 字段。
+// 注意：MemeEntry 结构体不含 embedding 向量字段。
+// embedding 仅在 AiAnalysisResult 中携带并通过持久化模块的 upsertEmbedding() 独立写入 vec_memes 表，
+// HTTP 响应中不包含向量数据，以减少网络传输开销。
+// 向量搜索时，结果中会包含 similarityScore 字段。
 ```
 
 ---
@@ -246,12 +252,13 @@ SearchQuery {
     formats    : string[]  // 文件格式过滤，如 ["image/gif"]（空表示不过滤）
     sizeMin    : int64     // 最小文件大小（字节，0 表示不限）
     sizeMax    : int64     // 最大文件大小（字节，0 表示不限）
-    regex      : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
-    useVector  : bool      // 是否启用语义向量搜索
-    sortBy     : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt"
-    sortOrder  : string    // 排序方向："ASC" | "DESC"
-    limit      : int32     // 每页结果数量（默认 50，最大 200）
-    offset     : int32     // 分页偏移量（默认 0）
+    regex        : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
+    useVector    : bool      // 是否启用语义向量搜索
+    vectorWeight : float     // 向量搜索权重（0.0~1.0，默认 0.7，仅 useVector=true 时有效）
+    sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt"
+    sortOrder    : string    // 排序方向："ASC" | "DESC"
+    limit        : int32     // 每页结果数量（默认 50，最大 200）
+    offset       : int32     // 分页偏移量（默认 0）
 }
 ```
 
@@ -334,10 +341,12 @@ WsEvent {
 // "meme:updated"     -> MemeEntry
 // "meme:deleted"     -> { id: int64 }
 // "meme:processing"  -> { id: int64, ocrStatus: ProcessingStatus, aiStatus: ProcessingStatus }
+// "tag:created"      -> Tag
+// "tag:deleted"      -> { id: int64 }
 // "ping"             -> {}（心跳帧，每 30 秒发送一次）
 ```
 
-> 其余协议专用数据结构（`ImportRequest`、`MemePatch`、`ExportRequest`、`ExportResult`、`GeneratedImage`、`ShareOptions`、`ShareResult`、`RuntimeConfigPatch` 等）定义于 [ipc_protocol.md](./arch/ipc_protocol.md#模块独有数据结构)。
+> 其余协议专用数据结构（`ImportRequest`、`MemePatch`、`ExportRequest`、`ExportResult`、`GeneratedImage`、`RuntimeConfigPatch` 等）定义于 [ipc_protocol.md](./arch/ipc_protocol.md#模块独有数据结构)。
 
 ---
 
@@ -371,7 +380,7 @@ WsEvent {
 
 ### 通信协议模块
 
-**职责**：定义前端 React 与 C++ 后端之间通信的完整协议，包括 HTTP REST 端点规范和 WebSocket 推送事件规范。本模块不包含业务逻辑，仅作协议契约。
+**职责**：定义前端 React 与 C++ 后端之间通信的完整协议，包括 HTTP REST 端点规范和 WebSocket 推送事件规范。前端通过启动时生成的随机 Auth Token 校验请求来源。本模块不包含业务逻辑，仅作协议契约。
 
 **对外接口（HTTP REST，由 C++ 后端暴露）**
 
@@ -385,6 +394,9 @@ WsEvent {
 | `/api/meme/:id/thumbnail`       | `GET`    | 获取 Meme 缩略图（二进制流）         |
 | `/api/meme/:id`                 | `PUT`    | 更新 Meme 元数据                     |
 | `/api/meme/:id`                 | `DELETE` | 软删除 Meme（移入回收站）            |
+| `/api/meme/:id/restore`         | `POST`   | 从回收站恢复 Meme                    |
+| `/api/memes/trash`              | `GET`    | 获取回收站中的 Meme 列表             |
+| `/api/memes/trash/purge`        | `DELETE` | 手动清空回收站                       |
 | `/api/tags`                     | `GET`    | 获取全部标签                         |
 | `/api/tags`                     | `POST`   | 创建新标签                           |
 | `/api/tags/:id`                 | `DELETE` | 删除标签                             |
@@ -396,7 +408,6 @@ WsEvent {
 | `/api/memes/batch/tags`         | `POST`   | 批量为 Meme 添加标签                 |
 | `/api/config`                   | `PATCH`  | 运行时配置热更新                     |
 | `/api/admin/rebuild-embeddings` | `POST`   | 重建所有 Meme 的语义向量（异步任务） |
-| `/api/share/link`               | `POST`   | 生成分享链接（🚧 占位，待完善）       |
 
 **WebSocket 推送事件（C++ 后端 → 前端）**
 
@@ -409,6 +420,8 @@ WsEvent {
 | `meme:updated`    | Meme 元数据更新通知                 |
 | `meme:deleted`    | Meme 已删除通知                     |
 | `meme:processing` | Meme OCR/AI 处理状态变更通知        |
+| `tag:created`     | 新标签已创建通知                    |
+| `tag:deleted`     | 标签已删除通知                      |
 | `ping`            | 心跳帧（每 30 秒，客户端回复 pong） |
 
 > 📄 详细规划 → [docs/arch/ipc_protocol.md](./arch/ipc_protocol.md)
@@ -433,8 +446,16 @@ WsEvent {
 | `handleMemeThumbnail(id: int64): BinaryStream`                 | 返回 Meme 缩略图二进制流            | `id`：Meme ID                    | 缩略图二进制流       |
 | `handleMemeUpdate(id: int64, patch: MemePatch): MemeEntry`     | 更新 Meme 元数据                    | `id`：Meme ID；`patch`：变更字段 | 更新后的 `MemeEntry` |
 | `handleMemeDelete(id: int64): bool`                            | 软删除 Meme（移入回收站）           | `id`：Meme ID                    | 操作成功返回 `true`  |
+| `handleMemeRestore(id: int64): MemeEntry`                      | 从回收站恢复 Meme                   | `id`：Meme ID                    | 恢复后的 `MemeEntry` |
+| `handleGetTrash(limit, offset): SearchResult`                  | 获取回收站 Meme 列表                | `limit`/`offset`：分页参数       | 回收站 Meme 列表     |
+| `handlePurgeTrash(): int`                                      | 手动清空回收站                      | 无                               | 清理的记录数         |
 | `handleBatchDelete(ids: int64[]): BatchResult`                 | 批量软删除 Meme                     | `ids`：Meme ID 列表              | 批量操作结果         |
 | `handleBatchTags(memeIds: int64[], tagId: int64): BatchResult` | 批量为 Meme 添加标签                | `memeIds`：Meme ID 列表；`tagId` | 批量操作结果         |
+| `handleGetTags(): Tag[]`                                       | 获取全部标签                        | 无                               | 标签列表             |
+| `handleCreateTag(name, color): Tag`                            | 创建新标签                          | `name`/`color`                   | 新创建的 `Tag`       |
+| `handleDeleteTag(id: int64): bool`                             | 删除标签（级联移除关联）            | `id`：Tag ID                     | 操作成功返回 `true`  |
+| `handleAddMemeTag(memeId, tagId): bool`                        | 为 Meme 添加标签                    | `memeId`/`tagId`                 | 操作成功返回 `true`  |
+| `handleRemoveMemeTag(memeId, tagId): bool`                     | 移除 Meme 的标签                    | `memeId`/`tagId`                 | 操作成功返回 `true`  |
 | `handleExport(req: ExportRequest): ExportResult`               | 导出 Meme 到本地路径                | `req`：导出目标路径等参数        | 导出结果             |
 | `handleGenerateImage(prompt: string): GeneratedImage`          | 调用 AI 根据文本生成图片            | `prompt`：文字描述               | 生成的图像数据       |
 | `handleConfigUpdate(patch: RuntimeConfigPatch): bool`          | 运行时配置热更新                    | `patch`：变更字段                | 更新成功返回 `true`  |
@@ -547,12 +568,13 @@ WsEvent {
 **C++ 命令行参数（Electron 启动时传入）**
 
 ```
---port --storage-path --db-path --model-dir --log-dir --log-level
+--bind-address --port --auth-token --storage-path --db-path --model-dir --log-dir --log-level
 --log-retention-enabled --log-retention-days
 --api-key --api-base-url --vision-model --embedding-model --image-gen-model
 --api-timeout --api-retries
 --thumbnail-enabled --thumbnail-max-size
 --backup-enabled --backup-retention-days
+--max-queue-size
 ```
 
 > 📄 详细规划 → [docs/arch/config.md](./arch/config.md)

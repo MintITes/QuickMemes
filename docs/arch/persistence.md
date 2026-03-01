@@ -164,6 +164,39 @@ CREATE VIRTUAL TABLE vec_memes USING vec0(
 );
 ```
 
+### `memes_fts` 全文搜索表（FTS5 扩展）
+
+```sql
+-- FTS5 全文索引表，用于替代 LIKE '%keyword%' 查询，提升关键词搜索性能
+CREATE VIRTUAL TABLE memes_fts USING fts5(
+    name,
+    description,
+    ocr_text,
+    content=memes,
+    content_rowid=id
+);
+
+-- 同步触发器：插入 meme 后自动同步到 FTS5 索引
+CREATE TRIGGER memes_ai AFTER INSERT ON memes BEGIN
+    INSERT INTO memes_fts(rowid, name, description, ocr_text)
+        VALUES (new.id, new.name, new.description, new.ocr_text);
+END;
+
+-- 同步触发器：删除旧记录后重新插入新记录（更新时）
+CREATE TRIGGER memes_au AFTER UPDATE ON memes BEGIN
+    INSERT INTO memes_fts(memes_fts, rowid, name, description, ocr_text)
+        VALUES ('delete', old.id, old.name, old.description, old.ocr_text);
+    INSERT INTO memes_fts(rowid, name, description, ocr_text)
+        VALUES (new.id, new.name, new.description, new.ocr_text);
+END;
+
+-- 同步触发器：删除时从 FTS5 索引中移除
+CREATE TRIGGER memes_ad AFTER DELETE ON memes BEGIN
+    INSERT INTO memes_fts(memes_fts, rowid, name, description, ocr_text)
+        VALUES ('delete', old.id, old.name, old.description, old.ocr_text);
+END;
+```
+
 ### `schema_version` 表
 
 ```sql
@@ -235,7 +268,7 @@ initialize(dbPath: string): bool
 runMigrations(): void
 ```
 
-- **描述**：读取 `schema_version` 表中当前版本号（表不存在则视为版本 0），依次执行所有版本号大于当前版本的 `MigrationStep` SQL，执行完毕后更新 `schema_version`。每个迁移步骤在单独事务中执行，保证原子性。
+- **描述**：读取 `schema_version` 表中当前版本号（表不存在则视为版本 0），依次执行所有版本号大于当前版本的 `MigrationStep` SQL。**迁移前自动调用 `backupDatabase()` 创建数据库备份**，确保迁移失败时可恢复。每个迁移步骤在单独事务中执行，保证原子性。执行完毕后更新 `schema_version`。
 - **输入**：无
 - **输出**：无（失败时抛出 SQLite 异常）
 
@@ -251,8 +284,9 @@ insertMeme(meme: MemeEntry): int64
   1. 开启事务
   2. 向 `memes` 表插入 `meme` 对象各字段（`id` 自动生成，`created_at` / `updated_at` 取当前时间戳）
   3. 获取 `last_insert_rowid()` 作为新 ID
-  4. 若 `meme.embedding` 非空，调用 `upsertEmbedding(id, embedding)` 插入向量
-  5. 提交事务，返回新 ID
+  4. 提交事务，返回新 ID
+  
+  > 注意：embedding 向量的写入由 C++ 核心模块在 AI 分析完成后单独调用 `upsertEmbedding()` 完成，不在 `insertMeme` 流程内。
 - **输入**：`meme`：完整的 Meme 数据对象（`id` 字段忽略）
 - **输出**：新记录的自增 ID；哈希重复时抛出 `ERR_DUPLICATE`
 
@@ -292,7 +326,7 @@ buildSearchSql(query: SearchQuery): SearchSql
 ```
 
 - **描述**：根据 `SearchQuery` 中非空的过滤字段，动态组装 SQL 的 WHERE 子句、ORDER BY 和 LIMIT / OFFSET。处理规则：
-  - `keyword`：`LIKE '%{keyword}%'` 匹配 `name`、`description`、`ocr_text` 字段（OR 关系）
+  - `keyword`：使用 FTS5 全文搜索：`memes.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH ?)`，匹配 `name`、`description`、`ocr_text` 字段
   - `tagIds`：子查询 `EXISTS (SELECT 1 FROM meme_tags WHERE meme_id = memes.id AND tag_id IN (...))`
   - `source`：`source_name = ?`（按来源名称精确匹配）
   - `timeFrom` / `timeTo`：`created_at BETWEEN ? AND ?`
@@ -537,7 +571,8 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    INIT([initialize]) --> READ_VER[读取 schema_version 当前版本]
+    INIT([initialize]) --> BACKUP[自动创建数据库备份]
+    BACKUP --> READ_VER[读取 schema_version 当前版本]
     READ_VER --> CHECK{存在未应用迁移?}
     CHECK -->|否| DONE([迁移完成，数据库已是最新])
     CHECK -->|是| BEGIN[开启事务]
