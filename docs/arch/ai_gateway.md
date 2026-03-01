@@ -68,7 +68,7 @@ graph TD
         构建 Image Gen 请求
         解析图像 Base64"]
 
-        HTTP_CLI["cpp-httplib HTTPS 客户端
+        HTTP_CLI["Boost.Beast HTTPS 客户端
         ─────────────────────────
         统一请求构造
         重试逻辑
@@ -163,7 +163,7 @@ initialize(config: AiConfig): bool
 ```
 
 - **描述**：
-  1. 保存 `AiConfig` 配置，初始化 cpp-httplib HTTPS 客户端
+  1. 保存 `AiConfig` 配置，初始化 Boost.Beast HTTPS 客户端
   2. 调用 `isAvailable()` 发起一次轻量级 ping（向 `/models` 接口发送 GET 请求）
   3. 若可用，发起一次小文本 Embedding 请求探测并缓存 `EmbeddingDimension`
   4. 记录初始化结果（可用/不可用均不视为严重错误，系统可在 AI 不可用时降级运行）
@@ -237,13 +237,25 @@ isAvailable(): bool
 
 ---
 
+### `reconfigure`
+
+```
+reconfigure(config: AiConfig): void
+```
+
+- **描述**：在运行时替换 AI 网关的内部配置，用于 `PATCH /api/config` 热更新场景。接收新的 `AiConfig`，替换 API Key、基础 URL、模型名称、超时和重试策略等配置。若 `apiKey` 变为空，则标记 AI 不可用。调用后立即重新探测连通性（通过 `isAvailable()`）并更新 `EmbeddingDimension` 缓存（若 `embeddingModel` 变更）。
+- **输入**：`config`：新的 AI 配置对象
+- **输出**：无
+
+---
+
 ### `shutdown`
 
 ```
 shutdown(): void
 ```
 
-- **描述**：关闭 cpp-httplib HTTPS 客户端，释放 SSL 上下文和连接池资源。
+- **描述**：关闭 Boost.Beast HTTPS 客户端，释放 SSL 上下文和连接池资源。
 - **输入**：无
 - **输出**：无
 
@@ -256,7 +268,7 @@ sendRequest(req: HttpRequest): HttpResponse
 ```
 
 - **描述**：
-  1. 通过 cpp-httplib 发送 HTTPS 请求，设置 `Authorization: Bearer {apiKey}` 和 `Content-Type: application/json` 请求头
+  1. 通过 Boost.Beast 发送 HTTPS 请求，设置 `Authorization: Bearer {apiKey}` 和 `Content-Type: application/json` 请求头
   2. 等待响应，超时时间为 `AiConfig.timeoutSeconds`
   3. 若发生网络错误（连接失败、超时），按 `maxRetries` 进行指数退避重试
   4. 返回 `HttpResponse`（含状态码和响应体）
@@ -303,7 +315,7 @@ flowchart TD
 | 图像文件过大（Base64 编码超过模型限制，通常约 20MB） | 调用前缩放图像至 ≤1024px 长边后再 Base64 编码                                                                                                     |
 | `generateEmbedding` 输入文本超长                     | 截断至约 8000 字符（保留语义关键词部分），不抛出错误                                                                                              |
 | `generateImage` 调用时 AI 不可用                     | 直接返回 `ERR_AI_UNAVAILABLE`（此功能无降级意义，前端需展示错误）                                                                                 |
-| 多线程并发调用 AI 接口                               | cpp-httplib 客户端线程安全，并发请求同时发出，无串行化限制（受制于 API 限速）                                                                     |
+| 多线程并发调用 AI 接口                               | Boost.Beast 客户端基于 Boost.Asio 异步 I/O，并发请求同时发出，无串行化限制（受制于 API 限速）                                                     |
 | 连通性探测失败后 AI 重新上线                         | 每 60 秒自动重新探测 `isAvailable()`，恢复后自动重启 AI 功能                                                                                      |
 | Embedding 模型切换（`embeddingModel` 变更）          | 前端配置模块在检测到 `embeddingModel` 变更时弹出警告提示用户需重建向量索引；C++ 核心模块提供 `handleRebuildEmbeddings()` 异步重建所有 Meme 的向量 |
 | AI 不可用时的向量降级                                | 不生成 embedding 向量（设 `aiStatus = SKIPPED`），向量搜索自动跳过无向量的 Meme 条目                                                              |

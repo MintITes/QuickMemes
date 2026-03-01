@@ -75,7 +75,8 @@ graph TD
     handleConfigUpdate()"]
 
     ELECTRON_LAUNCH["Electron 主进程
-    launchBackend()"]
+    launchBackend()
+    generateAuthToken()"]
 
     FE_CONFIG -->|"拼接 CLI 参数"| ELECTRON_LAUNCH
     ELECTRON_LAUNCH -->|"spawn with args"| CPP_MAIN
@@ -91,10 +92,12 @@ graph TD
 ```json
 {
     "backendPort": 57321,
+    "bindAddress": "127.0.0.1",
     "storagePath": "{app_dir}/storage",
     "dbPath": "{app_dir}/data/quickmemes.db",
     "modelDir": "{app_dir}/models/ocr",
     "logDir": "{app_dir}/logs",
+    "maxQueueSize": 500,
     "ai": {
         "apiKey": "",
         "apiBaseUrl": "https://api.openai.com/v1",
@@ -131,10 +134,12 @@ graph TD
 | 字段路径               | 类型     | 默认值                         | 说明                                        |
 | ---------------------- | -------- | ------------------------------ | ------------------------------------------- |
 | `backendPort`          | `int`    | `57321`                        | C++ 后端 HTTP / WS 监听端口                 |
+| `bindAddress`          | `string` | `"127.0.0.1"`                  | HTTP / WS 绑定地址（仅回环，禁止外部访问）  |
 | `storagePath`          | `string` | `{app_dir}/storage`            | Meme 图像文件存储根目录                     |
 | `dbPath`               | `string` | `{app_dir}/data/quickmemes.db` | SQLite 数据库文件路径                       |
 | `modelDir`             | `string` | `{app_dir}/models/ocr`         | PaddleOCR 模型文件目录                      |
 | `logDir`               | `string` | `{app_dir}/logs`               | 日志文件输出目录                            |
+| `maxQueueSize`         | `int`    | `500`                          | 处理队列最大深度（满时新导入暂停）          |
 | `ai.apiKey`            | `string` | `""`                           | 云端 AI API 密钥（空字符串表示禁用 AI）     |
 | `ai.apiBaseUrl`        | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
 | `ai.visionModel`       | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
@@ -164,7 +169,9 @@ graph TD
 
 ```
 QuickMemes-backend \
+    --bind-address    <string>  \   # HTTP / WS 绑定地址（默认 127.0.0.1）
     --port            <int>     \   # HTTP / WS 监听端口
+    --auth-token      <string>  \   # 请求校验令牌（Electron 启动时生成的随机字符串）
     --storage-path    <string>  \   # Meme 文件存储根目录
     --db-path         <string>  \   # SQLite 数据库文件路径
     --model-dir       <string>  \   # OCR 模型文件目录
@@ -182,7 +189,8 @@ QuickMemes-backend \
     --thumbnail-enabled  <bool> \   # 缩略图开关
     --thumbnail-max-size <int>  \   # 缩略图最大边长
     --backup-enabled       <bool>  \   # 自动备份开关
-    --backup-retention-days <int>      # 备份保留天数
+    --backup-retention-days <int>  \   # 备份保留天数
+    --max-queue-size  <int>         # 处理队列最大深度（默认 500）
 ```
 
 ### 参数解析函数（C++ 核心模块内）
@@ -191,7 +199,7 @@ QuickMemes-backend \
 parseArgs(argc: int, argv: char*[]): ServerConfig
 ```
 
-- **描述**：在 `main()` 中调用，遍历 `argv` 按 `--key value` 格式解析所有参数，构建并返回 `ServerConfig` 对象。所有参数均为必传（Electron 启动时保证传入），缺失任意参数时输出错误并以非零退出码终止。
+- **描述**：在 `main()` 中调用，遍历 `argv` 按 `--key value` 格式解析所有参数，构建并返回 `ServerConfig` 对象。所有参数均为必传（Electron 启动时保证传入），缺失任意参数时输出错误并以非零退出码终止。其中 `--auth-token` 为启动时由 Electron 生成的随机 token，用于请求来源校验。
 - **输入**：`argc` / `argv`：标准 C 命令行参数
 - **输出**：完整填充的 `ServerConfig` 对象
 
@@ -243,7 +251,7 @@ setConfig(patch: Partial<AppConfig>): void
 
 - **描述**：深度合并 `patch` 到当前配置缓存，然后调用 `saveConfig` 持久化。流程如下：
   1. 将 `patch` 录入的字段分为三类：
-     - **需要重启**：`backendPort` / `storagePath` / `dbPath` / `modelDir`
+     - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `modelDir`
      - **可热更新**：`ai.*`、`log.minLevel`、`thumbnail.*`（可直接同步到 C++ 后端）
      - **仅前端生效**：`ui.*`（无需通知 C++ 后端）
   2. 调用 `saveConfig` 将全量配置写入 `config.json`
@@ -291,9 +299,9 @@ resetToDefaults(): AppConfig
 buildBackendArgs(config: AppConfig): string[]
 ```
 
-- **描述**：根据当前 `AppConfig` 拼接 C++ 后端启动所需的完整命令行参数数组，供 `launchBackend()` 传入 `child_process.spawn`。
+- **描述**：根据当前 `AppConfig` 拼接 C++ 后端启动所需的完整命令行参数数组，同时生成随机 Auth Token 并加入参数，供 `launchBackend()` 传入 `child_process.spawn`。
 - **输入**：`config`：当前配置
-- **输出**：命令行参数字符串数组，如 `["--port", "57321", "--storage-path", "/app/storage", ...]`
+- **输出**：命令行参数字符串数组，如 `["--bind-address", "127.0.0.1", "--port", "57321", "--auth-token", "a3f8c...", "--storage-path", "/app/storage", ...]`
 
 ---
 
@@ -329,8 +337,8 @@ sequenceDiagram
         FS-->>Config: 解析 JSON 到 AppConfig
         Electron->>Electron: validateConfig()
     end
-    Electron->>Electron: buildBackendArgs(config)
-    Electron->>CPP: spawn backend --port 57321 --storage-path ... 
+    Electron->>Electron: buildBackendArgs(config) + generateAuthToken()
+    Electron->>CPP: spawn backend --bind-address 127.0.0.1 --port 57321 --auth-token <random> ...
     CPP->>CPP: parseArgs() 构建 ServerConfig
     CPP->>CPP: startServer(config)
 ```
@@ -349,7 +357,7 @@ sequenceDiagram
     Main->>Main: 深度合并 patch 到配置缓存
     Main->>Main: saveConfig() 写入 config.json
     Main->>Main: 分析 patch 字段分类
-    alt 包含需重启字段（port / storagePath 等）
+    alt 包含需重启字段（port / bindAddress / storagePath 等）
         Main->>IPC: 返回 { needsRestart: true }
         IPC->>React: 显示重启提示
     else 包含可热更新字段（ai.* / log.minLevel）
@@ -373,7 +381,7 @@ sequenceDiagram
 | 配置校验失败（如端口非法）                                         | `validateConfig` 返回错误列表，设置页面显示具体错误，不允许保存                                                |
 | C++ 启动参数缺失任意必传项                                         | `main()` 中 `parseArgs` 检测到缺失，立即输出错误信息并以退出码 `1` 终止，Electron 捕获到非零退出码弹出错误提示 |
 | `config.json` 写入失败（磁盘满）                                   | `saveConfig` 捕获异常，记录错误日志，内存缓存仍为最新值（下次启动可能回退）                                    |
-| 用户修改了 `backendPort` 等需重启字段                              | 设置页面显示"修改将在重启后生效"提示，当前会话不受影响                                                         |
+| 用户修改了 `backendPort` / `bindAddress` 等需重启字段              | 设置页面显示"修改将在重启后生效"提示，当前会话不受影响                                                         |
 | `storagePath` 或 `dbPath` 目录不存在                               | C++ 启动时 `startServer` 尝试创建目录，创建失败则记录 FATAL 并退出                                             |
 | `syncToBackend` 请求失败（后端未运行或网络错误）                   | 记录警告日志，不向用户报错；config.json 已写入，等到下次重启后配置自然生效                                     |
 | `handleConfigUpdate` 收到非法字段值（如 `logMinLevel: "VERBOSE"`） | 返回 `ERR_INVALID_PARAMS`，Electron 记录日志，其余合法字段正常应用                                             |

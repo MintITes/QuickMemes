@@ -126,10 +126,12 @@ SaveDialogOptions {
 ```
 AppConfig {
     backendPort  : int      // C++ 后端监听端口（默认 57321）
+    bindAddress  : string   // HTTP / WS 绑定地址（默认 "127.0.0.1"）
     storagePath  : string   // Meme 文件存储根目录
     dbPath       : string   // SQLite 数据库文件路径
     modelDir     : string   // PaddleOCR 模型文件目录
     logDir       : string   // 日志文件输出目录
+    maxQueueSize : int      // 处理队列最大深度（默认 500）
 
     ai : {
         apiKey         : string  // AI API 密钥（空字符串表示禁用 AI）
