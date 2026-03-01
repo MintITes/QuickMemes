@@ -1,6 +1,6 @@
 # 通信协议模块
 
-> **所属层级**：通信层（Boost.Beast HTTP REST + WebSocket）  
+> **所属层级**：通信层（cpp-httplib HTTP REST + WebSocket++）  
 > **对应索引**：[Arch.md - 通信协议模块](../Arch.md#通信协议模块)
 
 ---
@@ -51,8 +51,7 @@ graph LR
         ─────────────────
         路径: ws://localhost:{port}/ws
         帧格式: JSON 文本帧
-        協议: WsEvent { event, payload }
-        认证: 连接时携带 Auth Token"]
+        協議: WsEvent { event, payload }"]
     end
 
     CORE["C++ 核心模块
@@ -193,6 +192,19 @@ HealthStatus {
 }
 ```
 
+### `ShareOptions` — 分享选项（🚧 占位，待完善）
+
+```
+// 分享链接功能尚未完善，以下定义为占位预留
+ShareOptions {
+    // 待定义
+}
+
+ShareResult {
+    // 待定义
+}
+```
+
 ### `RuntimeConfigPatch` — 运行时配置内容更新（仅含可热更新字段）
 
 ```
@@ -217,8 +229,7 @@ RuntimeConfigPatch {
 
 > **基础 URL**：`http://localhost:{port}/api`  
 > **请求格式**：`Content-Type: application/json`  
-> **响应格式**：`ApiResponse<T>` 统一包装  
-> **认证方式**：所有请求必须携带 `Authorization: Bearer <token>` 请求头（token 由 Electron 启动时随机生成并通过命令行参数传入 C++ 后端）
+> **响应格式**：`ApiResponse<T>` 统一包装
 
 ---
 
@@ -290,31 +301,6 @@ RuntimeConfigPatch {
 - **路径参数**：`id`：Meme ID（`int64`）
 - **成功响应**：`ApiResponse<null>`
 - **可能错误**：`ERR_NOT_FOUND`
-
----
-
-### `POST /api/meme/:id/restore` — 从回收站恢复 Meme
-
-- **描述**：将已软删除的 Meme 从回收站恢复（将 `deleted_at` 重置为 0）
-- **路径参数**：`id`：Meme ID（`int64`）
-- **成功响应**：`ApiResponse<MemeEntry>` — 恢复后的完整 Meme 数据
-- **可能错误**：`ERR_NOT_FOUND`（Meme 不存在或未被软删除）
-
----
-
-### `GET /api/memes/trash` — 获取回收站 Meme 列表
-
-- **描述**：返回所有已软删除的 Meme 列表，支持分页
-- **查询参数**：`limit`（默认 50）、`offset`（默认 0）
-- **成功响应**：`ApiResponse<SearchResult>` — 回收站中的 Meme 列表
-
----
-
-### `DELETE /api/memes/trash/purge` — 手动清空回收站
-
-- **描述**：彻底删除回收站中所有已软删除的 Meme（删除数据库记录和本地文件）
-- **请求体**：无
-- **成功响应**：`ApiResponse<{ purged: int32 }>` — 清理的记录数量
 
 ---
 
@@ -407,6 +393,15 @@ RuntimeConfigPatch {
 
 ---
 
+### `POST /api/share/link` — 生成分享链接（🚧 占位，待完善）
+
+- **描述**：分享链接功能尚未完善，当前为占位端点
+- **请求体**：待定义
+- **成功响应**：待定义
+- **可能错误**：待定义
+
+---
+
 ### `PATCH /api/config` — 运行时配置热更新
 
 - **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（AI 配置、日志等级）
@@ -420,8 +415,7 @@ RuntimeConfigPatch {
 
 > **连接地址**：`ws://localhost:{port}/ws`  
 > **帧格式**：JSON 文本帧，结构为 `WsEvent { event: string, payload: any }`  
-> **方向**：主要为 C++ 后端 → 前端单向推送；前端仅在收到 `ping` 时回复 `pong` 帧  
-> **认证**：WebSocket 连接时通过查询参数携带 token：`ws://localhost:{port}/ws?token=<token>`
+> **方向**：主要为 C++ 后端 → 前端单向推送；前端仅在收到 `ping` 时回复 `pong` 帧
 
 ---
 
@@ -514,28 +508,6 @@ payload: {}  // 空对象
 
 ---
 
-### `tag:created` — 新标签已创建
-
-```
-payload: Tag  // 完整的新 Tag 对象
-```
-
-> 创建新标签时推送，前端收到后自动更新 TagStore。
-
----
-
-### `tag:deleted` — 标签已删除
-
-```
-payload {
-    id : int64  // 被删除的 Tag ID
-}
-```
-
-> 删除标签时推送，前端收到后自动从 TagStore 移除该标签，并刷新关联了该标签的 Meme 显示。
-
----
-
 ## 处理流程
 
 ### HTTP 请求完整处理链路
@@ -593,5 +565,3 @@ sequenceDiagram
 | 大文件上传请求体超限          | 后端限制请求体 ≤ 100MB（文件路径传递，非文件内容上传，实际不应触发）      |
 | WebSocket 心跳超时            | 连续 60 秒未收到 pong，后端移除该连接；前端检测断连后触发指数退避重连     |
 | 请求已软删除的 Meme           | `GET /api/meme/:id` 返回已软删除的 Meme（含 `deletedAt`），搜索默认排除   |
-| 请求缺少 Auth Token           | 返回 HTTP 401，`ApiResponse { success: false, error: "Unauthorized" }`    |
-| Auth Token 不匹配             | 返回 HTTP 403，`ApiResponse { success: false, error: "Forbidden" }`       |

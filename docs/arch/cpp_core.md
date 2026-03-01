@@ -19,12 +19,13 @@
 ## 模块职责与边界
 
 **负责的事情：**
-- 启动和管理本地 HTTP 服务器及 WebSocket 服务器（均基于 Boost.Beast / Boost.Asio）
-- 将 HTTP 请求路由到对应处理函数，校验请求携带的 Auth Token
+- 启动和管理本地 HTTP 服务器（cpp-httplib）及 WebSocket 服务器（WebSocket++）
+- 将 HTTP 请求路由到对应处理函数
 - 协调 OCR、AI 网关、持久化三个子模块的调用顺序与数据流
 - 管理导入任务的异步执行（多线程任务队列）
 - 文件 I/O：图像文件的复制、移动、哈希计算、MIME 类型识别、尺寸读取
-- 通过 WebSocket 向前端推送异步处理结果
+- 将异步处理结果通过 WebSocket 推送给前端
+- 生成分享短链接与二维码
 
 **不负责的事情：**
 - OCR 推理实现（由 OCR 模块负责）
@@ -59,16 +60,8 @@ graph TD
         handleMemeThumbnail()
         handleMemeUpdate()
         handleMemeDelete()
-        handleMemeRestore()
-        handleGetTrash()
-        handlePurgeTrash()
         handleBatchDelete()
         handleBatchTags()
-        handleGetTags()
-        handleCreateTag()
-        handleDeleteTag()
-        handleAddMemeTag()
-        handleRemoveMemeTag()
         handleExport()
         handleGenerateImage()
         handleConfigUpdate()
@@ -141,7 +134,6 @@ TaskQueue {
     tasks          : map<string, ImportTask>    // taskId -> ImportTask
     importPool     : ThreadPool                  // 导入线程池（默认 4 线程）
     processingPool : ThreadPool                  // OCR/AI 异步处理线程池（默认 2 线程）
-    maxQueueSize   : int                         // 处理队列最大深度（默认 500，满时新导入暂停入队）
     mutex          : mutex                       // 保护 tasks map 的互斥锁
 }
 ```
@@ -150,9 +142,7 @@ TaskQueue {
 
 ```
 ServerConfig {
-    bindAddress       : string  // HTTP 和 WS 绑定地址（默认 "127.0.0.1"，仅回环）
     port              : int     // HTTP 和 WS 监听端口
-    authToken         : string  // 请求校验令牌（由 Electron 启动时生成并传入）
     storagePath       : string  // Meme 文件存储根目录
     dbPath            : string  // SQLite 数据库文件路径
     modelDir          : string  // OCR 模型文件目录
@@ -160,7 +150,6 @@ ServerConfig {
     logLevel          : string  // 最低日志输出等级
     aiConfig          : AiConfig // AI 网关配置
     workerCount       : int     // 导入任务线程池线程数（默认 4）
-    maxQueueSize      : int     // 处理队列最大深度（默认 500）
     thumbnailEnabled  : bool    // 是否启用缩略图生成（默认 true）
     thumbnailMaxSize  : int     // 缩略图最大边长像素（默认 300）
     backupEnabled     : bool    // 是否启用自动备份（默认 true）
@@ -180,7 +169,6 @@ AiConfig {
     embeddingModel: string  // 向量化模型名称
     imageGenModel : string  // 图像生成模型名称
     timeoutSeconds: int     // 请求超时秒数（默认 30）
-    maxRetries    : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
 }
 ```
 
@@ -194,7 +182,7 @@ AiConfig {
 parseArgs(argc: int, argv: char*[]): ServerConfig
 ```
 
-- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--model-dir`、`--log-dir`、`--log-level`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--image-gen-model`、`--api-timeout`、`--api-retries`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
+- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--port`、`--storage-path`、`--db-path`、`--model-dir`、`--log-dir`、`--log-level`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--image-gen-model`、`--api-timeout`、`--api-retries`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
 - **输入**：`argc` / `argv`：标准 C 命令行参数
 - **输出**：完整填充的 `ServerConfig` 对象
 
@@ -208,13 +196,12 @@ startServer(config: ServerConfig): bool
 
 - **描述**：
   1. 调用 `Logger::initialize(config.logDir, config.logLevel)` 完成日志模块初始化
-  2. 根据配置初始化并启动 HTTP 服务器（绑定 `config.bindAddress`）与 WebSocket 服务器（Boost.Beast），注册所有 `/api/*` 路由，所有请求经过 `authToken` 校验中间件
+  2. 根据配置初始化并启动 HTTP 服务器与 WebSocket 服务器，注册所有 `/api/*` 路由
   3. 完成 OCR、AI 网关、持久化三个子模块的初始化
   4. 创建导入线程池和 OCR/AI 异步处理线程池
   5. 若启用备份，调用 `Persistence.backupDatabase()` 创建启动备份，并检测数据库完整性
   6. 若检测到数据库损坏，自动从最新备份恢复
-  7. 数据库 Schema 迁移前自动创建备份（通过调用 `Persistence.backupDatabase()`），确保迁移失败时可恢复
-  8. 启动定时任务：① 每 30 秒 WebSocket 心跳 ② 每日清理过期软删除记录 ③ 每日清理过期备份和日志
+  7. 启动定时任务：① 每 30 秒 WebSocket 心跳 ② 每日清理过期软删除记录 ③ 每日清理过期备份和日志
 - **输入**：`config`：完整服务器配置
 - **输出**：各子系统全部启动成功返回 `true`；任意子系统初始化失败返回 `false` 并记录日志
 
@@ -241,9 +228,8 @@ handleImport(req: ImportRequest): ImportTask
 - **描述**：
   1. 校验 `req.inputs` 非空
   2. 生成唯一 `taskId`（UUID v4），创建 `ImportTask`，状态设为 `"PENDING"`
-  3. 检查 `TaskQueue.processingPool` 队列深度是否已达 `maxQueueSize`，若已满则返回错误提示“处理队列已满，请稍候”
-  4. 将任务提交到 `TaskQueue.importPool`，异步执行 `runImportPipeline()`
-  5. 立即返回初始 `ImportTask` 给前端
+  3. 将任务提交到 `TaskQueue.importPool`，异步执行 `runImportPipeline()`
+  4. 立即返回初始 `ImportTask` 给前端
 - **输入**：`req`：导入请求参数
 - **输出**：创建的 `ImportTask`（此时状态为 `"PENDING"`）
 
@@ -259,10 +245,11 @@ runImportPipeline(pipeline: ImportPipeline): void
   1. **DOWNLOAD**：若 `source == "URL"` 则下载到临时目录；其余来源直接使用原始路径
   2. **HASH**：计算文件 SHA-256 哈希，检查数据库是否已存在该 hash（去重）
   3. **COPY**：复制文件到 `storagePath/{yyyy-MM}/{hash}.{ext}` 永久存储路径
-  4. **INSERT**：构建 `MemeEntry`（`ocrStatus=PENDING`，`aiStatus=PENDING`），调用 `Persistence.insertMeme()`
-  5. **DONE**：通过 `pushEvent("meme:added", memeEntry)` 通知前端
-  6. 将该 Meme 的 ID 提交到 `TaskQueue.processingPool`，异步执行 `runProcessingPipeline()`
-  7. 每步完成后更新 `ImportTask.processed`，推送 `task:progress`
+  4. 若启用缩略图，调用 `generateThumbnail()` 生成缩略图到 `storagePath/thumbnails/{hash}.webp`
+  5. **INSERT**：构建 `MemeEntry`（`ocrStatus=PENDING`，`aiStatus=PENDING`），调用 `Persistence.insertMeme()`
+  6. **DONE**：通过 `pushEvent("meme:added", memeEntry)` 通知前端
+  7. 将该 Meme 的 ID 提交到 `TaskQueue.processingPool`，异步执行 `runProcessingPipeline()`
+  8. 每步完成后更新 `ImportTask.processed`，推送 `task:progress`
 - **输入**：`pipeline`：管线状态对象
 - **输出**：无（通过 WebSocket 推送结果）
 
@@ -299,12 +286,9 @@ handleSearch(query: SearchQuery): SearchResult
 - **描述**：
   1. 校验并规范化 `SearchQuery` 参数（limit 限制 ≤200，offset ≥0）
   2. 默认过滤已软删除的 Meme（`deleted_at == 0`）
-  3. 若 `query.useVector == true` 且 `query.keyword` 非空：
-     - 调用 `AiGateway.generateEmbedding(keyword)` 生成查询向量
-     - 同时执行 `Persistence.vectorSearch()` 和 `Persistence.searchMemes(query)` 获取两路结果
-     - 使用加权融合排序：`finalScore = vectorWeight × vectorSimilarity + (1 - vectorWeight) × textRelevance`，其中 `vectorWeight` 默认 0.7
-  4. 若 `useVector == false`，调用 `Persistence.searchMemes(query)` 执行普通搜索（使用 FTS5 全文索引），`similarityScore` 设为 `-1`
-  5. 包装为 `SearchResult` 返回
+  3. 若 `query.useVector == true` 且 `query.keyword` 非空，调用 `AiGateway.generateEmbedding(keyword)` 生成查询向量，再调用 `Persistence.vectorSearch()`，结果包含 `similarityScore`
+  4. 否则调用 `Persistence.searchMemes(query)` 执行普通搜索，`similarityScore` 设为 `-1`
+  5. 合并去重结果，包装为 `SearchResult` 返回
 - **输入**：`query`：搜索参数
 - **输出**：`SearchResult`（含 `items` 列表和 `total`）
 
@@ -388,45 +372,9 @@ handleMemeFile(id: int64): BinaryStream
 handleMemeThumbnail(id: int64): BinaryStream
 ```
 
-- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.webp` 缩略图文件。若存在则返回缩略图；若不存在且缩略图功能已启用，则**即时生成缩略图并缓存**，然后返回；若缩略图功能未启用，回退返回原始图像。
+- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.webp` 缩略图文件。若存在则返回缩略图；若不存在或缩略图功能未启用，回退返回原始图像。
 - **输入**：`id`：Meme ID
 - **输出**：缩略图或原始图像二进制流
-
----
-
-### `handleMemeRestore`
-
-```
-handleMemeRestore(id: int64): MemeEntry
-```
-
-- **描述**：将已软删除的 Meme 从回收站恢复（调用 `Persistence.restoreMeme(id)` 将 `deleted_at` 重置为 0）。通过 `pushEvent("meme:added", memeEntry)` 广播恢复通知。
-- **输入**：`id`：Meme ID
-- **输出**：恢复后的完整 `MemeEntry`；ID 不存在或未被软删除时抛出 `ERR_NOT_FOUND`
-
----
-
-### `handleGetTrash`
-
-```
-handleGetTrash(limit: int32, offset: int32): SearchResult
-```
-
-- **描述**：查询 `memes` 表中 `deleted_at > 0` 的记录，按 `deleted_at` 降序排列（最近删除的在前），支持分页。
-- **输入**：`limit`：每页数量（默认 50）；`offset`：偏移量
-- **输出**：`SearchResult`（含回收站中的 Meme 列表和总数）
-
----
-
-### `handlePurgeTrash`
-
-```
-handlePurgeTrash(): int
-```
-
-- **描述**：彻底删除回收站中所有已软删除的 Meme（调用 `Persistence.deleteMeme` 删除数据库记录，同时删除本地文件和缩略图）。通过 `pushEvent("meme:deleted", {id})` 逐个广播通知。
-- **输入**：无
-- **输出**：清理的记录数量
 
 ---
 
@@ -475,66 +423,6 @@ handleGenerateImage(prompt: string): GeneratedImage
 - **描述**：校验 `prompt` 非空，调用 `AiGateway.generateImage(prompt)` 生成图像并返回结果。
 - **输入**：`prompt`：文字描述
 - **输出**：`GeneratedImage`（含 Base64 编码图像数据）
-
----
-
-### `handleGetTags`
-
-```
-handleGetTags(): Tag[]
-```
-
-- **描述**：调用 `Persistence.getTags()` 获取全部标签列表。
-- **输入**：无
-- **输出**：`Tag[]` 全量标签列表
-
----
-
-### `handleCreateTag`
-
-```
-handleCreateTag(name: string, color: string): Tag
-```
-
-- **描述**：校验 `name` 非空，调用 `Persistence.insertTag(tag)` 创建新标签，通过 `pushEvent("tag:created", tag)` 广播通知。
-- **输入**：`name`：标签名称；`color`：显示颜色 HEX（可为空）
-- **输出**：新创建的 `Tag` 对象；名称已存在时抛出 `ERR_DUPLICATE`
-
----
-
-### `handleDeleteTag`
-
-```
-handleDeleteTag(id: int64): bool
-```
-
-- **描述**：删除指定标签，通过数据库外键 `ON DELETE CASCADE` 自动移除所有 Meme 与该标签的关联。通过 `pushEvent("tag:deleted", {id})` 广播通知。
-- **输入**：`id`：Tag ID
-- **输出**：操作成功返回 `true`；ID 不存在抛出 `ERR_NOT_FOUND`
-
----
-
-### `handleAddMemeTag`
-
-```
-handleAddMemeTag(memeId: int64, tagId: int64): bool
-```
-
-- **描述**：建立 Meme 与标签的关联，调用 `Persistence.addMemeTag(memeId, tagId)`。通过 `pushEvent("meme:updated", memeEntry)` 广播更新。
-- **输入**：`memeId`：Meme ID；`tagId`：Tag ID
-- **输出**：操作成功返回 `true`；Meme 或 Tag 不存在抛出 `ERR_NOT_FOUND`
-
----
-
-### `handleRemoveMemeTag`
-
-```
-handleRemoveMemeTag(memeId: int64, tagId: int64): bool
-```
-
-- **描述**：移除 Meme 与标签的关联，调用 `Persistence.removeMemeTag(memeId, tagId)`。通过 `pushEvent("meme:updated", memeEntry)` 广播更新。
-- **输入**：`memeId`：Meme ID；`tagId`：Tag ID
-- **输出**：操作成功返回 `true`；关联不存在返回 `false`
 
 ---
 
@@ -633,11 +521,12 @@ flowchart TD
     HASH --> DEDUP{数据库已有该 hash?}
     DEDUP -->|是| SKIP([标记为重复, 跳过])
     DEDUP -->|否| COPY[复制文件到存储目录]
-    COPY --> INSERT["insertMeme\nocrStatus=PENDING\naiStatus=PENDING"]
+    COPY --> THUMB{缩略图启用?}
+    THUMB -->|是| GEN_THUMB[生成缩略图 WebP]
+    THUMB -->|否| INSERT
+    GEN_THUMB --> INSERT["insertMeme\nocrStatus=PENDING\naiStatus=PENDING"]
     INSERT --> PUSH_ADDED[pushEvent meme:added]
-    PUSH_ADDED --> QUEUE_CHECK{processingPool\n队列未满?}
-    QUEUE_CHECK -->|是| QUEUE_PROC[提交到 processingPool]
-    QUEUE_CHECK -->|否| WAIT[等待队列空位] --> QUEUE_PROC
+    PUSH_ADDED --> QUEUE_PROC[提交到 processingPool]
     QUEUE_PROC --> UPDATE_PROGRESS[pushEvent task:progress]
 
     QUEUE_PROC --> PROC["阶段二：异步处理（处理线程）"]
@@ -671,7 +560,3 @@ flowchart TD
 | 缩略图生成失败                              | 记录警告日志，不影响导入流程，前端回退使用原图                                    |
 | 数据库损坏检测                              | `startServer` 时执行 `PRAGMA integrity_check`，损坏则自动从最新备份恢复           |
 | 软删除 Meme 定时清理                        | 每日执行 `purgeDeletedMemes()`，彻底删除超过保留天数的记录和文件                  |
-| 处理队列已满（达到 maxQueueSize）           | 返回错误提示“处理队列已满，请稍候”，前端显示等待提示                              |
-| 数据库 Schema 迁移前                        | 自动创建数据库备份，确保迁移失败时可恢复                                          |
-| 请求缺少或错误的 Auth Token                 | 返回 HTTP 401/403，拒绝处理                                                       |
-```
