@@ -15,7 +15,7 @@
 | **持久化**   | `SQLite3` + `SQLiteCpp`       | Tags、时间戳与索引等内容存储         | 开源 (PD, MIT)      | [sqlite.org](https://www.sqlite.org)                   |
 | **向量查询** | `sqlite-vec`                  | 用于词向量模糊查询                   | 开源 (MIT)          | [sqlite-vec](https://github.com/asg017/sqlite-vec)     |
 | **文字识别** | `PaddleOCR PP-OCRv5`          | OCR 文字识别                         | 开源 (Apache-2.0)   | [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) |
-| **云端AI**   | `任意第三方 LLM 接口`         | AI 打标签和 AI 表情包帮选 词向量转换 | 闭源 (商用网络 API) | -                                                      |
+| **云端AI**   | `第三方 LLM 接口`             | AI 打标签和 AI 表情包帮选 词向量转换 | 闭源 (商用网络 API) | -                                                      |
 
 ---
 
@@ -26,7 +26,7 @@
 ```mermaid
 graph TD
     %% 前置宿主栈
-    subgraph Host_Layer [Frontend: UI Shell & Hardware Binding]
+    subgraph Host_Layer [Frontend: UI & Key Binding]
         REACT[TypeScript / React / Tailwind]
         ELECTRON_MAIN[Electron Main Process]
         REACT <-->|IPC/ContextBridge| ELECTRON_MAIN
@@ -44,9 +44,9 @@ graph TD
     REACT <--> WSS
 
     %% 高并发 C++ 计算中枢
-    subgraph Logic_Layer ["Backend: C++ Core Process (C++23)"]
-        CPP_CORE[C++ Routing & Core Engine]
-        OCR_INFER["Local Inference: PaddleOCR (CPU)"]
+    subgraph Logic_Layer ["Backend: C++ Core"]
+        CPP_CORE[C++ Core]
+        OCR_INFER["OCR: PaddleOCR (CPU)"]
         AI_GATEWAY[Cloud Multimodal Client]
         
         CPP_CORE --- OCR_INFER
