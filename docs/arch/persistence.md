@@ -114,14 +114,18 @@ CREATE TABLE memes (
     name        TEXT    NOT NULL DEFAULT '',
     description TEXT    NOT NULL DEFAULT '',
     ocr_text    TEXT    NOT NULL DEFAULT '',
+    ocr_status  TEXT    NOT NULL DEFAULT 'PENDING',  -- PENDING/PROCESSING/DONE/FAILED/SKIPPED
+    ai_status   TEXT    NOT NULL DEFAULT 'PENDING',  -- PENDING/PROCESSING/DONE/FAILED/SKIPPED
     created_at  INTEGER NOT NULL,  -- Unix 时间戳（毫秒）
-    updated_at  INTEGER NOT NULL
+    updated_at  INTEGER NOT NULL,
+    deleted_at  INTEGER NOT NULL DEFAULT 0  -- 软删除时间戳（0 表示未删除）
 );
 
 CREATE INDEX idx_memes_file_hash ON memes(file_hash);
 CREATE INDEX idx_memes_created_at ON memes(created_at);
 CREATE INDEX idx_memes_mime_type ON memes(mime_type);
 CREATE INDEX idx_memes_name ON memes(name);
+CREATE INDEX idx_memes_deleted_at ON memes(deleted_at);
 ```
 
 ### `tags` 表
@@ -290,6 +294,7 @@ buildSearchSql(query: SearchQuery): SearchSql
 - **描述**：根据 `SearchQuery` 中非空的过滤字段，动态组装 SQL 的 WHERE 子句、ORDER BY 和 LIMIT / OFFSET。处理规则：
   - `keyword`：`LIKE '%{keyword}%'` 匹配 `name`、`description`、`ocr_text` 字段（OR 关系）
   - `tagIds`：子查询 `EXISTS (SELECT 1 FROM meme_tags WHERE meme_id = memes.id AND tag_id IN (...))`
+  - `source`：`source_name = ?`（按来源名称精确匹配）
   - `timeFrom` / `timeTo`：`created_at BETWEEN ? AND ?`
   - `formats`：`mime_type IN (?,...)`
   - `sizeMin` / `sizeMax`：`file_size BETWEEN ? AND ?`
@@ -345,9 +350,45 @@ updateMeme(id: int64, patch: MemePatch): bool
 deleteMeme(id: int64): bool
 ```
 
-- **描述**：删除 `memes` 表中 `id` 对应的记录。由于 `meme_tags` 表配置了 `ON DELETE CASCADE`，关联的标签关系自动删除。同时从 `vec_memes` 中删除对应向量记录。
+- **描述**：彻底删除 `memes` 表中 `id` 对应的记录。由于 `meme_tags` 表配置了 `ON DELETE CASCADE`，关联的标签关系自动删除。同时从 `vec_memes` 中删除对应向量记录。仅由内部清理任务调用。
 - **输入**：`id`：Meme ID
 - **输出**：删除成功返回 `true`；ID 不存在返回 `false`
+
+---
+
+### `softDeleteMeme`
+
+```
+softDeleteMeme(id: int64): bool
+```
+
+- **描述**：将 `memes` 表中 `id` 对应记录的 `deleted_at` 设置为当前时间戳，实现软删除。
+- **输入**：`id`：Meme ID
+- **输出**：操作成功返回 `true`；ID 不存在返回 `false`
+
+---
+
+### `restoreMeme`
+
+```
+restoreMeme(id: int64): bool
+```
+
+- **描述**：将已软删除的 Meme 的 `deleted_at` 重置为 `0`，从回收站恢复。
+- **输入**：`id`：Meme ID
+- **输出**：恢复成功返回 `true`
+
+---
+
+### `purgeDeletedMemes`
+
+```
+purgeDeletedMemes(olderThanDays: int): int
+```
+
+- **描述**：查询 `deleted_at > 0` 且 `deleted_at < now - olderThanDays` 的记录，调用 `deleteMeme` 彻底删除并返回清理数量。
+- **输入**：`olderThanDays`：超过多少天的软删除记录应被彻底清理
+- **输出**：清理的记录数量
 
 ---
 
@@ -423,6 +464,42 @@ shutdown(): void
 
 ---
 
+### `backupDatabase`
+
+```
+backupDatabase(): string
+```
+
+- **描述**：使用 SQLite `VACUUM INTO` 创建数据库备份文件，保存到 `{dbPath}.bak.{timestamp}`。同时删除超过保留天数的旧备份文件。
+- **输入**：无
+- **输出**：备份文件绝对路径
+
+---
+
+### `restoreDatabase`
+
+```
+restoreDatabase(backupPath: string): bool
+```
+
+- **描述**：关闭当前数据库连接，将备份文件复制覆盖当前数据库文件，重新打开连接。用于数据库损坏时的自动恢复。
+- **输入**：`backupPath`：备份文件绝对路径
+- **输出**：恢复成功返回 `true`
+
+---
+
+### `checkIntegrity`
+
+```
+checkIntegrity(): bool
+```
+
+- **描述**：执行 `PRAGMA integrity_check` 检测数据库是否损坏。
+- **输入**：无
+- **输出**：数据库完整返回 `true`；损坏返回 `false`
+
+---
+
 ## 处理流程
 
 ### 搜索查询完整流程
@@ -452,7 +529,7 @@ flowchart TD
     REGEX_CHECK -->|否| EXEC
     REGEX_CLAUSE --> EXEC
 
-    EXEC[执行 SQL + 参数绑定] --> MAP[映射结果集为 MemeEntry[]]
+    EXEC[执行 SQL + 参数绑定] --> MAP["映射结果集为 MemeEntry[]"]
     MAP --> RETURN([返回结果列表])
 ```
 
@@ -476,15 +553,19 @@ flowchart TD
 
 ## 错误处理与边界情况
 
-| 场景                                          | 处理策略                                                                                       |
-| --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 数据库文件路径目录不存在                      | `initialize` 失败，返回 `false`，启动终止                                                      |
-| sqlite-vec 扩展文件不存在或版本不兼容         | `initialize` 失败，记录错误日志，启动终止                                                      |
-| `insertMeme` 时文件哈希已存在                 | 捕获 UNIQUE 约束违反异常，抛出 `ERR_DUPLICATE` 错误                                            |
-| `searchMemes` 中 `regex` 参数为非法正则表达式 | 在 SQLite 自定义 `regexp()` 函数内捕获编译异常，返回永假（即该条件不匹配任何记录），并记录警告 |
-| `updateMeme` 中 `patch` 所有字段均为空        | 不执行任何 SQL，直接返回 `true`（空更新视为成功）                                              |
-| 多线程并发写操作（如批量导入）                | WAL 模式下，SQLite 允许多个并发读 + 单个写，写操作由 SQLiteCpp 内部序列化，无需额外锁          |
-| 向量维度与建表时声明维度不一致                | sqlite-vec 在插入时自动检查，维度不符时抛出异常；初始化阶段通过探测 API 确保维度一致           |
-| 数据库磁盘空间不足                            | SQLite 写操作返回 `SQLITE_FULL` 错误，转换为 `ERR_IO` 错误向上传递                             |
-| `deleteMeme` 时 `vec_memes` 中无对应向量      | 静默忽略（该 Meme 可能从未生成向量，正常情况）                                                 |
-| `Schema` 迁移失败（SQL 语法错误等）           | 回滚当前迁移步骤事务，记录失败版本和错误详情，阻止应用启动                                     |
+| 场景                                          | 处理策略                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------- |
+| 数据库文件路径目录不存在                      | `initialize` 失败，返回 `false`，启动终止                                 |
+| sqlite-vec 扩展文件不存在或版本不兼容         | `initialize` 失败，记录错误日志，启动终止                                 |
+| `insertMeme` 时文件哈希已存在                 | 捕获 UNIQUE 约束违反异常，抛出 `ERR_DUPLICATE` 错误                       |
+| `searchMemes` 中 `regex` 参数为非法正则表达式 | 在 SQLite 自定义 `regexp()` 函数内捕获编译异常，返回永假，并记录警告      |
+| `searchMemes` 默认过滤已软删除记录            | `buildSearchSql` 自动添加 `deleted_at = 0` 条件                           |
+| `updateMeme` 中 `patch` 所有字段均为空        | 不执行任何 SQL，直接返回 `true`（空更新视为成功）                         |
+| 多线程并发写操作（如批量导入）                | WAL 模式下，SQLite 允许多个并发读 + 单个写，写操作由 SQLiteCpp 内部序列化 |
+| 向量维度与建表时声明维度不一致                | sqlite-vec 在插入时自动检查，维度不符时抛出异常                           |
+| 数据库磁盘空间不足                            | SQLite 写操作返回 `SQLITE_FULL` 错误，转换为 `ERR_IO` 错误向上传递        |
+| `deleteMeme` 时 `vec_memes` 中无对应向量      | 静默忽略（该 Meme 可能从未生成向量，正常情况）                            |
+| `Schema` 迁移失败（SQL 语法错误等）           | 回滚当前迁移步骤事务，记录失败版本和错误详情，阻止应用启动                |
+| 数据库损坏（`integrity_check` 失败）          | `checkIntegrity()` 返回 `false`，触发自动从最新备份恢复                   |
+| 无可用备份时数据库损坏                        | 记录 FATAL 日志，终止进程，提示用户手动介入                               |
+| 备份文件超过保留天数                          | `backupDatabase()` 执行时自动删除超期备份文件                             |

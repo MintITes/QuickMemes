@@ -125,15 +125,44 @@ SaveDialogOptions {
 
 ```
 AppConfig {
-    backendPort    : int     // C++ 后端监听端口（默认 57321）
-    aiApiKey       : string  // AI API 密钥
-    aiApiBaseUrl   : string  // AI API 基础 URL
-    aiModel        : string  // 使用的模型名称
-    storagePath    : string  // Meme 文件存储根目录
-    dbPath         : string  // SQLite 数据库文件路径
-    panelShortcut  : string  // 快速面板快捷键（默认 "Alt+M"）
-    theme          : string  // 主题 "light" | "dark" | "system"
-    language       : string  // 界面语言（当前仅 "zh-CN"）
+    backendPort  : int      // C++ 后端监听端口（默认 57321）
+    storagePath  : string   // Meme 文件存储根目录
+    dbPath       : string   // SQLite 数据库文件路径
+    modelDir     : string   // PaddleOCR 模型文件目录
+    logDir       : string   // 日志文件输出目录
+
+    ai : {
+        apiKey         : string  // AI API 密钥（空字符串表示禁用 AI）
+        apiBaseUrl     : string  // AI API 基础 URL（兼容 OpenAI 格式）
+        visionModel    : string  // 图像理解模型名称
+        embeddingModel : string  // 文本向量化模型名称
+        imageGenModel  : string  // 图像生成模型名称
+        timeoutSeconds : int     // AI API 单次请求超时秒数
+        maxRetries     : int     // AI API 失败重试次数
+    }
+
+    ui : {
+        panelShortcut : string  // 快速面板快捷键（默认 "Alt+M"）
+        theme         : string  // 主题 "light" | "dark" | "system"
+        viewMode      : string  // Meme 画廊视图 "grid" | "list"
+        language      : string  // 界面语言（当前仅 "zh-CN"）
+    }
+
+    log : {
+        minLevel         : string  // 最低日志输出等级
+        retentionEnabled : bool    // 是否启用日志自动清理（默认 true）
+        retentionDays    : int     // 日志保留天数（默认 30）
+    }
+
+    thumbnail : {
+        enabled : bool  // 是否启用缩略图（默认 true）
+        maxSize : int   // 缩略图最大边长像素（默认 300）
+    }
+
+    backup : {
+        enabled       : bool  // 是否启用自动备份（默认 true）
+        retentionDays : int   // 备份保留天数（默认 30）
+    }
 }
 ```
 

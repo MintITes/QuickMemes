@@ -52,18 +52,26 @@ graph TD
         包装 ApiResponse"]
 
         HANDLERS["业务处理函数
+        handleHealth()
         handleImport()
         handleSearch()
         handleMemeGet()
+        handleMemeFile()
+        handleMemeThumbnail()
         handleMemeUpdate()
         handleMemeDelete()
+        handleBatchDelete()
+        handleBatchTags()
         handleExport()
         handleGenerateImage()
-        handleShareLink()"]
+        handleConfigUpdate()
+        handleRebuildEmbeddings()"]
 
-        TASK_QUEUE["导入任务队列
+        TASK_QUEUE["任务队列
         std::thread_pool
-        异步处理 ImportTask"]
+        异步处理 ImportTask
+        异步 OCR/AI 处理队列
+        定时清理任务"]
 
         WS_PUSHER["WebSocket 推送
         pushEvent()
@@ -73,7 +81,8 @@ graph TD
         copyFile()
         computeHash()
         detectMime()
-        readImageSize()"]
+        readImageSize()
+        generateThumbnail()"]
 
         SERVER --> ROUTER
         ROUTER --> HANDLERS
@@ -109,24 +118,23 @@ ImportPipeline {
     mimeType    : string       // 检测到的 MIME 类型
     width       : int32        // 图像宽度
     height      : int32        // 图像高度
-    ocrResult   : OcrResult    // OCR 识别结果
-    aiResult    : AiAnalysisResult  // AI 分析结果
-    memeEntry   : MemeEntry    // 最终构建的 Meme 对象
+    memeEntry   : MemeEntry    // 构建的 Meme 对象
     stage       : PipelineStage    // 当前所在阶段
     error       : string       // 失败描述（可为空）
 }
 
-// PipelineStage 枚举
-PipelineStage : "DOWNLOAD" | "HASH" | "OCR" | "AI_ANALYZE" | "EMBED" | "INSERT" | "DONE" | "FAILED"
+// PipelineStage 枚举（导入阶段，不含 OCR/AI）
+PipelineStage : "DOWNLOAD" | "HASH" | "COPY" | "INSERT" | "DONE" | "FAILED"
 ```
 
-### `TaskQueue` — 导入任务队列（单例）
+### `TaskQueue` — 任务队列（单例）
 
 ```
 TaskQueue {
-    tasks      : map<string, ImportTask>    // taskId -> ImportTask
-    workerPool : ThreadPool                  // 固定线程数线程池（默认 4 线程）
-    mutex      : mutex                       // 保护 tasks map 的互斥锁
+    tasks          : map<string, ImportTask>    // taskId -> ImportTask
+    importPool     : ThreadPool                  // 导入线程池（默认 4 线程）
+    processingPool : ThreadPool                  // OCR/AI 异步处理线程池（默认 2 线程）
+    mutex          : mutex                       // 保护 tasks map 的互斥锁
 }
 ```
 
@@ -134,12 +142,20 @@ TaskQueue {
 
 ```
 ServerConfig {
-    port         : int     // HTTP 和 WS 监听端口
-    storagePath  : string  // Meme 文件存储根目录
-    dbPath       : string  // SQLite 数据库文件路径
-    modelDir     : string  // OCR 模型文件目录
-    aiConfig     : AiConfig // AI 网关配置
-    workerCount  : int     // 导入任务线程池线程数（默认 4）
+    port              : int     // HTTP 和 WS 监听端口
+    storagePath       : string  // Meme 文件存储根目录
+    dbPath            : string  // SQLite 数据库文件路径
+    modelDir          : string  // OCR 模型文件目录
+    logDir            : string  // 日志文件输出目录
+    logLevel          : string  // 最低日志输出等级
+    aiConfig          : AiConfig // AI 网关配置
+    workerCount       : int     // 导入任务线程池线程数（默认 4）
+    thumbnailEnabled  : bool    // 是否启用缩略图生成（默认 true）
+    thumbnailMaxSize  : int     // 缩略图最大边长像素（默认 300）
+    backupEnabled     : bool    // 是否启用自动备份（默认 true）
+    backupRetentionDays : int   // 备份保留天数（默认 30）
+    logRetentionEnabled : bool  // 是否启用日志自动清理（默认 true）
+    logRetentionDays    : int   // 日志保留天数（默认 30）
 }
 ```
 
@@ -160,13 +176,32 @@ AiConfig {
 
 ## 函数规范
 
+### `parseArgs`
+
+```
+parseArgs(argc: int, argv: char*[]): ServerConfig
+```
+
+- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--port`、`--storage-path`、`--db-path`、`--model-dir`、`--log-dir`、`--log-level`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--image-gen-model`、`--api-timeout`、`--api-retries`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
+- **输入**：`argc` / `argv`：标准 C 命令行参数
+- **输出**：完整填充的 `ServerConfig` 对象
+
+---
+
 ### `startServer`
 
 ```
 startServer(config: ServerConfig): bool
 ```
 
-- **描述**：根据配置初始化并启动 HTTP 服务器与 WebSocket 服务器，注册所有 `/api/*` 路由，完成 OCR、AI 网关、持久化三个子模块的初始化，以及导入任务线程池的创建。
+- **描述**：
+  1. 调用 `Logger::initialize(config.logDir, config.logLevel)` 完成日志模块初始化
+  2. 根据配置初始化并启动 HTTP 服务器与 WebSocket 服务器，注册所有 `/api/*` 路由
+  3. 完成 OCR、AI 网关、持久化三个子模块的初始化
+  4. 创建导入线程池和 OCR/AI 异步处理线程池
+  5. 若启用备份，调用 `Persistence.backupDatabase()` 创建启动备份，并检测数据库完整性
+  6. 若检测到数据库损坏，自动从最新备份恢复
+  7. 启动定时任务：① 每 30 秒 WebSocket 心跳 ② 每日清理过期软删除记录 ③ 每日清理过期备份和日志
 - **输入**：`config`：完整服务器配置
 - **输出**：各子系统全部启动成功返回 `true`；任意子系统初始化失败返回 `false` 并记录日志
 
@@ -178,7 +213,7 @@ startServer(config: ServerConfig): bool
 stopServer(): void
 ```
 
-- **描述**：停止接受新连接，等待所有正在处理的 HTTP 请求完成，关闭所有 WebSocket 连接，等待线程池中已提交的任务完成（最多 10 秒），最后依次调用三个子模块的 `shutdown()` 并关闭服务器。
+- **描述**：停止接受新连接，等待所有正在处理的 HTTP 请求完成，关闭所有 WebSocket 连接，等待两个线程池中已提交的任务完成（最多 10 秒），最后依次调用三个子模块的 `shutdown()` 并关闭服务器。
 - **输入**：无
 - **输出**：无
 
@@ -193,47 +228,69 @@ handleImport(req: ImportRequest): ImportTask
 - **描述**：
   1. 校验 `req.inputs` 非空
   2. 生成唯一 `taskId`（UUID v4），创建 `ImportTask`，状态设为 `"PENDING"`
-  3. 将任务提交到 `TaskQueue.workerPool`，异步执行 `runImportPipeline()`
+  3. 将任务提交到 `TaskQueue.importPool`，异步执行 `runImportPipeline()`
   4. 立即返回初始 `ImportTask` 给前端
 - **输入**：`req`：导入请求参数
 - **输出**：创建的 `ImportTask`（此时状态为 `"PENDING"`）
 
 ---
 
-### `runImportPipeline`（内部，在工作线程中执行）
+### `runImportPipeline`（内部，在导入线程中执行）
 
 ```
 runImportPipeline(pipeline: ImportPipeline): void
 ```
 
-- **描述**：对单个文件按顺序执行以下管线步骤：
+- **描述**：对单个文件执行快速入库流程（不包含 OCR/AI），使 Meme 尽快对前端可见：
   1. **DOWNLOAD**：若 `source == "URL"` 则下载到临时目录；其余来源直接使用原始路径
   2. **HASH**：计算文件 SHA-256 哈希，检查数据库是否已存在该 hash（去重）
-  3. 复制文件到 `storagePath/{yyyy-MM}/{hash}.{ext}` 永久存储路径
-  4. **OCR**：调用 `OcrModule.recognize()`，提取文字
-  5. **AI_ANALYZE**：若 AI 可用，调用 `AiGateway.analyzeImage()`，获取标签和描述
-  6. **EMBED**：若 AI 可用，调用 `AiGateway.generateEmbedding(ocrText + aiDescription)`，生成向量；否则对 OCR 文字做简单 TF-IDF 向量
-  7. **INSERT**：构建 `MemeEntry`，调用 `Persistence.insertMeme()`，关联 AI 建议的标签
-  8. **DONE**：通过 `pushEvent("meme:added", memeEntry)` 通知前端
-  9. 每步完成后更新 `ImportTask.processed`，推送 `task:progress`
+  3. **COPY**：复制文件到 `storagePath/{yyyy-MM}/{hash}.{ext}` 永久存储路径
+  4. 若启用缩略图，调用 `generateThumbnail()` 生成缩略图到 `storagePath/thumbnails/{hash}.webp`
+  5. **INSERT**：构建 `MemeEntry`（`ocrStatus=PENDING`，`aiStatus=PENDING`），调用 `Persistence.insertMeme()`
+  6. **DONE**：通过 `pushEvent("meme:added", memeEntry)` 通知前端
+  7. 将该 Meme 的 ID 提交到 `TaskQueue.processingPool`，异步执行 `runProcessingPipeline()`
+  8. 每步完成后更新 `ImportTask.processed`，推送 `task:progress`
 - **输入**：`pipeline`：管线状态对象
 - **输出**：无（通过 WebSocket 推送结果）
+
+---
+
+### `runProcessingPipeline`（内部，在处理线程中执行）
+
+```
+runProcessingPipeline(memeId: int64): void
+```
+
+- **描述**：对已入库的 Meme 异步执行 OCR 和 AI 分析，不阻塞导入流程：
+  1. 更新 `ocrStatus = PROCESSING`，推送 `meme:processing` 事件
+  2. 调用 `OcrModule.recognize(filePath)` 提取文字
+  3. 更新 `ocrText` 和 `ocrStatus = DONE`（失败则 `FAILED`），推送 `meme:processing`
+  4. 若 AI 可用且 `autoAiAnalyze == true`：
+     - 更新 `aiStatus = PROCESSING`，推送 `meme:processing`
+     - 调用 `AiGateway.analyzeImage(filePath)` 获取标签和描述
+     - 调用 `AiGateway.generateEmbedding(ocrText + description)` 生成向量
+     - 更新描述、标签关联、embedding，`aiStatus = DONE`
+  5. 若 AI 不可用，设置 `aiStatus = SKIPPED`，**不生成 embedding 向量**
+  6. 推送 `meme:updated` 通知前端更新完整数据
+- **输入**：`memeId`：已入库的 Meme ID
+- **输出**：无（通过 WebSocket 推送状态变更）
 
 ---
 
 ### `handleSearch`
 
 ```
-handleSearch(query: SearchQuery): MemeEntry[]
+handleSearch(query: SearchQuery): SearchResult
 ```
 
 - **描述**：
   1. 校验并规范化 `SearchQuery` 参数（limit 限制 ≤200，offset ≥0）
-  2. 若 `query.useVector == true` 且 `query.keyword` 非空，调用 `AiGateway.generateEmbedding(keyword)` 生成查询向量，再调用 `Persistence.vectorSearch()`
-  3. 否则调用 `Persistence.searchMemes(query)` 执行普通搜索
-  4. 合并去重结果并返回
+  2. 默认过滤已软删除的 Meme（`deleted_at == 0`）
+  3. 若 `query.useVector == true` 且 `query.keyword` 非空，调用 `AiGateway.generateEmbedding(keyword)` 生成查询向量，再调用 `Persistence.vectorSearch()`，结果包含 `similarityScore`
+  4. 否则调用 `Persistence.searchMemes(query)` 执行普通搜索，`similarityScore` 设为 `-1`
+  5. 合并去重结果，包装为 `SearchResult` 返回
 - **输入**：`query`：搜索参数
-- **输出**：匹配的 `MemeEntry[]` 列表
+- **输出**：`SearchResult`（含 `items` 列表和 `total`）
 
 ---
 
@@ -255,7 +312,7 @@ handleMemeGet(id: int64): MemeEntry
 handleMemeUpdate(id: int64, patch: MemePatch): MemeEntry
 ```
 
-- **描述**：校验 `id` 存在，调用 `Persistence.updateMeme(id, patch)` 更新字段，查询并返回更新后的完整 `MemeEntry`，同时通过 `pushEvent("meme:updated", memeEntry)` 广播更新通知。
+- **描述**：校验 `id` 存在且未软删除，调用 `Persistence.updateMeme(id, patch)` 更新字段，查询并返回更新后的完整 `MemeEntry`，同时通过 `pushEvent("meme:updated", memeEntry)` 广播更新通知。
 - **输入**：`id`：Meme ID；`patch`：仅含变更字段的对象
 - **输出**：更新后的 `MemeEntry`
 
@@ -267,9 +324,81 @@ handleMemeUpdate(id: int64, patch: MemePatch): MemeEntry
 handleMemeDelete(id: int64): bool
 ```
 
-- **描述**：先查询 `MemeEntry` 获取 `filePath`，调用 `Persistence.deleteMeme(id)` 删除数据库记录，然后删除本地文件（若删除文件失败，记录警告并继续），最后通过 `pushEvent("meme:deleted", {id})` 广播删除通知。
+- **描述**：将 Meme 软删除（调用 `Persistence.softDeleteMeme(id)` 设置 `deleted_at` 时间戳），不立即删除文件。通过 `pushEvent("meme:deleted", {id})` 广播通知。软删除的 Meme 在配置的保留天数后由定时清理任务彻底删除。
 - **输入**：`id`：Meme ID
-- **输出**：删除成功返回 `true`；ID 不存在抛出 `ERR_NOT_FOUND`
+- **输出**：操作成功返回 `true`；ID 不存在抛出 `ERR_NOT_FOUND`
+
+---
+
+### `handleBatchDelete`
+
+```
+handleBatchDelete(ids: int64[]): BatchResult
+```
+
+- **描述**：批量软删除多个 Meme，逐个调用 `softDeleteMeme`，每个成功的推送 `meme:deleted` 事件。
+- **输入**：`ids`：Meme ID 列表
+- **输出**：`BatchResult`
+
+---
+
+### `handleBatchTags`
+
+```
+handleBatchTags(memeIds: int64[], tagId: int64): BatchResult
+```
+
+- **描述**：为多个 Meme 批量添加同一标签，逐个调用 `addMemeTag`。
+- **输入**：`memeIds`：Meme ID 列表；`tagId`：标签 ID
+- **输出**：`BatchResult`
+
+---
+
+### `handleMemeFile`
+
+```
+handleMemeFile(id: int64): BinaryStream
+```
+
+- **描述**：查询 Meme 获取 `filePath` 和 `mimeType`，读取文件返回二进制流，设置 `Content-Type` 响应头。
+- **输入**：`id`：Meme ID
+- **输出**：图像二进制流；文件不存在时抛出 `ERR_IO`
+
+---
+
+### `handleMemeThumbnail`
+
+```
+handleMemeThumbnail(id: int64): BinaryStream
+```
+
+- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.webp` 缩略图文件。若存在则返回缩略图；若不存在或缩略图功能未启用，回退返回原始图像。
+- **输入**：`id`：Meme ID
+- **输出**：缩略图或原始图像二进制流
+
+---
+
+### `handleHealth`
+
+```
+handleHealth(): HealthStatus
+```
+
+- **描述**：检查各子模块状态，返回 `HealthStatus { status, modules: { ocr, ai, db } }`。所有模块就绪时 `status="ok"`，任一不可用时 `status="degraded"`。
+- **输入**：无
+- **输出**：`HealthStatus`
+
+---
+
+### `handleRebuildEmbeddings`
+
+```
+handleRebuildEmbeddings(): ImportTask
+```
+
+- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 重新调用 `AiGateway.generateEmbedding()` 更新向量。用于 Embedding 模型切换后。通过 WebSocket 推送进度。
+- **输入**：无
+- **输出**：重建任务对象
 
 ---
 
@@ -279,7 +408,7 @@ handleMemeDelete(id: int64): bool
 handleExport(req: ExportRequest): ExportResult
 ```
 
-- **描述**：批量查询 `req.memeIds`，将每个 Meme 的本地文件复制到 `req.destDir`，文件名按 `keepNames` 配置决定使用原文件名或 ID 命名。
+- **描述**：批量查询 `req.memeIds`（排除已软删除），将每个 Meme 的本地文件复制到 `req.destDir`，文件名按 `keepNames` 配置决定使用原文件名或 ID 命名。
 - **输入**：`req`：导出请求参数
 - **输出**：`ExportResult`（成功/失败数量及错误描述）
 
@@ -297,18 +426,6 @@ handleGenerateImage(prompt: string): GeneratedImage
 
 ---
 
-### `handleShareLink`
-
-```
-handleShareLink(id: int64, options: ShareOptions): ShareResult
-```
-
-- **描述**：验证 Meme 存在，生成带 hash 的短链接 URL，若 `options.generateQr == true` 则同时调用二维码生成库生成 PNG 并转 Base64。
-- **输入**：`id`：Meme ID；`options`：分享配置（有效期、是否生成二维码）
-- **输出**：`ShareResult`（短链接 URL 和可选的二维码 Base64）
-
----
-
 ### `pushEvent`
 
 ```
@@ -318,6 +435,21 @@ pushEvent(event: WsEvent): void
 - **描述**：将 `WsEvent` 序列化为 JSON 字符串，广播给所有当前已连接的 WebSocket 客户端。已断开的连接自动从连接列表中移除。
 - **输入**：`event`：事件对象
 - **输出**：无
+
+---
+
+### `handleConfigUpdate`
+
+```
+handleConfigUpdate(patch: RuntimeConfigPatch): bool
+```
+
+- **描述**：接收 `PATCH /api/config` 请求，将可热更新的配置变更实时应用到运行中的各子模块：
+  1. 若 patch 中包含任意 AI 字段（`aiApiKey` / `aiApiBaseUrl` / `aiVisionModel` 等），构建新 `AiConfig` 并调用 `AiGateway::reconfigure(newConfig)` 替换内部配置
+  2. 若 patch 中包含 `logMinLevel`，调用 `Logger::get().setMinLevel(level)` 实时生效
+  3. 对接收到的字段进行有效性校验，失败时返回 `ERR_INVALID_PARAMS`
+- **输入**：`patch`：`RuntimeConfigPatch` 对象（仅含需要变更的字段）
+- **输出**：更新全部成功返回 `true`；参数非法抛出 `ERR_INVALID_PARAMS`
 
 ---
 
@@ -357,19 +489,31 @@ readImageSize(filePath: string): { width: int32, height: int32 }
 
 ---
 
+### `generateThumbnail`（内部工具函数）
+
+```
+generateThumbnail(srcPath: string, destPath: string, maxSize: int): bool
+```
+
+- **描述**：使用 OpenCV 读取图像，按比例缩放至长边不超过 `maxSize` 像素，以 WebP 格式保存到 `destPath`。
+- **输入**：`srcPath`：原始图像路径；`destPath`：缩略图目标路径；`maxSize`：最大边长
+- **输出**：生成成功返回 `true`；失败记录日志返回 `false`（缩略图生成失败不影响导入流程）
+
+---
+
 ## 处理流程
 
-### 单文件完整导入管线
+### 单文件导入管线（两阶段）
 
 ```mermaid
 flowchart TD
     START([接收 ImportRequest]) --> VALIDATE{校验参数}
     VALIDATE -->|非法| ERR_RET([返回 ERR_INVALID_PARAMS])
     VALIDATE -->|合法| CREATE[创建 ImportTask, 状态 PENDING]
-    CREATE --> SUBMIT[提交到线程池]
+    CREATE --> SUBMIT[提交到 importPool]
     SUBMIT --> RETURN_TASK([立即返回 ImportTask 给前端])
 
-    SUBMIT --> WORKER[工作线程开始处理]
+    SUBMIT --> WORKER["阶段一：快速入库（导入线程）"]
     WORKER --> DOWNLOAD{来源是 URL?}
     DOWNLOAD -->|是| DL[下载到临时目录]
     DOWNLOAD -->|否| HASH
@@ -377,32 +521,42 @@ flowchart TD
     HASH --> DEDUP{数据库已有该 hash?}
     DEDUP -->|是| SKIP([标记为重复, 跳过])
     DEDUP -->|否| COPY[复制文件到存储目录]
-    COPY --> OCR_STEP[调用 OCR 识别文字]
-    OCR_STEP --> AI_CHECK{AI 可用?}
-    AI_CHECK -->|是| AI_STEP[AI 分析图像, 生成标签和描述]
-    AI_CHECK -->|否| EMBED_SIMPLE[OCR 文字 TF-IDF 向量化]
-    AI_STEP --> EMBED_AI[AI Embedding 向量化]
-    EMBED_AI --> INSERT
-    EMBED_SIMPLE --> INSERT[持久化 insertMeme]
+    COPY --> THUMB{缩略图启用?}
+    THUMB -->|是| GEN_THUMB[生成缩略图 WebP]
+    THUMB -->|否| INSERT
+    GEN_THUMB --> INSERT["insertMeme\nocrStatus=PENDING\naiStatus=PENDING"]
     INSERT --> PUSH_ADDED[pushEvent meme:added]
-    PUSH_ADDED --> UPDATE_PROGRESS[pushEvent task:progress]
-    UPDATE_PROGRESS --> DONE([管线完成])
+    PUSH_ADDED --> QUEUE_PROC[提交到 processingPool]
+    QUEUE_PROC --> UPDATE_PROGRESS[pushEvent task:progress]
+
+    QUEUE_PROC --> PROC["阶段二：异步处理（处理线程）"]
+    PROC --> OCR_STEP["OCR 识别文字\n更新 ocrStatus"]
+    OCR_STEP --> AI_CHECK{AI 可用?}
+    AI_CHECK -->|是| AI_STEP["AI 分析 + Embedding\n更新 aiStatus"]
+    AI_CHECK -->|否| AI_SKIP["aiStatus=SKIPPED\n不生成向量"]
+    AI_STEP --> PUSH_UPDATED[pushEvent meme:updated]
+    AI_SKIP --> PUSH_UPDATED
+    PUSH_UPDATED --> DONE([处理完成])
 ```
 
 ---
 
 ## 错误处理与边界情况
 
-| 场景                                        | 处理策略                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| 导入文件 MIME 类型非图像                    | 标记该文件失败，记录错误信息，继续处理批次中其他文件                |
-| 文件哈希重复（已存在）                      | 跳过导入，在 `ImportTask.errors` 中记录"已存在"，`succeeded` 不计   |
-| URL 下载失败（网络错误 / 超时）             | 标记该文件失败，继续处理其他文件                                    |
-| OCR 识别失败                                | 记录错误，`ocrText` 置为空字符串，继续后续步骤不中断管线            |
-| AI 分析失败（网络错误 / API 限额）          | 降级处理：跳过 AI 步骤，`suggestedTags` 为空，继续 Embedding 和入库 |
-| 文件复制到存储目录失败（磁盘满 / 权限不足） | 整个管线标记 `FAILED`，推送 `task:error`                            |
-| 数据库写入失败                              | 管线标记 `FAILED`，删除已复制的文件（回滚），推送 `task:error`      |
-| 线程池工作线程崩溃（未捕获异常）            | 捕获顶层 `std::exception`，将任务标记为 `FAILED`，线程继续工作      |
-| 多线程并发写入同一数据库                    | SQLiteCpp 使用 WAL 模式，序列化写操作，无需额外锁                   |
-| WebSocket 推送时客户端已断开                | 捕获发送异常，从连接列表移除，忽略推送失败                          |
-| 停止服务器时仍有未完成导入任务              | 等待线程池排空队列（最多 10 秒），超时则强制终止                    |
+| 场景                                        | 处理策略                                                                          |
+| ------------------------------------------- | --------------------------------------------------------------------------------- |
+| 导入文件 MIME 类型非图像                    | 标记该文件失败，记录错误信息，继续处理批次中其他文件                              |
+| 文件哈希重复（已存在）                      | 跳过导入，在 `ImportTask.errors` 中记录"已存在"，`succeeded` 不计                 |
+| URL 下载失败（网络错误 / 超时）             | 标记该文件失败，继续处理其他文件                                                  |
+| OCR 识别失败                                | `ocrStatus` 设为 `FAILED`，`ocrText` 置空，推送 `meme:processing`，不影响 AI 步骤 |
+| AI 分析失败（网络错误 / API 限额）          | `aiStatus` 设为 `FAILED`，不生成 embedding 向量，推送 `meme:processing`           |
+| AI 不可用                                   | `aiStatus` 设为 `SKIPPED`，不生成 embedding 向量                                  |
+| 文件复制到存储目录失败（磁盘满 / 权限不足） | 整个管线标记 `FAILED`，推送 `task:error`                                          |
+| 数据库写入失败                              | 管线标记 `FAILED`，删除已复制的文件（回滚），推送 `task:error`                    |
+| 线程池工作线程崩溃（未捕获异常）            | 捕获顶层 `std::exception`，将任务标记为 `FAILED`，线程继续工作                    |
+| 多线程并发写入同一数据库                    | SQLiteCpp 使用 WAL 模式，序列化写操作，无需额外锁                                 |
+| WebSocket 推送时客户端已断开                | 捕获发送异常，从连接列表移除，忽略推送失败                                        |
+| 停止服务器时仍有未完成任务                  | 等待两个线程池排空队列（最多 10 秒），超时则强制终止                              |
+| 缩略图生成失败                              | 记录警告日志，不影响导入流程，前端回退使用原图                                    |
+| 数据库损坏检测                              | `startServer` 时执行 `PRAGMA integrity_check`，损坏则自动从最新备份恢复           |
+| 软删除 Meme 定时清理                        | 每日执行 `purgeDeletedMemes()`，彻底删除超过保留天数的记录和文件                  |

@@ -155,19 +155,72 @@ GeneratedImage {
 }
 ```
 
-### `ShareOptions` — 分享选项
+### `SearchResult` — 搜索响应结果
 
 ```
+SearchResult {
+    items : SearchResultItem[]  // 结果条目列表
+    total : int32               // 匹配总数（用于分页）
+}
+
+SearchResultItem {
+    meme            : MemeEntry  // Meme 数据（不含 embedding）
+    similarityScore : float      // 向量搜索相似度分数（0.0~1.0，非向量搜索时为 -1）
+}
+```
+
+### `BatchResult` — 批量操作结果
+
+```
+BatchResult {
+    succeeded : int32     // 成功数量
+    failed    : int32     // 失败数量
+    errors    : string[]  // 各失败项描述
+}
+```
+
+### `HealthStatus` — 健康检查结果
+
+```
+HealthStatus {
+    status  : string  // "ok" | "degraded"
+    modules : {
+        ocr : bool    // OCR 引擎是否就绪
+        ai  : bool    // AI 服务是否可用
+        db  : bool    // 数据库是否正常
+    }
+}
+```
+
+### `ShareOptions` — 分享选项（🚧 占位，待完善）
+
+```
+// 分享链接功能尚未完善，以下定义为占位预留
 ShareOptions {
-    expireHours : int32  // 链接有效期（小时，0 表示永不过期）
-    generateQr  : bool   // 是否同时生成二维码
+    // 待定义
 }
 
 ShareResult {
-    shortUrl   : string  // 短链接 URL
-    qrBase64   : string  // 二维码图像 Base64（generateQr=true 时有效）
-    expireAt   : int64   // 过期时间戳（毫秒，0 表示永不过期）
+    // 待定义
 }
+```
+
+### `RuntimeConfigPatch` — 运行时配置内容更新（仅含可热更新字段）
+
+```
+RuntimeConfigPatch {
+    aiApiKey?         : string  // AI API 密鑰（可选）
+    aiApiBaseUrl?     : string  // AI API 基础 URL（可选）
+    aiVisionModel?    : string  // VLM 模型名称（可选）
+    aiEmbeddingModel? : string  // Embedding 模型名称（可选）
+    aiImageGenModel?  : string  // 图像生成模型名称（可选）
+    aiTimeoutSeconds? : int     // AI API 请求超时秒数（可选）
+    aiMaxRetries?     : int     // AI API 失败重试次数（可选）
+    logMinLevel?      : string  // 最低日志输出等级（可选）
+}
+
+// 需要重启后生效的字段（无法通过此接口修改）：
+// backendPort 、 storagePath 、 dbPath 、 modelDir
 ```
 
 ---
@@ -180,29 +233,54 @@ ShareResult {
 
 ---
 
+### `GET /api/health` — 健康检查
+
+- **描述**：返回各子模块的就绪状态，前端启动时轮询此端点判断后端是否就绪
+- **成功响应**：`ApiResponse<HealthStatus>`
+
+---
+
 ### `POST /api/import` — 提交导入任务
 
-- **描述**：提交一批 Meme 导入任务，后端立即返回任务对象，实际处理在后台异步进行，通过 WebSocket 推送进度
+- **描述**：提交一批 Meme 导入任务。后端先将文件入库（状态为 PENDING），立即返回任务对象，OCR 和 AI 分析在后台异步队列中执行，通过 WebSocket 推送进度和处理状态变更
 - **请求体**：`ImportRequest`
 - **成功响应**：`ApiResponse<ImportTask>` — 创建的导入任务初始状态
 - **可能错误**：`ERR_INVALID_PARAMS`（inputs 为空）
 
 ---
 
-### `GET /api/memes/search` — 搜索 Meme 列表
+### `POST /api/memes/search` — 搜索 Meme 列表
 
-- **描述**：按 `SearchQuery` 参数搜索 Meme，支持模糊搜索、标签过滤、时间/大小/格式过滤、正则匹配、向量相似度搜索
-- **请求体**：`SearchQuery`（POST body 形式，避免 URL 长度限制）
-- **成功响应**：`ApiResponse<{ items: MemeEntry[], total: int }>` — 结果列表及总数
+- **描述**：按 `SearchQuery` 参数搜索 Meme，支持模糊搜索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配、向量相似度搜索。默认不返回已软删除的 Meme
+- **请求体**：`SearchQuery`
+- **成功响应**：`ApiResponse<SearchResult>` — 包含 `items`（带 `similarityScore`）和 `total`
 - **可能错误**：`ERR_INVALID_PARAMS`（非法 regex）、`ERR_INTERNAL`
 
 ---
 
 ### `GET /api/meme/:id` — 获取单个 Meme
 
-- **描述**：按 ID 查询单个 Meme 的完整信息，包含标签列表
+- **描述**：按 ID 查询单个 Meme 的完整信息，包含标签列表和处理状态（不含 embedding 向量）
 - **路径参数**：`id`：Meme ID（`int64`）
 - **成功响应**：`ApiResponse<MemeEntry>`
+- **可能错误**：`ERR_NOT_FOUND`
+
+---
+
+### `GET /api/meme/:id/file` — 获取 Meme 原始图像文件
+
+- **描述**：返回指定 Meme 的原始图像文件二进制流，响应头包含正确的 `Content-Type`（如 `image/png`）
+- **路径参数**：`id`：Meme ID（`int64`）
+- **成功响应**：图像二进制流（非 JSON 包装）
+- **可能错误**：`ERR_NOT_FOUND`、`ERR_IO`（文件不存在）
+
+---
+
+### `GET /api/meme/:id/thumbnail` — 获取 Meme 缩略图
+
+- **描述**：返回指定 Meme 的缩略图二进制流。缩略图大小由配置中的 `thumbnail.maxSize` 决定（默认 300px）。若缩略图功能未启用或缩略图不存在，返回原始图像
+- **路径参数**：`id`：Meme ID（`int64`）
+- **成功响应**：缩略图二进制流（非 JSON 包装）
 - **可能错误**：`ERR_NOT_FOUND`
 
 ---
@@ -217,12 +295,12 @@ ShareResult {
 
 ---
 
-### `DELETE /api/meme/:id` — 删除 Meme
+### `DELETE /api/meme/:id` — 软删除 Meme
 
-- **描述**：删除指定 Meme 的数据库记录和本地文件
+- **描述**：将指定 Meme 移入回收站（设置 `deleted_at` 时间戳），不立即删除文件。超过配置的保留天数后由后台任务彻底清理
 - **路径参数**：`id`：Meme ID（`int64`）
 - **成功响应**：`ApiResponse<null>`
-- **可能错误**：`ERR_NOT_FOUND`、`ERR_IO`（文件删除失败，但记录仍会被删除）
+- **可能错误**：`ERR_NOT_FOUND`
 
 ---
 
@@ -288,12 +366,48 @@ ShareResult {
 
 ---
 
-### `POST /api/share/link` — 生成分享链接
+### `DELETE /api/memes/batch` — 批量软删除 Meme
 
-- **描述**：为指定 Meme 生成短链接，可选同时生成二维码
-- **请求体**：`{ memeId: int64, options: ShareOptions }`
-- **成功响应**：`ApiResponse<ShareResult>`
-- **可能错误**：`ERR_NOT_FOUND`、`ERR_INTERNAL`
+- **描述**：批量将多个 Meme 移入回收站
+- **请求体**：`{ ids: int64[] }`
+- **成功响应**：`ApiResponse<BatchResult>`
+- **可能错误**：`ERR_INVALID_PARAMS`（ids 为空）
+
+---
+
+### `POST /api/memes/batch/tags` — 批量为 Meme 添加标签
+
+- **描述**：为多个 Meme 批量添加同一标签
+- **请求体**：`{ memeIds: int64[], tagId: int64 }`
+- **成功响应**：`ApiResponse<BatchResult>`
+- **可能错误**：`ERR_INVALID_PARAMS`（memeIds 为空）、`ERR_NOT_FOUND`（tagId 不存在）
+
+---
+
+### `POST /api/admin/rebuild-embeddings` — 重建语义向量
+
+- **描述**：异步任务，对所有 Meme 重新调用 AI Embedding 生成语义向量。用于 Embedding 模型切换后的向量重建。通过 WebSocket 推送进度
+- **请求体**：无
+- **成功响应**：`ApiResponse<ImportTask>` — 重建任务对象
+- **可能错误**：`ERR_AI_UNAVAILABLE`
+
+---
+
+### `POST /api/share/link` — 生成分享链接（🚧 占位，待完善）
+
+- **描述**：分享链接功能尚未完善，当前为占位端点
+- **请求体**：待定义
+- **成功响应**：待定义
+- **可能错误**：待定义
+
+---
+
+### `PATCH /api/config` — 运行时配置热更新
+
+- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（AI 配置、日志等级）
+- **请求体**：`RuntimeConfigPatch`（仅传入需要变更的字段，其余字段保持不变）
+- **成功响应**：`ApiResponse<null>`
+- **可能错误**：`ERR_INVALID_PARAMS`（字段值非法，如 `logMinLevel` 不在有效等级内）
 
 ---
 
@@ -301,7 +415,7 @@ ShareResult {
 
 > **连接地址**：`ws://localhost:{port}/ws`  
 > **帧格式**：JSON 文本帧，结构为 `WsEvent { event: string, payload: any }`  
-> **方向**：仅 C++ 后端 → 前端（单向推送，前端不向后端发送 WS 消息）
+> **方向**：主要为 C++ 后端 → 前端单向推送；前端仅在收到 `ping` 时回复 `pong` 帧
 
 ---
 
@@ -345,7 +459,7 @@ payload {
 ### `meme:added` — 新 Meme 已入库
 
 ```
-payload: MemeEntry  // 完整的新 Meme 数据
+payload: MemeEntry  // 完整的新 Meme 数据（ocrStatus/aiStatus 为 PENDING）
 ```
 
 ---
@@ -358,13 +472,39 @@ payload: MemeEntry  // 更新后的完整 Meme 数据
 
 ---
 
-### `meme:deleted` — Meme 已删除
+### `meme:deleted` — Meme 已软删除
 
 ```
 payload {
-    id : int64  // 被删除的 Meme ID
+    id : int64  // 被软删除的 Meme ID
 }
 ```
+
+---
+
+### `meme:processing` — Meme 处理状态变更
+
+```
+payload {
+    id        : int64            // Meme ID
+    ocrStatus : ProcessingStatus // 当前 OCR 处理状态
+    aiStatus  : ProcessingStatus // 当前 AI 分析处理状态
+    ocrText   : string           // OCR 识别结果（DONE 时有值）
+    description : string         // AI 生成描述（DONE 时有值）
+}
+```
+
+> 每当 Meme 的 OCR 或 AI 处理完成/失败时推送此事件，前端据此更新 UI 中的处理状态标识。
+
+---
+
+### `ping` — 心跳帧
+
+```
+payload: {}  // 空对象
+```
+
+> C++ 后端每 30 秒向所有 WebSocket 客户端发送 `ping` 事件。前端收到后应回复一个文本帧 `{"event":"pong"}`。若后端连续 2 次（60 秒）未收到 `pong` 响应，则视为客户端已断开，从连接列表中移除。
 
 ---
 
@@ -423,3 +563,5 @@ sequenceDiagram
 | 并发多个 WebSocket 客户端连接 | 全部维护在连接列表中，推送时广播给所有连接                                |
 | 前端 HTTP 请求超时（10 秒）   | 前端侧超时，显示网络错误提示                                              |
 | 大文件上传请求体超限          | 后端限制请求体 ≤ 100MB（文件路径传递，非文件内容上传，实际不应触发）      |
+| WebSocket 心跳超时            | 连续 60 秒未收到 pong，后端移除该连接；前端检测断连后触发指数退避重连     |
+| 请求已软删除的 Meme           | `GET /api/meme/:id` 返回已软删除的 Meme（含 `deletedAt`），搜索默认排除   |

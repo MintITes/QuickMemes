@@ -293,15 +293,17 @@ flowchart TD
 
 ## 错误处理与边界情况
 
-| 场景                                                 | 处理策略                                                                                                                                         |
-| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `apiKey` 未配置（空字符串）                          | `isAvailable()` 返回 `false`，所有 AI 功能静默降级，不报错                                                                                       |
-| 网络不可用（API 服务器无法连接）                     | `sendRequest` 重试 `maxRetries` 次后标记连通性失败，`analyzeImage` / `generateEmbedding` 返回降级结果；`generateImage` 返回 `ERR_AI_UNAVAILABLE` |
-| API 返回 HTTP 401（认证失败）                        | 不重试，标记连通性失败（API Key 无效），记录错误日志，返回降级结果                                                                               |
-| API 返回 HTTP 429（限额超限）                        | 不重试，返回 `ERR_AI_QUOTA_EXCEEDED`（对于 `generateImage` 向前端返回错误）；对于 `analyzeImage` 返回降级结果                                    |
-| VLM 响应的 JSON 格式非预期（模型未按指令格式化输出） | 尝试使用正则提取 `tags` 和 `description` 字段；提取失败则返回降级结果                                                                            |
-| 图像文件过大（Base64 编码超过模型限制，通常约 20MB） | 调用前缩放图像至 ≤1024px 长边后再 Base64 编码                                                                                                    |
-| `generateEmbedding` 输入文本超长                     | 截断至约 8000 字符（保留语义关键词部分），不抛出错误                                                                                             |
-| `generateImage` 调用时 AI 不可用                     | 直接返回 `ERR_AI_UNAVAILABLE`（此功能无降级意义，前端需展示错误）                                                                                |
-| 多线程并发调用 AI 接口                               | cpp-httplib 客户端线程安全，并发请求同时发出，无串行化限制（受制于 API 限速）                                                                    |
-| 连通性探测失败后 AI 重新上线                         | 每 60 秒自动重新探测 `isAvailable()`，恢复后自动重启 AI 功能                                                                                     |
+| 场景                                                 | 处理策略                                                                                                                                          |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apiKey` 未配置（空字符串）                          | `isAvailable()` 返回 `false`，所有 AI 功能静默降级，不报错                                                                                        |
+| 网络不可用（API 服务器无法连接）                     | `sendRequest` 重试 `maxRetries` 次后标记连通性失败，`analyzeImage` / `generateEmbedding` 返回降级结果；`generateImage` 返回 `ERR_AI_UNAVAILABLE`  |
+| API 返回 HTTP 401（认证失败）                        | 不重试，标记连通性失败（API Key 无效），记录错误日志，返回降级结果                                                                                |
+| API 返回 HTTP 429（限额超限）                        | 不重试，返回 `ERR_AI_QUOTA_EXCEEDED`（对于 `generateImage` 向前端返回错误）；对于 `analyzeImage` 返回降级结果                                     |
+| VLM 响应的 JSON 格式非预期（模型未按指令格式化输出） | 尝试使用正则提取 `tags` 和 `description` 字段；提取失败则返回降级结果                                                                             |
+| 图像文件过大（Base64 编码超过模型限制，通常约 20MB） | 调用前缩放图像至 ≤1024px 长边后再 Base64 编码                                                                                                     |
+| `generateEmbedding` 输入文本超长                     | 截断至约 8000 字符（保留语义关键词部分），不抛出错误                                                                                              |
+| `generateImage` 调用时 AI 不可用                     | 直接返回 `ERR_AI_UNAVAILABLE`（此功能无降级意义，前端需展示错误）                                                                                 |
+| 多线程并发调用 AI 接口                               | cpp-httplib 客户端线程安全，并发请求同时发出，无串行化限制（受制于 API 限速）                                                                     |
+| 连通性探测失败后 AI 重新上线                         | 每 60 秒自动重新探测 `isAvailable()`，恢复后自动重启 AI 功能                                                                                      |
+| Embedding 模型切换（`embeddingModel` 变更）          | 前端配置模块在检测到 `embeddingModel` 变更时弹出警告提示用户需重建向量索引；C++ 核心模块提供 `handleRebuildEmbeddings()` 异步重建所有 Meme 的向量 |
+| AI 不可用时的向量降级                                | 不生成 embedding 向量（设 `aiStatus = SKIPPED`），向量搜索自动跳过无向量的 Meme 条目                                                              |
