@@ -193,18 +193,47 @@ HealthStatus {
 }
 ```
 
+### `MemeIndexItem` — Meme 索引摘要（用于 AI 推荐上下文）
+
+```
+MemeIndexItem {
+    id          : int64    // Meme ID
+    name        : string   // 名称
+    description : string   // 描述文本（AI 生成或用户编辑）
+    ocrText     : string   // OCR 识别文本（截断前 200 字符）
+    tags        : string[] // 关联标签名称列表
+}
+```
+
+### `RecommendResult` — Meme 推荐结果
+
+```
+RecommendResult {
+    recommendations : RecommendItem[]  // 推荐条目列表
+    success         : bool             // 是否成功
+    error           : string           // 失败时的错误描述（可为空）
+}
+
+RecommendItem {
+    memeId : int64   // 推荐的 Meme ID
+    reason : string  // 推荐理由（模型生成的简短说明）
+    score  : float   // 推荐置信度（0.0~1.0）
+}
+```
+
 ### `RuntimeConfigPatch` — 运行时配置内容更新（仅含可热更新字段）
 
 ```
 RuntimeConfigPatch {
-    aiApiKey?         : string  // AI API 密鑰（可选）
-    aiApiBaseUrl?     : string  // AI API 基础 URL（可选）
-    aiVisionModel?    : string  // VLM 模型名称（可选）
-    aiEmbeddingModel? : string  // Embedding 模型名称（可选）
-    aiImageGenModel?  : string  // 图像生成模型名称（可选）
-    aiTimeoutSeconds? : int     // AI API 请求超时秒数（可选）
-    aiMaxRetries?     : int     // AI API 失败重试次数（可选）
-    logMinLevel?      : string  // 最低日志输出等级（可选）
+    aiApiKey?          : string  // AI API 密鑰（可选）
+    aiApiBaseUrl?      : string  // AI API 基础 URL（可选）
+    aiVisionModel?     : string  // VLM 模型名称（可选）
+    aiEmbeddingModel?  : string  // Embedding 模型名称（可选）
+    aiRecommendModel?  : string  // Meme 推荐模型名称（可选）
+    aiImageGenModel?   : string  // 图像生成模型名称（可选）
+    aiTimeoutSeconds?  : int     // AI API 请求超时秒数（可选）
+    aiMaxRetries?      : int     // AI API 失败重试次数（可选）
+    logMinLevel?       : string  // 最低日志输出等级（可选）
 }
 
 // 需要重启后生效的字段（无法通过此接口修改）：
@@ -377,6 +406,15 @@ RuntimeConfigPatch {
 - **请求体**：`{ prompt: string }`
 - **成功响应**：`ApiResponse<GeneratedImage>`
 - **可能错误**：`ERR_AI_UNAVAILABLE`、`ERR_AI_REQUEST_FAILED`、`ERR_AI_QUOTA_EXCEEDED`
+
+---
+
+### `POST /api/ai/recommend` — AI 推荐 Meme
+
+- **描述**：根据用户的文字描述，通过小参数文本模型结合 Meme 索引表智能推荐匹配的 Meme。后端自动构建索引表上下文
+- **请求体**：`{ query: string }`
+- **成功响应**：`ApiResponse<RecommendResult>`
+- **可能错误**：`ERR_AI_UNAVAILABLE`、`ERR_AI_REQUEST_FAILED`、`ERR_INVALID_PARAMS`（query 为空）
 
 ---
 

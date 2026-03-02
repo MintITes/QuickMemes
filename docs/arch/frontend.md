@@ -138,6 +138,7 @@ AppConfig {
         apiBaseUrl     : string  // AI API 基础 URL（兼容 OpenAI 格式）
         visionModel    : string  // 图像理解模型名称
         embeddingModel : string  // 文本向量化模型名称
+        recommendModel : string  // Meme 推荐模型名称（小参数文本模型）
         imageGenModel  : string  // 图像生成模型名称
         timeoutSeconds : int     // AI API 单次请求超时秒数
         maxRetries     : int     // AI API 失败重试次数

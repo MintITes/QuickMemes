@@ -72,6 +72,7 @@ graph TD
         DELETE /api/meme/:id/tags/:tagId
         POST   /api/export
         POST   /api/ai/generate-image
+        POST   /api/ai/recommend
         DELETE /api/memes/batch
         POST   /api/memes/batch/tags
         PATCH  /api/config
@@ -125,6 +126,7 @@ graph TD
         ──────────────────
         analyzeImage()
         generateEmbedding()
+        recommendMemes()
         generateImage()
         isAvailable()"]
 
@@ -404,6 +406,7 @@ WsEvent {
 | `/api/meme/:id/tags/:tagId`     | `DELETE` | 移除 Meme 的标签                     |
 | `/api/export`                   | `POST`   | 导出 Meme 到本地文件                 |
 | `/api/ai/generate-image`        | `POST`   | AI 根据文本生成配图                  |
+| `/api/ai/recommend`             | `POST`   | AI 根据文字描述推荐 Meme             |
 | `/api/memes/batch`              | `DELETE` | 批量软删除 Meme                      |
 | `/api/memes/batch/tags`         | `POST`   | 批量为 Meme 添加标签                 |
 | `/api/config`                   | `PATCH`  | 运行时配置热更新                     |
@@ -458,6 +461,7 @@ WsEvent {
 | `handleRemoveMemeTag(memeId, tagId): bool`                     | 移除 Meme 的标签                    | `memeId`/`tagId`                 | 操作成功返回 `true`  |
 | `handleExport(req: ExportRequest): ExportResult`               | 导出 Meme 到本地路径                | `req`：导出目标路径等参数        | 导出结果             |
 | `handleGenerateImage(prompt: string): GeneratedImage`          | 调用 AI 根据文本生成图片            | `prompt`：文字描述               | 生成的图像数据       |
+| `handleRecommendMemes(query: string): RecommendResult`         | AI 根据文字描述推荐匹配的 Meme      | `query`：用户文字描述            | 推荐结果             |
 | `handleConfigUpdate(patch: RuntimeConfigPatch): bool`          | 运行时配置热更新                    | `patch`：变更字段                | 更新成功返回 `true`  |
 | `handleRebuildEmbeddings(): ImportTask`                        | 重建所有 Meme 语义向量（异步）      | 无                               | 重建任务对象         |
 | `pushEvent(event: WsEvent): void`                              | 向所有已连接前端推送 WebSocket 事件 | `event`：事件对象                | 无                   |
@@ -486,18 +490,19 @@ WsEvent {
 
 ### AI 网关模块
 
-**职责**：封装对云端第三方 LLM / VLM API 的调用，提供图像内容分析（打标签/描述生成）、文本转语义向量（用于 sqlite-vec 模糊搜索）以及 AI 配图生成三项能力。包含网络不可用时的降级策略。
+**职责**：封装对云端第三方 LLM / VLM API 的调用，提供四项核心能力：🔴 图像内容分析（打标签/描述生成）、🔴 文本转语义向量（用于 sqlite-vec 相似度搜索）、🟡 Meme 智能推荐（小参数文本模型）、🟢 AI 配图生成。包含网络不可用时的降级策略。
 
 **对外接口**
 
-| 函数签名                                            | 说明                                            | 参数                      | 返回值                |
-| --------------------------------------------------- | ----------------------------------------------- | ------------------------- | --------------------- |
-| `initialize(config: AiConfig): bool`                | 初始化 AI 网关，配置 API Key 和模型参数         | `config`：API 配置对象    | 初始化成功返回 `true` |
-| `analyzeImage(imagePath: string): AiAnalysisResult` | 对图像进行多模态分析，返回标签和描述            | `imagePath`：图像文件路径 | `AiAnalysisResult`    |
-| `generateEmbedding(text: string): float[]`          | 将文本转换为语义向量                            | `text`：输入文本          | 浮点数向量            |
-| `generateImage(prompt: string): GeneratedImage`     | 根据文本描述生成图像                            | `prompt`：文字描述        | `GeneratedImage`      |
-| `isAvailable(): bool`                               | 检查 AI 服务当前是否可用（网络连通 + 配置有效） | 无                        | 可用返回 `true`       |
-| `shutdown(): void`                                  | 释放 HTTP 客户端资源                            | 无                        | 无                    |
+| 函数签名                                                                     | 说明                                            | 参数                                      | 返回值                |
+| ---------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------- | --------------------- |
+| `initialize(config: AiConfig): bool`                                         | 初始化 AI 网关，配置 API Key 和模型参数         | `config`：API 配置对象                    | 初始化成功返回 `true` |
+| `analyzeImage(imagePath: string): AiAnalysisResult`                          | 🔴 对图像进行多模态分析，返回标签和描述          | `imagePath`：图像文件路径                 | `AiAnalysisResult`    |
+| `generateEmbedding(text: string): float[]`                                   | 🔴 将文本转换为语义向量                          | `text`：输入文本                          | 浮点数向量            |
+| `recommendMemes(query: string, memeIndex: MemeIndexItem[]): RecommendResult` | 🟡 根据文字描述和索引表推荐匹配的 Meme           | `query`：用户描述；`memeIndex`：Meme 索引 | `RecommendResult`     |
+| `generateImage(prompt: string): GeneratedImage`                              | 🟢 根据文本描述生成图像                          | `prompt`：文字描述                        | `GeneratedImage`      |
+| `isAvailable(): bool`                                                        | 检查 AI 服务当前是否可用（网络连通 + 配置有效） | 无                                        | 可用返回 `true`       |
+| `shutdown(): void`                                                           | 释放 HTTP 客户端资源                            | 无                                        | 无                    |
 
 > 📄 详细规划 → [docs/arch/ai_gateway.md](./arch/ai_gateway.md)
 
@@ -570,7 +575,7 @@ WsEvent {
 ```
 --bind-address --port --auth-token --storage-path --db-path --model-dir --log-dir --log-level
 --log-retention-enabled --log-retention-days
---api-key --api-base-url --vision-model --embedding-model --image-gen-model
+--api-key --api-base-url --vision-model --embedding-model --recommend-model --image-gen-model
 --api-timeout --api-retries
 --thumbnail-enabled --thumbnail-max-size
 --backup-enabled --backup-retention-days

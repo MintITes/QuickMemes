@@ -103,6 +103,7 @@ graph TD
         "apiBaseUrl": "https://api.openai.com/v1",
         "visionModel": "gpt-4o",
         "embeddingModel": "text-embedding-3-small",
+        "recommendModel": "Qwen2.5-7B-Instruct",
         "imageGenModel": "dall-e-3",
         "timeoutSeconds": 30,
         "maxRetries": 2
@@ -144,6 +145,7 @@ graph TD
 | `ai.apiBaseUrl`        | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
 | `ai.visionModel`       | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
 | `ai.embeddingModel`    | `string` | `"text-embedding-3-small"`     | 文本向量化模型名称                          |
+| `ai.recommendModel`    | `string` | `"Qwen2.5-7B-Instruct"`        | Meme 推荐模型名称（小参数文本模型）         |
 | `ai.imageGenModel`     | `string` | `"dall-e-3"`                   | 图像生成模型名称                            |
 | `ai.timeoutSeconds`    | `int`    | `30`                           | AI API 单次请求超时秒数                     |
 | `ai.maxRetries`        | `int`    | `2`                            | AI API 失败重试次数                         |
@@ -183,6 +185,7 @@ QuickMemes-backend \
     --api-base-url    <string>  \   # AI API 基础 URL
     --vision-model    <string>  \   # VLM 模型名称
     --embedding-model <string>  \   # Embedding 模型名称
+    --recommend-model <string>  \   # Meme 推荐模型名称（小参数文本模型）
     --image-gen-model <string>  \   # 图像生成模型名称
     --api-timeout     <int>     \   # AI API 请求超时秒数
     --api-retries     <int>     \   # AI API 失败重试次数
@@ -252,7 +255,7 @@ setConfig(patch: Partial<AppConfig>): void
 - **描述**：深度合并 `patch` 到当前配置缓存，然后调用 `saveConfig` 持久化。流程如下：
   1. 将 `patch` 录入的字段分为三类：
      - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `modelDir`
-     - **可热更新**：`ai.*`、`log.minLevel`、`thumbnail.*`（可直接同步到 C++ 后端）
+     - **可热更新**：`ai.*`、`log.minLevel`、`thumbnail.*`（可直接同步到 C++ 后端，包括 `ai.recommendModel`）
      - **仅前端生效**：`ui.*`（无需通知 C++ 后端）
   2. 调用 `saveConfig` 将全量配置写入 `config.json`
   3. 若存在需要重启的字段，设置 `needsRestart` 标记并返回给 React 显示提示

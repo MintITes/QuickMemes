@@ -71,6 +71,7 @@ graph TD
         handleRemoveMemeTag()
         handleExport()
         handleGenerateImage()
+        handleRecommendMemes()
         handleConfigUpdate()
         handleRebuildEmbeddings()"]
 
@@ -174,13 +175,14 @@ ServerConfig {
 
 ```
 AiConfig {
-    apiKey        : string  // API 鉴权密钥
-    apiBaseUrl    : string  // API 基础 URL
-    visionModel   : string  // 图像分析模型名称
-    embeddingModel: string  // 向量化模型名称
-    imageGenModel : string  // 图像生成模型名称
-    timeoutSeconds: int     // 请求超时秒数（默认 30）
-    maxRetries    : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
+    apiKey         : string  // API 鉴权密钥
+    apiBaseUrl     : string  // API 基础 URL
+    visionModel    : string  // 图像分析模型名称
+    embeddingModel : string  // 向量化模型名称
+    recommendModel : string  // Meme 推荐模型名称（小参数文本模型，如 "Qwen2.5-7B-Instruct"）
+    imageGenModel  : string  // 图像生成模型名称
+    timeoutSeconds : int     // 请求超时秒数（默认 30）
+    maxRetries     : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
 }
 ```
 
@@ -478,6 +480,22 @@ handleGenerateImage(prompt: string): GeneratedImage
 
 ---
 
+### `handleRecommendMemes`
+
+```
+handleRecommendMemes(query: string): RecommendResult
+```
+
+- **描述**：
+  1. 校验 `query` 非空
+  2. 从数据库查询所有未软删除的 Meme，构建 `MemeIndexItem[]` 列表（包含 ID、名称、描述摘要、OCR 文本截断前 200 字符、Tags）
+  3. 调用 `AiGateway.recommendMemes(query, memeIndex)` 获取推荐结果
+  4. 返回 `RecommendResult`
+- **输入**：`query`：用户的文字描述
+- **输出**：`RecommendResult`（推荐的 Meme 列表及推荐理由）
+
+---
+
 ### `handleGetTags`
 
 ```
@@ -557,7 +575,7 @@ handleConfigUpdate(patch: RuntimeConfigPatch): bool
 ```
 
 - **描述**：接收 `PATCH /api/config` 请求，将可热更新的配置变更实时应用到运行中的各子模块：
-  1. 若 patch 中包含任意 AI 字段（`aiApiKey` / `aiApiBaseUrl` / `aiVisionModel` 等），构建新 `AiConfig` 并调用 `AiGateway::reconfigure(newConfig)` 替换内部配置
+  1. 若 patch 中包含任意 AI 字段（`aiApiKey` / `aiApiBaseUrl` / `aiVisionModel` / `aiRecommendModel` 等），构建新 `AiConfig` 并调用 `AiGateway::reconfigure(newConfig)` 替换内部配置
   2. 若 patch 中包含 `logMinLevel`，调用 `Logger::get().setMinLevel(level)` 实时生效
   3. 对接收到的字段进行有效性校验，失败时返回 `ERR_INVALID_PARAMS`
 - **输入**：`patch`：`RuntimeConfigPatch` 对象（仅含需要变更的字段）
