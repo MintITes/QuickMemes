@@ -254,8 +254,8 @@ setConfig(patch: Partial<AppConfig>): void
 
 - **描述**：深度合并 `patch` 到当前配置缓存，然后调用 `saveConfig` 持久化。流程如下：
   1. 将 `patch` 录入的字段分为三类：
-     - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `modelDir`
-     - **可热更新**：`ai.*`、`log.minLevel`、`thumbnail.*`（可直接同步到 C++ 后端，包括 `ai.recommendModel`）
+     - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `modelDir` / `thumbnail.*`
+     - **可热更新**：`ai.*`、`log.minLevel`（可直接同步到 C++ 后端，包括 `ai.recommendModel`）
      - **仅前端生效**：`ui.*`（无需通知 C++ 后端）
   2. 调用 `saveConfig` 将全量配置写入 `config.json`
   3. 若存在需要重启的字段，设置 `needsRestart` 标记并返回给 React 显示提示
@@ -360,7 +360,7 @@ sequenceDiagram
     Main->>Main: 深度合并 patch 到配置缓存
     Main->>Main: saveConfig() 写入 config.json
     Main->>Main: 分析 patch 字段分类
-    alt 包含需重启字段（port / bindAddress / storagePath 等）
+    alt 包含需重启字段（port / bindAddress / storagePath / thumbnail 等）
         Main->>IPC: 返回 { needsRestart: true }
         IPC->>React: 显示重启提示
     else 包含可热更新字段（ai.* / log.minLevel）

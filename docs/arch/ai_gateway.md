@@ -236,10 +236,10 @@ analyzeImage(imagePath: string): AiAnalysisResult
   2. 读取图像文件并编码为 Base64（PNG 格式）
   3. 构建 OpenAI `/chat/completions` 请求，使用预设提示词要求模型以 JSON 格式返回 `{ tags: string[], description: string }`
   4. 发送请求（含重试逻辑），解析响应 JSON
-  5. 提取 `suggestedTags` 列表（最多 10 个）和 `description` 文本
-  6. 调用 `generateEmbedding(description)` 生成语义向量填入结果
+  5. 提取 `tags` 列表（最多 10 个）和 `description` 文本
+  6. 返回 `AiAnalysisResult`（`embedding` 字段为空向量，向量生成由调用方 C++ 核心模块负责，使用 `ocrText + description + tags` 拼接后调用 `generateEmbedding()` 单独生成）
 - **输入**：`imagePath`：图像文件绝对路径
-- **输出**：`AiAnalysisResult`
+- **输出**：`AiAnalysisResult`（`embedding` 为空，待调用方填充）
 
 ---
 
@@ -368,8 +368,8 @@ flowchart TD
     RETRY -->|否| FAIL([返回降级结果, 标记连通性失败])
     OK -->|是| PARSE[解析响应 JSON]
     PARSE --> EXTRACT[提取 tags 和 description]
-    EXTRACT --> EMBED[generateEmbedding description]
-    EMBED --> RETURN([返回 AiAnalysisResult])
+    EXTRACT --> RETURN([返回 AiAnalysisResult
+    embedding 为空，由调用方单独生成])
 ```
 
 ### `recommendMemes` 调用完整流程

@@ -75,13 +75,13 @@ graph TD
 
 > 本项目 C++ 依赖均采用**源码管理**方式（不使用 vcpkg / Conan 等包管理器），因大多数依赖为 header-only 库。
 
-| 依赖库           | 集成方式                             | 说明                                       |
-| ---------------- | ------------------------------------ | ------------------------------------------ |
-| `Boost.Beast`    | git submodule 或源码引入 Boost 子集  | Beast/Asio 模块，同时提供 HTTP + WebSocket |
-| `nlohmann/json`  | 头文件直接引入                       | 单文件 header-only                         |
-| `SQLiteCpp`      | 源码编译（CMake `add_subdirectory`） | 轻量封装，非 header-only                   |
-| `sqlite-vec`     | 预编译扩展 `.so` / `.dll`            | 运行时 `sqlite3_load_extension` 加载       |
-| `PaddleOCR`      | 预编译 SDK + 头文件                  | 官方发布的推理库                           |
-| `stb_image` 系列 | 头文件直接引入                       | 用于图像基础操作                           |
+| 依赖库          | 集成方式                             | 说明                                       |
+| --------------- | ------------------------------------ | ------------------------------------------ |
+| `Boost.Beast`   | git submodule 或源码引入 Boost 子集  | Beast/Asio 模块，同时提供 HTTP + WebSocket |
+| `nlohmann/json` | 头文件直接引入                       | 单文件 header-only                         |
+| `SQLiteCpp`     | 源码编译（CMake `add_subdirectory`） | 轻量封装，非 header-only                   |
+| `sqlite-vec`    | 预编译扩展 `.so` / `.dll`            | 运行时 `sqlite3_load_extension` 加载       |
+| `PaddleOCR`     | 预编译 SDK + 头文件                  | 官方发布的推理库                           |
+| `OpenCV`        | 预编译库 + 头文件                    | 图像读取、缩放、缩略图生成、尺寸检测       |
 
 ---

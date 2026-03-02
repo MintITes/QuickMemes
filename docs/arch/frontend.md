@@ -192,7 +192,7 @@ UiState {
 launchBackend(): Promise<void>
 ```
 
-- **描述**：读取 `AppConfig.backendPort` 配置，使用 `child_process.spawn` 启动 C++ 后端可执行文件，并将端口号作为命令行参数传入。同时设置 `onBackendExit` 监听后端异常退出。
+- **描述**：读取 `AppConfig.backendPort` 配置，生成随机 Auth Token（UUID v4），使用 `child_process.spawn` 启动 C++ 后端可执行文件，通过 `buildBackendArgs()` 将端口号、Auth Token 和其他配置作为命令行参数传入。Token 缓存在 Electron 主进程内存中，通过 `contextBridge` IPC 暴露给渲染进程，供 `sendHttpRequest()` 和 `connectWebSocket()` 使用。同时设置 `onBackendExit` 监听后端异常退出。
 - **输入**：无（从 `AppConfig` 读取端口）
 - **输出**：后端进程启动并监听端口后 resolve；若启动超时（默认 5 秒）或进程立即退出则 reject
 

@@ -366,6 +366,23 @@ upsertEmbedding(memeId: int64, embedding: float[]): void
 
 ---
 
+### `rebuildVecTable`
+
+```
+rebuildVecTable(newDimension: int): void
+```
+
+- **描述**：当 Embedding 模型切换导致向量维度变化时，重建 `vec_memes` 虚拟表。流程如下：
+  1. 在事务中执行 `DROP TABLE IF EXISTS vec_memes`
+  2. 使用新维度 `CREATE VIRTUAL TABLE vec_memes USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[{newDimension}])`
+  3. 提交事务
+  
+  > 此函数由 C++ 核心模块的 `handleRebuildEmbeddings()` 在检测到维度变化时调用，调用前会先通过 `AiGateway.generateEmbedding()` 探测新维度并与当前表维度比较。重建后所有旧向量数据丢失，需要逐条重新生成。
+- **输入**：`newDimension`：新的向量维度
+- **输出**：无（失败时抛出 SQLite 异常）
+
+---
+
 ### `updateMeme`
 
 ```
@@ -542,8 +559,8 @@ checkIntegrity(): bool
 flowchart TD
     START([调用 searchMemes]) --> BUILD[buildSearchSql 动态构建 SQL]
     BUILD --> HAS_KW{有 keyword?}
-    HAS_KW -->|是| KW_CLAUSE["添加 LIKE 匹配条件
-    name / description / ocr_text"]
+    HAS_KW -->|是| KW_CLAUSE["FTS5 MATCH 全文搜索
+    memes_fts 匹配 name / description / ocr_text"]
     HAS_KW -->|否| TAG_CHECK
     KW_CLAUSE --> TAG_CHECK
 

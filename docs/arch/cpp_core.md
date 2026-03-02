@@ -196,7 +196,7 @@ AiConfig {
 parseArgs(argc: int, argv: char*[]): ServerConfig
 ```
 
-- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--model-dir`、`--log-dir`、`--log-level`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--image-gen-model`、`--api-timeout`、`--api-retries`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
+- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--model-dir`、`--log-dir`、`--log-level`、`--log-retention-enabled`、`--log-retention-days`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--recommend-model`、`--image-gen-model`、`--api-timeout`、`--api-retries`、`--thumbnail-enabled`、`--thumbnail-max-size`、`--backup-enabled`、`--backup-retention-days`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
 - **输入**：`argc` / `argv`：标准 C 命令行参数
 - **输出**：完整填充的 `ServerConfig` 对象
 
@@ -209,14 +209,15 @@ startServer(config: ServerConfig): bool
 ```
 
 - **描述**：
-  1. 调用 `Logger::initialize(config.logDir, config.logLevel)` 完成日志模块初始化
-  2. 根据配置初始化并启动 HTTP 服务器（绑定 `config.bindAddress`）与 WebSocket 服务器（Boost.Beast），注册所有 `/api/*` 路由，所有请求经过 `authToken` 校验中间件
-  3. 完成 OCR、AI 网关、持久化三个子模块的初始化
-  4. 创建导入线程池和 OCR/AI 异步处理线程池
-  5. 若启用备份，调用 `Persistence.backupDatabase()` 创建启动备份，并检测数据库完整性
-  6. 若检测到数据库损坏，自动从最新备份恢复
-  7. 数据库 Schema 迁移前自动创建备份（通过调用 `Persistence.backupDatabase()`），确保迁移失败时可恢复
-  8. 启动定时任务：① 每 30 秒 WebSocket 心跳 ② 每日清理过期软删除记录 ③ 每日清理过期备份和日志
+  1. 注册 `SIGTERM` / `SIGINT` 信号处理函数，收到信号后调用 `stopServer()` 实现优雅关闭
+  2. 调用 `Logger::initialize(config.logDir, config.logLevel)` 完成日志模块初始化
+  3. 根据配置初始化并启动 HTTP 服务器（绑定 `config.bindAddress`）与 WebSocket 服务器（Boost.Beast），注册所有 `/api/*` 路由，所有请求经过 `authToken` 校验中间件
+  4. 完成 OCR、AI 网关、持久化三个子模块的初始化
+  5. 创建导入线程池和 OCR/AI 异步处理线程池
+  6. 若启用备份，调用 `Persistence.backupDatabase()` 创建启动备份，并检测数据库完整性
+  7. 若检测到数据库损坏，自动从最新备份恢复
+  8. 数据库 Schema 迁移前自动创建备份（通过调用 `Persistence.backupDatabase()`），确保迁移失败时可恢复
+  9. 启动定时任务：① 每 30 秒 WebSocket 心跳 ② 每日清理过期软删除记录 ③ 每日清理过期备份和日志
 - **输入**：`config`：完整服务器配置
 - **输出**：各子系统全部启动成功返回 `true`；任意子系统初始化失败返回 `false` 并记录日志
 
@@ -283,7 +284,7 @@ runProcessingPipeline(memeId: int64): void
   4. 若 AI 可用且 `autoAiAnalyze == true`：
      - 更新 `aiStatus = PROCESSING`，推送 `meme:processing`
      - 调用 `AiGateway.analyzeImage(filePath)` 获取标签和描述
-     - 调用 `AiGateway.generateEmbedding(ocrText + description)` 生成向量
+     - 调用 `AiGateway.generateEmbedding(ocrText + description + tags)` 生成向量（将 OCR 文本、AI 描述和标签名空格拼接后向量化）
      - 更新描述、标签关联、embedding，`aiStatus = DONE`
   5. 若 AI 不可用，设置 `aiStatus = SKIPPED`，**不生成 embedding 向量**
   6. 推送 `meme:updated` 通知前端更新完整数据
@@ -304,7 +305,7 @@ handleSearch(query: SearchQuery): SearchResult
   3. 若 `query.useVector == true` 且 `query.keyword` 非空：
      - 调用 `AiGateway.generateEmbedding(keyword)` 生成查询向量
      - 同时执行 `Persistence.vectorSearch()` 和 `Persistence.searchMemes(query)` 获取两路结果
-     - 使用加权融合排序：`finalScore = vectorWeight × vectorSimilarity + (1 - vectorWeight) × textRelevance`，其中 `vectorWeight` 默认 0.7
+     - 使用 **Reciprocal Rank Fusion (RRF)** 融合排序：`RRFScore(d) = Σ 1/(k + rank_i(d))`，其中 `k = 60`（常用常数），`rank_i(d)` 为文档 `d` 在第 `i` 路搜索结果中的排名（从 1 开始）。未出现在某路结果中的文档该路不贡献分数。按 RRFScore 降序排列最终结果
   4. 若 `useVector == false`，调用 `Persistence.searchMemes(query)` 执行普通搜索（使用 FTS5 全文索引），`similarityScore` 设为 `-1`
   5. 包装为 `SearchResult` 返回
 - **输入**：`query`：搜索参数
@@ -378,7 +379,7 @@ handleBatchTags(memeIds: int64[], tagId: int64): BatchResult
 handleMemeFile(id: int64): BinaryStream
 ```
 
-- **描述**：查询 Meme 获取 `filePath` 和 `mimeType`，读取文件返回二进制流，设置 `Content-Type` 响应头。
+- **描述**：查询 Meme 获取 `filePath` 和 `mimeType`，读取文件返回二进制流，设置 `Content-Type` 响应头。若该 Meme 尚无缩略图且缩略图功能已启用，则异步提交缩略图生成任务（不阻塞原图返回）。
 - **输入**：`id`：Meme ID
 - **输出**：图像二进制流；文件不存在时抛出 `ERR_IO`
 
@@ -390,7 +391,13 @@ handleMemeFile(id: int64): BinaryStream
 handleMemeThumbnail(id: int64): BinaryStream
 ```
 
-- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.webp` 缩略图文件。若存在则返回缩略图；若不存在且缩略图功能已启用，则**即时生成缩略图并缓存**，然后返回；若缩略图功能未启用，回退返回原始图像。
+- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.webp` 缩略图文件。若已存在则直接返回缩略图；若不存在且缩略图功能已启用，则**即时生成缩略图并缓存**，然后返回；若缩略图功能未启用，回退返回原始图像。
+
+  > 缩略图生成时机有两个触发点：
+  > 1. **懒加载**：前端调用 `GET /api/meme/:id/thumbnail` 时，若缩略图不存在则即时生成并缓存
+  > 2. **异步预生成**：前端调用 `GET /api/meme/:id/file` 获取原图时，若该 Meme 尚无缩略图，则异步提交缩略图生成任务（不阻塞原图返回）
+  > 
+  > 已生成过的缩略图不会重新生成（按 hash 缓存）。
 - **输入**：`id`：Meme ID
 - **输出**：缩略图或原始图像二进制流
 
@@ -450,7 +457,11 @@ handleHealth(): HealthStatus
 handleRebuildEmbeddings(): ImportTask
 ```
 
-- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 重新调用 `AiGateway.generateEmbedding()` 更新向量。用于 Embedding 模型切换后。通过 WebSocket 推送进度。
+- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 重新调用 `AiGateway.generateEmbedding()` 更新向量。用于 Embedding 模型切换后。流程如下：
+  1. 调用 `AiGateway.generateEmbedding()` 探测新模型的向量维度
+  2. 若维度与当前 `vec_memes` 表不一致，调用 `Persistence.rebuildVecTable(newDimension)` 重建虚拟表
+  3. 遍历所有未软删除的 Meme，通过 WebSocket 推送进度
+  4. 对每个 Meme，使用 `ocrText + description + tags` 拼接后调用 `generateEmbedding()` 生成新向量，调用 `upsertEmbedding()` 写入
 - **输入**：无
 - **输出**：重建任务对象
 

@@ -48,9 +48,7 @@ graph TD
         isReady()"]
 
         INFER["推理入口
-        recognize()
-        recognizeBuffer()"]
-
+        recognize()"]
         PP_OCR["PaddleOCR 内部管线
         ─────────────────────
         1. 文字检测（DB 模型）
@@ -140,16 +138,6 @@ recognize(imagePath: string): OcrResult
 
 ---
 
-### `recognizeBuffer`
-
-```
-recognizeBuffer(imageData: uint8[], width: int, height: int): OcrResult
-```
-
-- **描述**：接受内存中的原始 BGRA/BGR 图像字节数据（如剪贴板截图），直接构造 OpenCV `Mat` 后执行与 `recognize` 相同的推理流程，避免不必要的磁盘 I/O。
-- **输入**：`imageData`：原始图像字节数组（BGR 格式）；`width` / `height`：图像尺寸（像素）
-- **输出**：`OcrResult`
-
 ---
 
 ### `isReady`
@@ -210,7 +198,7 @@ sortTextBlocks(blocks: TextBlock[]): TextBlock[]
 
 ```mermaid
 flowchart TD
-    CALL([调用 recognize / recognizeBuffer]) --> READY{isReady?}
+    CALL([调用 recognize]) --> READY{isReady?}
     READY -->|否| FAIL_READY([返回 OcrResult { success: false, error: "引擎未初始化" }])
     READY -->|是| LOCK[获取 engine mutex]
     LOCK --> LOAD[加载图像为 cv::Mat]

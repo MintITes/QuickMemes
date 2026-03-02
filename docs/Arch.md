@@ -113,6 +113,7 @@ graph TD
         handleBatchTags()
         handleExport()
         handleGenerateImage()
+        handleRecommendMemes()
         handleConfigUpdate()
         handleRebuildEmbeddings()
         pushEvent()"]
@@ -256,7 +257,6 @@ SearchQuery {
     sizeMax    : int64     // 最大文件大小（字节，0 表示不限）
     regex        : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
     useVector    : bool      // 是否启用语义向量搜索
-    vectorWeight : float     // 向量搜索权重（0.0~1.0，默认 0.7，仅 useVector=true 时有效）
     sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt"
     sortOrder    : string    // 排序方向："ASC" | "DESC"
     limit        : int32     // 每页结果数量（默认 50，最大 200）
@@ -336,8 +336,8 @@ WsEvent {
 }
 
 // 各事件 payload 类型：
-// "task:progress"    -> { taskId: string, processed: int, total: int }
-// "task:complete"    -> { taskId: string, succeeded: int, failed: int }
+// "task:progress"    -> { taskId: string, processed: int, total: int, current: string }
+// "task:complete"    -> { taskId: string, succeeded: int, failed: int, errors: string[] }
 // "task:error"       -> { taskId: string, error: string }
 // "meme:added"       -> MemeEntry
 // "meme:updated"     -> MemeEntry
@@ -476,13 +476,12 @@ WsEvent {
 
 **对外接口**
 
-| 函数签名                                                                  | 说明                          | 参数                                              | 返回值                |
-| ------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------- | --------------------- |
-| `initialize(modelDir: string): bool`                                      | 初始化 OCR 引擎，加载模型文件 | `modelDir`：模型文件目录路径                      | 初始化成功返回 `true` |
-| `recognize(imagePath: string): OcrResult`                                 | 对指定图像执行 OCR 文字识别   | `imagePath`：图像文件本地路径                     | `OcrResult` 识别结果  |
-| `recognizeBuffer(imageData: uint8[], width: int, height: int): OcrResult` | 对内存中图像数据执行识别      | `imageData`：原始图像字节；`width`/`height`：尺寸 | `OcrResult` 识别结果  |
-| `isReady(): bool`                                                         | 检查 OCR 引擎是否已就绪       | 无                                                | 就绪返回 `true`       |
-| `shutdown(): void`                                                        | 释放 OCR 引擎资源             | 无                                                | 无                    |
+| 函数签名                                  | 说明                          | 参数                          | 返回值                |
+| ----------------------------------------- | ----------------------------- | ----------------------------- | --------------------- |
+| `initialize(modelDir: string): bool`      | 初始化 OCR 引擎，加载模型文件 | `modelDir`：模型文件目录路径  | 初始化成功返回 `true` |
+| `recognize(imagePath: string): OcrResult` | 对指定图像执行 OCR 文字识别   | `imagePath`：图像文件本地路径 | `OcrResult` 识别结果  |
+| `isReady(): bool`                         | 检查 OCR 引擎是否已就绪       | 无                            | 就绪返回 `true`       |
+| `shutdown(): void`                        | 释放 OCR 引擎资源             | 无                            | 无                    |
 
 > 📄 详细规划 → [docs/arch/ocr.md](./arch/ocr.md)
 
