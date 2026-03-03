@@ -129,19 +129,22 @@ AppConfig {
     bindAddress  : string   // HTTP / WS 绑定地址（默认 "127.0.0.1"）
     storagePath  : string   // Meme 文件存储根目录
     dbPath       : string   // SQLite 数据库文件路径
-    modelDir     : string   // PaddleOCR 模型文件目录
     logDir       : string   // 日志文件输出目录
     maxQueueSize : int      // 处理队列最大深度（默认 500）
 
-    ai : {
+    vision : {
         apiKey         : string  // AI API 密钥（空字符串表示禁用 AI）
         apiBaseUrl     : string  // AI API 基础 URL（兼容 OpenAI 格式）
         visionModel    : string  // 图像理解模型名称
         embeddingModel : string  // 文本向量化模型名称
-        recommendModel : string  // Meme 推荐模型名称（小参数文本模型）
-        imageGenModel  : string  // 图像生成模型名称
         timeoutSeconds : int     // AI API 单次请求超时秒数
         maxRetries     : int     // AI API 失败重试次数
+    }
+
+    ocr : {
+        apiKey   : string  // 云端 OCR API 密钥（空表示禁用 OCR）
+        apiUrl   : string  // 云端 OCR API 地址（待适配）
+        provider : string  // 云端 OCR 提供商标识（占位字段）
     }
 
     ui : {

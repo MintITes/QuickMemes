@@ -28,7 +28,7 @@
 
 **不负责的事情：**
 - 文件系统操作（由 C++ 核心模块负责）
-- 向量的计算和生成（由 AI 网关模块负责）
+- 向量的计算和生成（由 Vision 模块负责）
 - 任何业务逻辑（由 C++ 核心模块负责）
 
 ---
@@ -377,7 +377,7 @@ rebuildVecTable(newDimension: int): void
   2. 使用新维度 `CREATE VIRTUAL TABLE vec_memes USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[{newDimension}])`
   3. 提交事务
   
-  > 此函数由 C++ 核心模块的 `handleRebuildEmbeddings()` 在检测到维度变化时调用，调用前会先通过 `AiGateway.generateEmbedding()` 探测新维度并与当前表维度比较。重建后所有旧向量数据丢失，需要逐条重新生成。
+  > 此函数由 C++ 核心模块的 `handleRebuildEmbeddings()` 在检测到维度变化时调用，调用前会先通过 `VisionModule.generateEmbedding()` 探测新维度并与当前表维度比较。重建后所有旧向量数据丢失，需要逐条重新生成。
 - **输入**：`newDimension`：新的向量维度
 - **输出**：无（失败时抛出 SQLite 异常）
 

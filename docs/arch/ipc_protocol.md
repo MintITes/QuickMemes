@@ -93,13 +93,15 @@ ERR_IO                : 1004  // 文件读写失败
 ERR_INTERNAL          : 1099  // 后端内部未预期错误
 
 // OCR
-ERR_OCR_NOT_READY     : 2001  // OCR 引擎未初始化
+ERR_OCR_NOT_READY     : 2001  // OCR 服务未配置
 ERR_OCR_FAILED        : 2002  // OCR 识别失败
 
 // AI
 ERR_AI_UNAVAILABLE    : 3001  // AI 服务不可用
 ERR_AI_REQUEST_FAILED : 3002  // AI API 调用失败
-ERR_AI_QUOTA_EXCEEDED : 3003  // AI API 配额超限
+
+// 通用配额
+ERR_QUOTA_EXCEEDED    : 4001  // API 配额超限（AI / OCR 共用）
 ```
 
 ### `ImportRequest` — 导入请求体
@@ -146,16 +148,6 @@ ExportResult {
 }
 ```
 
-### `GeneratedImage` — AI 生成图像结果
-
-```
-GeneratedImage {
-    imageBase64 : string  // Base64 编码的 PNG 图像数据
-    width       : int32   // 图像宽度
-    height      : int32   // 图像高度
-}
-```
-
 ### `SearchResult` — 搜索响应结果
 
 ```
@@ -186,38 +178,9 @@ BatchResult {
 HealthStatus {
     status  : string  // "ok" | "degraded"
     modules : {
-        ocr : bool    // OCR 引擎是否就绪
-        ai  : bool    // AI 服务是否可用
-        db  : bool    // 数据库是否正常
+        vision : bool  // Vision 模块是否可用（AI + OCR）
+        db     : bool  // 数据库是否正常
     }
-}
-```
-
-### `MemeIndexItem` — Meme 索引摘要（用于 AI 推荐上下文）
-
-```
-MemeIndexItem {
-    id          : int64    // Meme ID
-    name        : string   // 名称
-    description : string   // 描述文本（AI 生成或用户编辑）
-    ocrText     : string   // OCR 识别文本（截断前 200 字符）
-    tags        : string[] // 关联标签名称列表
-}
-```
-
-### `RecommendResult` — Meme 推荐结果
-
-```
-RecommendResult {
-    recommendations : RecommendItem[]  // 推荐条目列表
-    success         : bool             // 是否成功
-    error           : string           // 失败时的错误描述（可为空）
-}
-
-RecommendItem {
-    memeId : int64   // 推荐的 Meme ID
-    reason : string  // 推荐理由（模型生成的简短说明）
-    score  : float   // 推荐置信度（0.0~1.0）
 }
 ```
 
@@ -225,19 +188,20 @@ RecommendItem {
 
 ```
 RuntimeConfigPatch {
-    aiApiKey?          : string  // AI API 密鑰（可选）
+    aiApiKey?          : string  // AI API 密钥（可选）
     aiApiBaseUrl?      : string  // AI API 基础 URL（可选）
     aiVisionModel?     : string  // VLM 模型名称（可选）
     aiEmbeddingModel?  : string  // Embedding 模型名称（可选）
-    aiRecommendModel?  : string  // Meme 推荐模型名称（可选）
-    aiImageGenModel?   : string  // 图像生成模型名称（可选）
     aiTimeoutSeconds?  : int     // AI API 请求超时秒数（可选）
     aiMaxRetries?      : int     // AI API 失败重试次数（可选）
+    ocrApiKey?         : string  // 云端 OCR API 密钥（可选）
+    ocrApiUrl?         : string  // 云端 OCR API 地址（可选）
+    ocrProvider?       : string  // 云端 OCR 提供商（可选）
     logMinLevel?       : string  // 最低日志输出等级（可选）
 }
 
 // 需要重启后生效的字段（无法通过此接口修改）：
-// backendPort 、 storagePath 、 dbPath 、 modelDir
+// backendPort 、 storagePath 、 dbPath
 ```
 
 ---
@@ -400,24 +364,6 @@ RuntimeConfigPatch {
 
 ---
 
-### `POST /api/ai/generate-image` — AI 生成配图
-
-- **描述**：调用 AI 服务根据文字描述生成图像
-- **请求体**：`{ prompt: string }`
-- **成功响应**：`ApiResponse<GeneratedImage>`
-- **可能错误**：`ERR_AI_UNAVAILABLE`、`ERR_AI_REQUEST_FAILED`、`ERR_AI_QUOTA_EXCEEDED`
-
----
-
-### `POST /api/ai/recommend` — AI 推荐 Meme
-
-- **描述**：根据用户的文字描述，通过小参数文本模型结合 Meme 索引表智能推荐匹配的 Meme。后端自动构建索引表上下文
-- **请求体**：`{ query: string }`
-- **成功响应**：`ApiResponse<RecommendResult>`
-- **可能错误**：`ERR_AI_UNAVAILABLE`、`ERR_AI_REQUEST_FAILED`、`ERR_INVALID_PARAMS`（query 为空）
-
----
-
 ### `DELETE /api/memes/batch` — 批量软删除 Meme
 
 - **描述**：批量将多个 Meme 移入回收站
@@ -447,7 +393,7 @@ RuntimeConfigPatch {
 
 ### `PATCH /api/config` — 运行时配置热更新
 
-- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（AI 配置、日志等级）
+- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（Vision 配置、OCR 配置、日志等级）
 - **请求体**：`RuntimeConfigPatch`（仅传入需要变更的字段，其余字段保持不变）
 - **成功响应**：`ApiResponse<null>`
 - **可能错误**：`ERR_INVALID_PARAMS`（字段值非法，如 `logMinLevel` 不在有效等级内）

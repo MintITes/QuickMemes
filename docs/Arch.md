@@ -16,14 +16,12 @@
     - [`SearchQuery` — 搜索查询参数](#searchquery--搜索查询参数)
     - [`ImportTask` — 导入任务](#importtask--导入任务)
     - [`AiAnalysisResult` — AI 分析结果](#aianalysisresult--ai-分析结果)
-    - [`OcrResult` — OCR 识别结果](#ocrresult--ocr-识别结果)
     - [`WsEvent` — WebSocket 推送事件](#wsevent--websocket-推送事件)
   - [模块索引](#模块索引)
     - [前端模块](#前端模块)
     - [通信协议模块](#通信协议模块)
     - [C++ 核心模块](#c-核心模块)
-    - [OCR 模块](#ocr-模块)
-    - [AI 网关模块](#ai-网关模块)
+    - [Vision 模块](#vision-模块)
     - [持久化模块](#持久化模块)
     - [日志模块](#日志模块)
     - [配置文件模块](#配置文件模块)
@@ -39,7 +37,7 @@ graph TD
     %% ── 前端层 ──
     subgraph FRONT ["前端层（Electron + TypeScript + React + Tailwind CSS）"]
         direction TB
-        ELECTRON["Electron 主进程
+        ELECTRON["前端 Electron 主进程
         ──────────────────
         launchBackend()
         killBackend()
@@ -71,8 +69,6 @@ graph TD
         POST   /api/meme/:id/tags
         DELETE /api/meme/:id/tags/:tagId
         POST   /api/export
-        POST   /api/ai/generate-image
-        POST   /api/ai/recommend
         DELETE /api/memes/batch
         POST   /api/memes/batch/tags
         PATCH  /api/config
@@ -112,23 +108,15 @@ graph TD
         handleBatchDelete()
         handleBatchTags()
         handleExport()
-        handleGenerateImage()
-        handleRecommendMemes()
         handleConfigUpdate()
         handleRebuildEmbeddings()
         pushEvent()"]
 
-        OCR_MOD["OCR 模块
+        VISION_MOD["Vision 模块
         ──────────────────
         recognize()
-        isReady()"]
-
-        AI_MOD["AI 网关模块
-        ──────────────────
         analyzeImage()
         generateEmbedding()
-        recommendMemes()
-        generateImage()
         isAvailable()"]
 
         DB_MOD["持久化模块
@@ -148,8 +136,7 @@ graph TD
         backupDatabase()
         restoreDatabase()"]
 
-        CORE --> OCR_MOD
-        CORE --> AI_MOD
+        CORE --> VISION_MOD
         CORE --> DB_MOD
     end
 
@@ -172,7 +159,7 @@ graph TD
     end
 
     %% ── 外部服务 ──
-    CLOUD(("云端 LLM / VLM API"))
+    CLOUD(("云端 OCR / LLM / VLM API"))
 
     %% ── 连接关系 ──
     ELECTRON -->|"spawn with CLI args"| CORE
@@ -181,7 +168,7 @@ graph TD
     WS -->|"推送事件"| REACT
     HTTP_API <-->|"路由调度（校验 Token）"| CORE
     CORE -->|"推送"| WS
-    AI_MOD -.->|"HTTPS REST"| CLOUD
+    VISION_MOD -.->|"HTTPS REST"| CLOUD
     FRONT -.->|"log()"| LOGGER_MOD
     BACKEND -.->|"LOG_XXX()"| LOGGER_MOD
 ```
@@ -305,50 +292,8 @@ AiAnalysisResult {
 
 ---
 
-### `OcrResult` — OCR 识别结果
-
-```
-OcrResult {
-    fullText  : string       // 识别出的完整文本拼接
-    blocks    : TextBlock[]  // 各独立文字块列表
-    success   : bool         // 是否成功
-    error     : string       // 失败时的错误描述（可为空）
-}
-
-TextBlock {
-    text        : string   // 该块文字内容
-    confidence  : float    // 识别置信度（0.0 ~ 1.0）
-    x           : int32    // 边框左上角 X 坐标
-    y           : int32    // 边框左上角 Y 坐标
-    w           : int32    // 边框宽度
-    h           : int32    // 边框高度
-}
-```
-
----
-
-### `WsEvent` — WebSocket 推送事件
-
-```
-WsEvent {
-    event   : string  // 事件类型名称
-    payload : any     // 事件负载（JSON 对象，各事件不同）
-}
-
-// 各事件 payload 类型：
-// "task:progress"    -> { taskId: string, processed: int, total: int, current: string }
-// "task:complete"    -> { taskId: string, succeeded: int, failed: int, errors: string[] }
-// "task:error"       -> { taskId: string, error: string }
-// "meme:added"       -> MemeEntry
-// "meme:updated"     -> MemeEntry
-// "meme:deleted"     -> { id: int64 }
-// "meme:processing"  -> { id: int64, ocrStatus: ProcessingStatus, aiStatus: ProcessingStatus }
-// "tag:created"      -> Tag
-// "tag:deleted"      -> { id: int64 }
-// "ping"             -> {}（心跳帧，每 30 秒发送一次）
-```
-
-> 其余协议专用数据结构（`ImportRequest`、`MemePatch`、`ExportRequest`、`ExportResult`、`GeneratedImage`、`RuntimeConfigPatch` 等）定义于 [ipc_protocol.md](./arch/ipc_protocol.md#模块独有数据结构)。
+> 其余协议专用数据结构（`ImportRequest`、`MemePatch`、`ExportRequest`、`ExportResult`、`RuntimeConfigPatch` 等）定义于 [ipc_protocol.md](./arch/ipc_protocol.md#模块独有数据结构)。
+> 云端 OCR 识别结果数据结构 `OcrResult` 定义于 [vision.md](./arch/vision.md#ocrresult--ocr-识别结果)。
 
 ---
 
@@ -405,8 +350,6 @@ WsEvent {
 | `/api/meme/:id/tags`            | `POST`   | 为 Meme 添加标签                     |
 | `/api/meme/:id/tags/:tagId`     | `DELETE` | 移除 Meme 的标签                     |
 | `/api/export`                   | `POST`   | 导出 Meme 到本地文件                 |
-| `/api/ai/generate-image`        | `POST`   | AI 根据文本生成配图                  |
-| `/api/ai/recommend`             | `POST`   | AI 根据文字描述推荐 Meme             |
 | `/api/memes/batch`              | `DELETE` | 批量软删除 Meme                      |
 | `/api/memes/batch/tags`         | `POST`   | 批量为 Meme 添加标签                 |
 | `/api/config`                   | `PATCH`  | 运行时配置热更新                     |
@@ -433,7 +376,7 @@ WsEvent {
 
 ### C++ 核心模块
 
-**职责**：作为整个后端的调度中枢，启动 HTTP 服务器和 WebSocket 服务器，将前端的请求路由到对应处理逻辑，并协调 OCR、AI 网关、持久化三个子模块完成业务处理，通过 WebSocket 向前端推送异步事件。
+**职责**：作为整个后端的调度中枢，启动 HTTP 服务器和 WebSocket 服务器，将前端的请求路由到对应处理逻辑，并协调 Vision、持久化两个子模块完成业务处理，通过 WebSocket 向前端推送异步事件。
 
 **对外接口（HTTP 路由处理函数）**
 
@@ -460,8 +403,6 @@ WsEvent {
 | `handleAddMemeTag(memeId, tagId): bool`                        | 为 Meme 添加标签                    | `memeId`/`tagId`                 | 操作成功返回 `true`  |
 | `handleRemoveMemeTag(memeId, tagId): bool`                     | 移除 Meme 的标签                    | `memeId`/`tagId`                 | 操作成功返回 `true`  |
 | `handleExport(req: ExportRequest): ExportResult`               | 导出 Meme 到本地路径                | `req`：导出目标路径等参数        | 导出结果             |
-| `handleGenerateImage(prompt: string): GeneratedImage`          | 调用 AI 根据文本生成图片            | `prompt`：文字描述               | 生成的图像数据       |
-| `handleRecommendMemes(query: string): RecommendResult`         | AI 根据文字描述推荐匹配的 Meme      | `query`：用户文字描述            | 推荐结果             |
 | `handleConfigUpdate(patch: RuntimeConfigPatch): bool`          | 运行时配置热更新                    | `patch`：变更字段                | 更新成功返回 `true`  |
 | `handleRebuildEmbeddings(): ImportTask`                        | 重建所有 Meme 语义向量（异步）      | 无                               | 重建任务对象         |
 | `pushEvent(event: WsEvent): void`                              | 向所有已连接前端推送 WebSocket 事件 | `event`：事件对象                | 无                   |
@@ -470,40 +411,23 @@ WsEvent {
 
 ---
 
-### OCR 模块
+### Vision 模块
 
-**职责**：封装 PaddleOCR PP-OCRv5，对输入的图像文件执行本地 CPU 推理，提取图像中的文字信息，输出结构化识别结果，供 C++ 核心模块用于入库存储和向量化。
-
-**对外接口**
-
-| 函数签名                                  | 说明                          | 参数                          | 返回值                |
-| ----------------------------------------- | ----------------------------- | ----------------------------- | --------------------- |
-| `initialize(modelDir: string): bool`      | 初始化 OCR 引擎，加载模型文件 | `modelDir`：模型文件目录路径  | 初始化成功返回 `true` |
-| `recognize(imagePath: string): OcrResult` | 对指定图像执行 OCR 文字识别   | `imagePath`：图像文件本地路径 | `OcrResult` 识别结果  |
-| `isReady(): bool`                         | 检查 OCR 引擎是否已就绪       | 无                            | 就绪返回 `true`       |
-| `shutdown(): void`                        | 释放 OCR 引擎资源             | 无                            | 无                    |
-
-> 📄 详细规划 → [docs/arch/ocr.md](./arch/ocr.md)
-
----
-
-### AI 网关模块
-
-**职责**：封装对云端第三方 LLM / VLM API 的调用，提供四项核心能力：🔴 图像内容分析（打标签/描述生成）、🔴 文本转语义向量（用于 sqlite-vec 相似度搜索）、🟡 Meme 智能推荐（小参数文本模型）、🟢 AI 配图生成。包含网络不可用时的降级策略。
+**职责**：封装对云端第三方 OCR API 和 LLM / VLM API 的调用，提供三项核心能力：🔴 OCR 文字识别（云端 OCR API，占位接口）、🔴 图像内容分析（打标签/描述生成）、🔴 文本转语义向量（用于 sqlite-vec 相似度搜索）。包含网络不可用时的降级策略。
 
 **对外接口**
 
-| 函数签名                                                                     | 说明                                            | 参数                                      | 返回值                |
-| ---------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------- | --------------------- |
-| `initialize(config: AiConfig): bool`                                         | 初始化 AI 网关，配置 API Key 和模型参数         | `config`：API 配置对象                    | 初始化成功返回 `true` |
-| `analyzeImage(imagePath: string): AiAnalysisResult`                          | 🔴 对图像进行多模态分析，返回标签和描述          | `imagePath`：图像文件路径                 | `AiAnalysisResult`    |
-| `generateEmbedding(text: string): float[]`                                   | 🔴 将文本转换为语义向量                          | `text`：输入文本                          | 浮点数向量            |
-| `recommendMemes(query: string, memeIndex: MemeIndexItem[]): RecommendResult` | 🟡 根据文字描述和索引表推荐匹配的 Meme           | `query`：用户描述；`memeIndex`：Meme 索引 | `RecommendResult`     |
-| `generateImage(prompt: string): GeneratedImage`                              | 🟢 根据文本描述生成图像                          | `prompt`：文字描述                        | `GeneratedImage`      |
-| `isAvailable(): bool`                                                        | 检查 AI 服务当前是否可用（网络连通 + 配置有效） | 无                                        | 可用返回 `true`       |
-| `shutdown(): void`                                                           | 释放 HTTP 客户端资源                            | 无                                        | 无                    |
+| 函数签名                                            | 说明                                            | 参数                   | 返回值                |
+| --------------------------------------------------- | ----------------------------------------------- | ---------------------- | --------------------- |
+| `initialize(config: VisionConfig): bool`            | 初始化 Vision 模块，配置 API Key 和模型参数     | `config`：API 配置对象 | 初始化成功返回 `true` |
+| `recognize(imagePath: string): OcrResult`           | 🔴 通过云端 OCR API 识别图像文字（占位接口）     | `imagePath`：图像路径  | `OcrResult`           |
+| `analyzeImage(imagePath: string): AiAnalysisResult` | 🔴 对图像进行多模态分析，返回标签和描述          | `imagePath`：图像路径  | `AiAnalysisResult`    |
+| `generateEmbedding(text: string): float[]`          | 🔴 将文本转换为语义向量                          | `text`：输入文本       | 浮点数向量            |
+| `isAvailable(): bool`                               | 检查 AI 服务当前是否可用（网络连通 + 配置有效） | 无                     | 可用返回 `true`       |
+| `isOcrAvailable(): bool`                            | 检查云端 OCR 服务是否可用                       | 无                     | 可用返回 `true`       |
+| `shutdown(): void`                                  | 释放 HTTP 客户端资源                            | 无                     | 无                    |
 
-> 📄 详细规划 → [docs/arch/ai_gateway.md](./arch/ai_gateway.md)
+> 📄 详细规划 → [docs/arch/vision.md](./arch/vision.md)
 
 ---
 
@@ -572,10 +496,11 @@ WsEvent {
 **C++ 命令行参数（Electron 启动时传入）**
 
 ```
---bind-address --port --auth-token --storage-path --db-path --model-dir --log-dir --log-level
+--bind-address --port --auth-token --storage-path --db-path --log-dir --log-level
 --log-retention-enabled --log-retention-days
---api-key --api-base-url --vision-model --embedding-model --recommend-model --image-gen-model
+--api-key --api-base-url --vision-model --embedding-model
 --api-timeout --api-retries
+--ocr-api-key --ocr-api-url --ocr-provider
 --thumbnail-enabled --thumbnail-max-size
 --backup-enabled --backup-retention-days
 --max-queue-size

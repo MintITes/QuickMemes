@@ -95,18 +95,20 @@ graph TD
     "bindAddress": "127.0.0.1",
     "storagePath": "{app_dir}/storage",
     "dbPath": "{app_dir}/data/quickmemes.db",
-    "modelDir": "{app_dir}/models/ocr",
     "logDir": "{app_dir}/logs",
     "maxQueueSize": 500,
-    "ai": {
+    "vision": {
         "apiKey": "",
         "apiBaseUrl": "https://api.openai.com/v1",
         "visionModel": "gpt-4o",
         "embeddingModel": "text-embedding-3-small",
-        "recommendModel": "Qwen2.5-7B-Instruct",
-        "imageGenModel": "dall-e-3",
         "timeoutSeconds": 30,
         "maxRetries": 2
+    },
+    "ocr": {
+        "apiKey": "",
+        "apiUrl": "",
+        "provider": ""
     },
     "ui": {
         "panelShortcut": "Alt+M",
@@ -132,34 +134,34 @@ graph TD
 
 ### 字段说明
 
-| 字段路径               | 类型     | 默认值                         | 说明                                        |
-| ---------------------- | -------- | ------------------------------ | ------------------------------------------- |
-| `backendPort`          | `int`    | `57321`                        | C++ 后端 HTTP / WS 监听端口                 |
-| `bindAddress`          | `string` | `"127.0.0.1"`                  | HTTP / WS 绑定地址（仅回环，禁止外部访问）  |
-| `storagePath`          | `string` | `{app_dir}/storage`            | Meme 图像文件存储根目录                     |
-| `dbPath`               | `string` | `{app_dir}/data/quickmemes.db` | SQLite 数据库文件路径                       |
-| `modelDir`             | `string` | `{app_dir}/models/ocr`         | PaddleOCR 模型文件目录                      |
-| `logDir`               | `string` | `{app_dir}/logs`               | 日志文件输出目录                            |
-| `maxQueueSize`         | `int`    | `500`                          | 处理队列最大深度（满时新导入暂停）          |
-| `ai.apiKey`            | `string` | `""`                           | 云端 AI API 密钥（空字符串表示禁用 AI）     |
-| `ai.apiBaseUrl`        | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
-| `ai.visionModel`       | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
-| `ai.embeddingModel`    | `string` | `"text-embedding-3-small"`     | 文本向量化模型名称                          |
-| `ai.recommendModel`    | `string` | `"Qwen2.5-7B-Instruct"`        | Meme 推荐模型名称（小参数文本模型）         |
-| `ai.imageGenModel`     | `string` | `"dall-e-3"`                   | 图像生成模型名称                            |
-| `ai.timeoutSeconds`    | `int`    | `30`                           | AI API 单次请求超时秒数                     |
-| `ai.maxRetries`        | `int`    | `2`                            | AI API 失败重试次数                         |
-| `ui.panelShortcut`     | `string` | `"Alt+M"`                      | 快速面板全局快捷键                          |
-| `ui.theme`             | `string` | `"system"`                     | 界面主题：`"light"` / `"dark"` / `"system"` |
-| `ui.viewMode`          | `string` | `"grid"`                       | Meme 画廊视图：`"grid"` / `"list"`          |
-| `ui.language`          | `string` | `"zh-CN"`                      | 界面语言（当前仅支持 `"zh-CN"`）            |
-| `log.minLevel`         | `string` | `"INFO"`                       | 最低日志输出等级                            |
-| `log.retentionEnabled` | `bool`   | `true`                         | 是否启用日志自动清理                        |
-| `log.retentionDays`    | `int`    | `30`                           | 日志保留天数                                |
-| `thumbnail.enabled`    | `bool`   | `true`                         | 是否启用缩略图生成                          |
-| `thumbnail.maxSize`    | `int`    | `300`                          | 缩略图最大边长像素                          |
-| `backup.enabled`       | `bool`   | `true`                         | 是否启用数据库自动备份                      |
-| `backup.retentionDays` | `int`    | `30`                           | 备份文件保留天数                            |
+| 字段路径                | 类型     | 默认值                         | 说明                                        |
+| ----------------------- | -------- | ------------------------------ | ------------------------------------------- |
+| `backendPort`           | `int`    | `57321`                        | C++ 后端 HTTP / WS 监听端口                 |
+| `bindAddress`           | `string` | `"127.0.0.1"`                  | HTTP / WS 绑定地址（仅回环，禁止外部访问）  |
+| `storagePath`           | `string` | `{app_dir}/storage`            | Meme 图像文件存储根目录                     |
+| `dbPath`                | `string` | `{app_dir}/data/quickmemes.db` | SQLite 数据库文件路径                       |
+| `logDir`                | `string` | `{app_dir}/logs`               | 日志文件输出目录                            |
+| `maxQueueSize`          | `int`    | `500`                          | 处理队列最大深度（满时新导入暂停）          |
+| `vision.apiKey`         | `string` | `""`                           | 云端 AI API 密钥（空字符串表示禁用 AI）     |
+| `vision.apiBaseUrl`     | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
+| `vision.visionModel`    | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
+| `vision.embeddingModel` | `string` | `"text-embedding-3-small"`     | 文本向量化模型名称                          |
+| `vision.timeoutSeconds` | `int`    | `30`                           | AI API 单次请求超时秒数                     |
+| `vision.maxRetries`     | `int`    | `2`                            | AI API 失败重试次数                         |
+| `ocr.apiKey`            | `string` | `""`                           | 云端 OCR API 密钥（空表示禁用 OCR）         |
+| `ocr.apiUrl`            | `string` | `""`                           | 云端 OCR API 地址（待适配具体提供商）       |
+| `ocr.provider`          | `string` | `""`                           | 云端 OCR 提供商标识（占位字段）             |
+| `ui.panelShortcut`      | `string` | `"Alt+M"`                      | 快速面板全局快捷键                          |
+| `ui.theme`              | `string` | `"system"`                     | 界面主题：`"light"` / `"dark"` / `"system"` |
+| `ui.viewMode`           | `string` | `"grid"`                       | Meme 画廊视图：`"grid"` / `"list"`          |
+| `ui.language`           | `string` | `"zh-CN"`                      | 界面语言（当前仅支持 `"zh-CN"`）            |
+| `log.minLevel`          | `string` | `"INFO"`                       | 最低日志输出等级                            |
+| `log.retentionEnabled`  | `bool`   | `true`                         | 是否启用日志自动清理                        |
+| `log.retentionDays`     | `int`    | `30`                           | 日志保留天数                                |
+| `thumbnail.enabled`     | `bool`   | `true`                         | 是否启用缩略图生成                          |
+| `thumbnail.maxSize`     | `int`    | `300`                          | 缩略图最大边长像素                          |
+| `backup.enabled`        | `bool`   | `true`                         | 是否启用数据库自动备份                      |
+| `backup.retentionDays`  | `int`    | `30`                           | 备份文件保留天数                            |
 
 ---
 
@@ -176,7 +178,6 @@ QuickMemes-backend \
     --auth-token      <string>  \   # 请求校验令牌（Electron 启动时生成的随机字符串）
     --storage-path    <string>  \   # Meme 文件存储根目录
     --db-path         <string>  \   # SQLite 数据库文件路径
-    --model-dir       <string>  \   # OCR 模型文件目录
     --log-dir         <string>  \   # 日志文件输出目录
     --log-level       <string>  \   # 最低日志等级：DEBUG/INFO/WARN/ERROR/FATAL
     --log-retention-enabled <bool>  \   # 日志自动清理开关
@@ -185,10 +186,11 @@ QuickMemes-backend \
     --api-base-url    <string>  \   # AI API 基础 URL
     --vision-model    <string>  \   # VLM 模型名称
     --embedding-model <string>  \   # Embedding 模型名称
-    --recommend-model <string>  \   # Meme 推荐模型名称（小参数文本模型）
-    --image-gen-model <string>  \   # 图像生成模型名称
     --api-timeout     <int>     \   # AI API 请求超时秒数
     --api-retries     <int>     \   # AI API 失败重试次数
+    --ocr-api-key     <string>  \   # 云端 OCR API 密钥（可为空）
+    --ocr-api-url     <string>  \   # 云端 OCR API 地址（可为空）
+    --ocr-provider    <string>  \   # 云端 OCR 提供商标识（可为空）
     --thumbnail-enabled  <bool> \   # 缩略图开关
     --thumbnail-max-size <int>  \   # 缩略图最大边长
     --backup-enabled       <bool>  \   # 自动备份开关
@@ -254,13 +256,13 @@ setConfig(patch: Partial<AppConfig>): void
 
 - **描述**：深度合并 `patch` 到当前配置缓存，然后调用 `saveConfig` 持久化。流程如下：
   1. 将 `patch` 录入的字段分为三类：
-     - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `modelDir` / `thumbnail.*`
-     - **可热更新**：`ai.*`、`log.minLevel`（可直接同步到 C++ 后端，包括 `ai.recommendModel`）
+     - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `thumbnail.*`
+     - **可热更新**：`vision.*`、`ocr.*`、`log.minLevel`（可直接同步到 C++ 后端）
      - **仅前端生效**：`ui.*`（无需通知 C++ 后端）
   2. 调用 `saveConfig` 将全量配置写入 `config.json`
   3. 若存在需要重启的字段，设置 `needsRestart` 标记并返回给 React 显示提示
   4. 若存在可热更新的字段，调用 `syncToBackend(runtimePatch)` 将变更实时同步到 C++ 后端
-  5. 若 `ai.embeddingModel` 发生变更，返回 `{ embeddingModelChanged: true }` 提示前端显示“切换模型后需重建向量索引”警告
+  5. 若 `vision.embeddingModel` 发生变更，返回 `{ embeddingModelChanged: true }` 提示前端显示“切换模型后需重建向量索引”警告
 - **输入**：`patch`：仅含需变更字段的部分配置对象
 - **输出**：无
 
@@ -274,9 +276,9 @@ validateConfig(config: AppConfig): string[]
 
 - **描述**：对配置进行合法性校验，返回所有错误描述列表（空列表表示配置合法）。校验规则：
   - `backendPort`：1024 ≤ port ≤ 65535
-  - `storagePath` / `dbPath` / `modelDir` / `logDir`：非空字符串
-  - `ai.timeoutSeconds`：1 ≤ value ≤ 300
-  - `ai.maxRetries`：0 ≤ value ≤ 10
+  - `storagePath` / `dbPath` / `logDir`：非空字符串
+  - `vision.timeoutSeconds`：1 ≤ value ≤ 300
+  - `vision.maxRetries`：0 ≤ value ≤ 10
   - `ui.theme`：值为 `"light"` / `"dark"` / `"system"` 之一
   - `log.minLevel`：值为 `"DEBUG"` / `"INFO"` / `"WARN"` / `"ERROR"` / `"FATAL"` 之一
 - **输入**：`config`：待校验的配置对象
@@ -355,7 +357,7 @@ sequenceDiagram
     participant Main as Electron 主进程
     participant CPP as C++ 后端
 
-    React->>IPC: setConfig({ ai: { apiKey: "sk-xxx" } })
+    React->>IPC: setConfig({ vision: { apiKey: "sk-xxx" } })
     IPC->>Main: set-config 事件
     Main->>Main: 深度合并 patch 到配置缓存
     Main->>Main: saveConfig() 写入 config.json
@@ -363,7 +365,7 @@ sequenceDiagram
     alt 包含需重启字段（port / bindAddress / storagePath / thumbnail 等）
         Main->>IPC: 返回 { needsRestart: true }
         IPC->>React: 显示重启提示
-    else 包含可热更新字段（ai.* / log.minLevel）
+    else 包含可热更新字段（vision.* / ocr.* / log.minLevel）
         Main->>CPP: PATCH /api/config { RuntimeConfigPatch }
         CPP->>CPP: handleConfigUpdate() 实时应用配置
         CPP-->>Main: 200 OK

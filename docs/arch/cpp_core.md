@@ -21,14 +21,14 @@
 **负责的事情：**
 - 启动和管理本地 HTTP 服务器及 WebSocket 服务器（均基于 Boost.Beast / Boost.Asio）
 - 将 HTTP 请求路由到对应处理函数，校验请求携带的 Auth Token
-- 协调 OCR、AI 网关、持久化三个子模块的调用顺序与数据流
+- 协调 Vision、持久化两个子模块的调用顺序与数据流
 - 管理导入任务的异步执行（多线程任务队列）
 - 文件 I/O：图像文件的复制、移动、哈希计算、MIME 类型识别、尺寸读取
 - 通过 WebSocket 向前端推送异步处理结果
 
 **不负责的事情：**
-- OCR 推理实现（由 OCR 模块负责）
-- AI API 调用实现（由 AI 网关模块负责）
+- OCR / AI 推理实现（由 Vision 模块负责）
+- AI API 调用实现（由 Vision 模块负责）
 - 数据库读写实现（由持久化模块负责）
 - 前端 UI 渲染和 Electron 进程管理
 
@@ -70,8 +70,6 @@ graph TD
         handleAddMemeTag()
         handleRemoveMemeTag()
         handleExport()
-        handleGenerateImage()
-        handleRecommendMemes()
         handleConfigUpdate()
         handleRebuildEmbeddings()"]
 
@@ -85,7 +83,7 @@ graph TD
         pushEvent()
         维护连接列表"]
 
-        FILE_UTILS["文件工具
+        FILE_UTILS["文件工具（stb 系列）
         copyFile()
         computeHash()
         detectMime()
@@ -100,15 +98,12 @@ graph TD
         TASK_QUEUE --> FILE_UTILS
     end
 
-    OCR["OCR 模块"]
-    AI["AI 网关模块"]
+    VISION["Vision 模块"]
     DB["持久化模块"]
 
-    TASK_QUEUE -->|"recognize()"| OCR
-    TASK_QUEUE -->|"analyzeImage() / generateEmbedding()"| AI
+    TASK_QUEUE -->|"recognize() / analyzeImage() / generateEmbedding()"| VISION
     TASK_QUEUE -->|"insertMeme() / updateMeme()"| DB
     HANDLERS -->|"searchMemes() / getMeme() / deleteMeme()"| DB
-    HANDLERS -->|"generateImage()"| AI
 ```
 
 ---
@@ -151,38 +146,38 @@ TaskQueue {
 
 ```
 ServerConfig {
-    bindAddress       : string  // HTTP 和 WS 绑定地址（默认 "127.0.0.1"，仅回环）
-    port              : int     // HTTP 和 WS 监听端口
-    authToken         : string  // 请求校验令牌（由 Electron 启动时生成并传入）
-    storagePath       : string  // Meme 文件存储根目录
-    dbPath            : string  // SQLite 数据库文件路径
-    modelDir          : string  // OCR 模型文件目录
-    logDir            : string  // 日志文件输出目录
-    logLevel          : string  // 最低日志输出等级
-    aiConfig          : AiConfig // AI 网关配置
-    workerCount       : int     // 导入任务线程池线程数（默认 4）
-    maxQueueSize      : int     // 处理队列最大深度（默认 500）
-    thumbnailEnabled  : bool    // 是否启用缩略图生成（默认 true）
-    thumbnailMaxSize  : int     // 缩略图最大边长像素（默认 300）
-    backupEnabled     : bool    // 是否启用自动备份（默认 true）
-    backupRetentionDays : int   // 备份保留天数（默认 30）
-    logRetentionEnabled : bool  // 是否启用日志自动清理（默认 true）
-    logRetentionDays    : int   // 日志保留天数（默认 30）
+    bindAddress       : string       // HTTP 和 WS 绑定地址（默认 "127.0.0.1"，仅回环）
+    port              : int          // HTTP 和 WS 监听端口
+    authToken         : string       // 请求校验令牌（由 Electron 启动时生成并传入）
+    storagePath       : string       // Meme 文件存储根目录
+    dbPath            : string       // SQLite 数据库文件路径
+    logDir            : string       // 日志文件输出目录
+    logLevel          : string       // 最低日志输出等级
+    visionConfig      : VisionConfig // Vision 模块配置
+    workerCount       : int          // 导入任务线程池线程数（默认 4）
+    maxQueueSize      : int          // 处理队列最大深度（默认 500）
+    thumbnailEnabled  : bool         // 是否启用缩略图生成（默认 true）
+    thumbnailMaxSize  : int          // 缩略图最大边长像素（默认 300）
+    backupEnabled     : bool         // 是否启用自动备份（默认 true）
+    backupRetentionDays : int        // 备份保留天数（默认 30）
+    logRetentionEnabled : bool       // 是否启用日志自动清理（默认 true）
+    logRetentionDays    : int        // 日志保留天数（默认 30）
 }
 ```
 
-### `AiConfig` — AI 网关配置（传递给 AI 模块）
+### `VisionConfig` — Vision 模块配置（传递给 Vision 模块）
 
 ```
-AiConfig {
-    apiKey         : string  // API 鉴权密钥
-    apiBaseUrl     : string  // API 基础 URL
+VisionConfig {
+    apiKey         : string  // AI API 鉴权密钥
+    apiBaseUrl     : string  // AI API 基础 URL
     visionModel    : string  // 图像分析模型名称
     embeddingModel : string  // 向量化模型名称
-    recommendModel : string  // Meme 推荐模型名称（小参数文本模型，如 "Qwen2.5-7B-Instruct"）
-    imageGenModel  : string  // 图像生成模型名称
     timeoutSeconds : int     // 请求超时秒数（默认 30）
     maxRetries     : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
+    ocrApiKey      : string  // 云端 OCR API 密钥（可为空）
+    ocrApiUrl      : string  // 云端 OCR API 地址（待适配）
+    ocrProvider    : string  // 云端 OCR 提供商标识（占位字段）
 }
 ```
 
@@ -196,7 +191,7 @@ AiConfig {
 parseArgs(argc: int, argv: char*[]): ServerConfig
 ```
 
-- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--model-dir`、`--log-dir`、`--log-level`、`--log-retention-enabled`、`--log-retention-days`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--recommend-model`、`--image-gen-model`、`--api-timeout`、`--api-retries`、`--thumbnail-enabled`、`--thumbnail-max-size`、`--backup-enabled`、`--backup-retention-days`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
+- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--log-dir`、`--log-level`、`--log-retention-enabled`、`--log-retention-days`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--api-timeout`、`--api-retries`、`--ocr-api-key`、`--ocr-api-url`、`--ocr-provider`、`--thumbnail-enabled`、`--thumbnail-max-size`、`--backup-enabled`、`--backup-retention-days`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
 - **输入**：`argc` / `argv`：标准 C 命令行参数
 - **输出**：完整填充的 `ServerConfig` 对象
 
@@ -212,7 +207,7 @@ startServer(config: ServerConfig): bool
   1. 注册 `SIGTERM` / `SIGINT` 信号处理函数，收到信号后调用 `stopServer()` 实现优雅关闭
   2. 调用 `Logger::initialize(config.logDir, config.logLevel)` 完成日志模块初始化
   3. 根据配置初始化并启动 HTTP 服务器（绑定 `config.bindAddress`）与 WebSocket 服务器（Boost.Beast），注册所有 `/api/*` 路由，所有请求经过 `authToken` 校验中间件
-  4. 完成 OCR、AI 网关、持久化三个子模块的初始化
+  4. 完成 Vision、持久化两个子模块的初始化
   5. 创建导入线程池和 OCR/AI 异步处理线程池
   6. 若启用备份，调用 `Persistence.backupDatabase()` 创建启动备份，并检测数据库完整性
   7. 若检测到数据库损坏，自动从最新备份恢复
@@ -229,7 +224,7 @@ startServer(config: ServerConfig): bool
 stopServer(): void
 ```
 
-- **描述**：停止接受新连接，等待所有正在处理的 HTTP 请求完成，关闭所有 WebSocket 连接，等待两个线程池中已提交的任务完成（最多 10 秒），最后依次调用三个子模块的 `shutdown()` 并关闭服务器。
+- **描述**：停止接受新连接，等待所有正在处理的 HTTP 请求完成，关闭所有 WebSocket 连接，等待两个线程池中已提交的任务完成（最多 10 秒），最后依次调用两个子模块的 `shutdown()` 并关闭服务器。
 - **输入**：无
 - **输出**：无
 
@@ -279,12 +274,12 @@ runProcessingPipeline(memeId: int64): void
 
 - **描述**：对已入库的 Meme 异步执行 OCR 和 AI 分析，不阻塞导入流程：
   1. 更新 `ocrStatus = PROCESSING`，推送 `meme:processing` 事件
-  2. 调用 `OcrModule.recognize(filePath)` 提取文字
+  2. 调用 `VisionModule.recognize(filePath)` 提取文字
   3. 更新 `ocrText` 和 `ocrStatus = DONE`（失败则 `FAILED`），推送 `meme:processing`
   4. 若 AI 可用且 `autoAiAnalyze == true`：
      - 更新 `aiStatus = PROCESSING`，推送 `meme:processing`
-     - 调用 `AiGateway.analyzeImage(filePath)` 获取标签和描述
-     - 调用 `AiGateway.generateEmbedding(ocrText + description + tags)` 生成向量（将 OCR 文本、AI 描述和标签名空格拼接后向量化）
+     - 调用 `VisionModule.analyzeImage(filePath)` 获取标签和描述
+     - 调用 `VisionModule.generateEmbedding(ocrText + description + tags)` 生成向量（将 OCR 文本、AI 描述和标签名空格拼接后向量化）
      - 更新描述、标签关联、embedding，`aiStatus = DONE`
   5. 若 AI 不可用，设置 `aiStatus = SKIPPED`，**不生成 embedding 向量**
   6. 推送 `meme:updated` 通知前端更新完整数据
@@ -303,7 +298,7 @@ handleSearch(query: SearchQuery): SearchResult
   1. 校验并规范化 `SearchQuery` 参数（limit 限制 ≤200，offset ≥0）
   2. 默认过滤已软删除的 Meme（`deleted_at == 0`）
   3. 若 `query.useVector == true` 且 `query.keyword` 非空：
-     - 调用 `AiGateway.generateEmbedding(keyword)` 生成查询向量
+     - 调用 `VisionModule.generateEmbedding(keyword)` 生成查询向量
      - 同时执行 `Persistence.vectorSearch()` 和 `Persistence.searchMemes(query)` 获取两路结果
      - 使用 **Reciprocal Rank Fusion (RRF)** 融合排序：`RRFScore(d) = Σ 1/(k + rank_i(d))`，其中 `k = 60`（常用常数），`rank_i(d)` 为文档 `d` 在第 `i` 路搜索结果中的排名（从 1 开始）。未出现在某路结果中的文档该路不贡献分数。按 RRFScore 降序排列最终结果
   4. 若 `useVector == false`，调用 `Persistence.searchMemes(query)` 执行普通搜索（使用 FTS5 全文索引），`similarityScore` 设为 `-1`
@@ -391,7 +386,7 @@ handleMemeFile(id: int64): BinaryStream
 handleMemeThumbnail(id: int64): BinaryStream
 ```
 
-- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.webp` 缩略图文件。若已存在则直接返回缩略图；若不存在且缩略图功能已启用，则**即时生成缩略图并缓存**，然后返回；若缩略图功能未启用，回退返回原始图像。
+- **描述**：查询 Meme，查找 `storagePath/thumbnails/{hash}.jpg` 缩略图文件。若已存在则直接返回缩略图；若不存在且缩略图功能已启用，则**即时生成缩略图并缓存**，然后返回；若缩略图功能未启用，回退返回原始图像。
 
   > 缩略图生成时机有两个触发点：
   > 1. **懒加载**：前端调用 `GET /api/meme/:id/thumbnail` 时，若缩略图不存在则即时生成并缓存
@@ -445,7 +440,7 @@ handlePurgeTrash(): int
 handleHealth(): HealthStatus
 ```
 
-- **描述**：检查各子模块状态，返回 `HealthStatus { status, modules: { ocr, ai, db } }`。所有模块就绪时 `status="ok"`，任一不可用时 `status="degraded"`。
+- **描述**：检查各子模块状态，返回 `HealthStatus { status, modules: { vision, db } }`。所有模块就绪时 `status="ok"`，任一不可用时 `status="degraded"`。
 - **输入**：无
 - **输出**：`HealthStatus`
 
@@ -457,8 +452,8 @@ handleHealth(): HealthStatus
 handleRebuildEmbeddings(): ImportTask
 ```
 
-- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 重新调用 `AiGateway.generateEmbedding()` 更新向量。用于 Embedding 模型切换后。流程如下：
-  1. 调用 `AiGateway.generateEmbedding()` 探测新模型的向量维度
+- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 重新调用 `VisionModule.generateEmbedding()` 更新向量。用于 Embedding 模型切换后。流程如下：
+  1. 调用 `VisionModule.generateEmbedding()` 探测新模型的向量维度
   2. 若维度与当前 `vec_memes` 表不一致，调用 `Persistence.rebuildVecTable(newDimension)` 重建虚拟表
   3. 遍历所有未软删除的 Meme，通过 WebSocket 推送进度
   4. 对每个 Meme，使用 `ocrText + description + tags` 拼接后调用 `generateEmbedding()` 生成新向量，调用 `upsertEmbedding()` 写入
@@ -478,32 +473,6 @@ handleExport(req: ExportRequest): ExportResult
 - **输出**：`ExportResult`（成功/失败数量及错误描述）
 
 ---
-
-### `handleGenerateImage`
-
-```
-handleGenerateImage(prompt: string): GeneratedImage
-```
-
-- **描述**：校验 `prompt` 非空，调用 `AiGateway.generateImage(prompt)` 生成图像并返回结果。
-- **输入**：`prompt`：文字描述
-- **输出**：`GeneratedImage`（含 Base64 编码图像数据）
-
----
-
-### `handleRecommendMemes`
-
-```
-handleRecommendMemes(query: string): RecommendResult
-```
-
-- **描述**：
-  1. 校验 `query` 非空
-  2. 从数据库查询所有未软删除的 Meme，构建 `MemeIndexItem[]` 列表（包含 ID、名称、描述摘要、OCR 文本截断前 200 字符、Tags）
-  3. 调用 `AiGateway.recommendMemes(query, memeIndex)` 获取推荐结果
-  4. 返回 `RecommendResult`
-- **输入**：`query`：用户的文字描述
-- **输出**：`RecommendResult`（推荐的 Meme 列表及推荐理由）
 
 ---
 
@@ -586,7 +555,7 @@ handleConfigUpdate(patch: RuntimeConfigPatch): bool
 ```
 
 - **描述**：接收 `PATCH /api/config` 请求，将可热更新的配置变更实时应用到运行中的各子模块：
-  1. 若 patch 中包含任意 AI 字段（`aiApiKey` / `aiApiBaseUrl` / `aiVisionModel` / `aiRecommendModel` 等），构建新 `AiConfig` 并调用 `AiGateway::reconfigure(newConfig)` 替换内部配置
+  1. 若 patch 中包含任意 Vision 字段（`aiApiKey` / `aiApiBaseUrl` / `aiVisionModel` / `ocrApiKey` / `ocrApiUrl` / `ocrProvider` 等），构建新 `VisionConfig` 并调用 `VisionModule::reconfigure(newConfig)` 替换内部配置
   2. 若 patch 中包含 `logMinLevel`，调用 `Logger::get().setMinLevel(level)` 实时生效
   3. 对接收到的字段进行有效性校验，失败时返回 `ERR_INVALID_PARAMS`
 - **输入**：`patch`：`RuntimeConfigPatch` 对象（仅含需要变更的字段）
@@ -636,8 +605,8 @@ readImageSize(filePath: string): { width: int32, height: int32 }
 generateThumbnail(srcPath: string, destPath: string, maxSize: int): bool
 ```
 
-- **描述**：使用 OpenCV 读取图像，按比例缩放至长边不超过 `maxSize` 像素，以 WebP 格式保存到 `destPath`。
-- **输入**：`srcPath`：原始图像路径；`destPath`：缩略图目标路径；`maxSize`：最大边长
+- **描述**：使用 stb_image 读取图像，使用 stb_image_resize2 按比例缩放至长边不超过 `maxSize` 像素，以 JPEG 格式通过 stb_image_write 保存到 `destPath`。
+- **输入**：`srcPath`：原始图像路径；`destPath`：缩略图目标路径（`.jpg`）；`maxSize`：最大边长
 - **输出**：生成成功返回 `true`；失败记录日志返回 `false`（缩略图生成失败不影响导入流程）
 
 ---
@@ -670,7 +639,7 @@ flowchart TD
     QUEUE_PROC --> UPDATE_PROGRESS[pushEvent task:progress]
 
     QUEUE_PROC --> PROC["阶段二：异步处理（处理线程）"]
-    PROC --> OCR_STEP["OCR 识别文字\n更新 ocrStatus"]
+    PROC --> OCR_STEP["云端 OCR 识别文字\n更新 ocrStatus"]
     OCR_STEP --> AI_CHECK{AI 可用?}
     AI_CHECK -->|是| AI_STEP["AI 分析 + Embedding\n更新 aiStatus"]
     AI_CHECK -->|否| AI_SKIP["aiStatus=SKIPPED\n不生成向量"]

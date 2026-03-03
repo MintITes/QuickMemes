@@ -71,10 +71,9 @@ graph TD
         LOGGER_INSTANCE --> FILE_WRITER
     end
 
-    CORE["C++ 核心模块"] -->|"LOG_INFO(...)"| LOG_MACRO
-    OCR["OCR 模块"]       -->|"LOG_INFO(...)"| LOG_MACRO
-    AI["AI 网关模块"]     -->|"LOG_INFO(...)"| LOG_MACRO
-    DB["持久化模块"]      -->|"LOG_INFO(...)"| LOG_MACRO
+    CORE["C++ 核心模块"]   -->|"LOG_INFO(...)"| LOG_MACRO
+    VISION["Vision 模块"] -->|"LOG_INFO(...)"| LOG_MACRO
+    DB["持久化模块"]        -->|"LOG_INFO(...)"| LOG_MACRO
 ```
 
 ---
@@ -97,7 +96,7 @@ LogLevel : "DEBUG" | "INFO" | "WARN" | "ERROR" | "FATAL"
 LogEntry {
     timestamp : string   // 格式 "YYYY-MM-DD HH:MM:SS.mmm"
     level     : LogLevel // 日志等级
-    module    : string   // 模块名称，如 "cpp_core" / "ocr" / "frontend"
+    module    : string   // 模块名称，如 "cpp_core" / "vision" / "frontend"
     message   : string   // 日志内容
 }
 ```
@@ -115,8 +114,8 @@ LogEntry {
 **示例：**
 ```
 [2026-03-01 19:32:05.123] [INFO ] [cpp_core] 服务器启动成功，监听端口 57321
-[2026-03-01 19:32:05.456] [DEBUG] [ocr     ] 开始识别图像: /storage/memes/abc.png
-[2026-03-01 19:32:06.789] [ERROR] [ai_gate ] API 请求失败: HTTP 429, 配额超限
+[2026-03-01 19:32:05.456] [DEBUG] [vision  ] 开始云端 OCR 识别图像: /storage/memes/abc.png
+[2026-03-01 19:32:06.789] [ERROR] [vision  ] API 请求失败: HTTP 429, 配额超限
 [2026-03-01 19:32:07.001] [FATAL] [persist ] 数据库写入失败，磁盘空间不足
 ```
 
@@ -129,8 +128,7 @@ LogEntry {
 
 // 示例：
 logs/cpp_core-2026-03-01.log
-logs/ocr-2026-03-01.log
-logs/ai_gateway-2026-03-01.log
+logs/vision-2026-03-01.log
 logs/persistence-2026-03-01.log
 logs/frontend-2026-03-01.log
 ```
