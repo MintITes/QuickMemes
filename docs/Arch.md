@@ -16,7 +16,6 @@
     - [`SearchQuery` — 搜索查询参数](#searchquery--搜索查询参数)
     - [`ImportTask` — 导入任务](#importtask--导入任务)
     - [`AiAnalysisResult` — AI 分析结果](#aianalysisresult--ai-分析结果)
-    - [`WsEvent` — WebSocket 推送事件](#wsevent--websocket-推送事件)
   - [模块索引](#模块索引)
     - [前端模块](#前端模块)
     - [通信协议模块](#通信协议模块)
@@ -413,16 +412,16 @@ AiAnalysisResult {
 
 ### Vision 模块
 
-**职责**：封装对云端第三方 OCR API 和 LLM / VLM API 的调用，提供三项核心能力：🔴 OCR 文字识别（云端 OCR API，占位接口）、🔴 图像内容分析（打标签/描述生成）、🔴 文本转语义向量（用于 sqlite-vec 相似度搜索）。包含网络不可用时的降级策略。
+**职责**：封装对云端第三方 OCR API 和 LLM / VLM API 的调用，提供三项核心能力：OCR 文字识别（云端 OCR API，占位接口）、图像内容分析（打标签/描述生成）、文本转语义向量（用于 sqlite-vec 相似度搜索）。包含网络不可用时的降级策略。
 
 **对外接口**
 
 | 函数签名                                            | 说明                                            | 参数                   | 返回值                |
 | --------------------------------------------------- | ----------------------------------------------- | ---------------------- | --------------------- |
 | `initialize(config: VisionConfig): bool`            | 初始化 Vision 模块，配置 API Key 和模型参数     | `config`：API 配置对象 | 初始化成功返回 `true` |
-| `recognize(imagePath: string): OcrResult`           | 🔴 通过云端 OCR API 识别图像文字（占位接口）     | `imagePath`：图像路径  | `OcrResult`           |
-| `analyzeImage(imagePath: string): AiAnalysisResult` | 🔴 对图像进行多模态分析，返回标签和描述          | `imagePath`：图像路径  | `AiAnalysisResult`    |
-| `generateEmbedding(text: string): float[]`          | 🔴 将文本转换为语义向量                          | `text`：输入文本       | 浮点数向量            |
+| `recognize(imagePath: string): OcrResult`           | 通过云端 OCR API 识别图像文字（占位接口）       | `imagePath`：图像路径  | `OcrResult`           |
+| `analyzeImage(imagePath: string): AiAnalysisResult` | 对图像进行多模态分析，返回标签和描述            | `imagePath`：图像路径  | `AiAnalysisResult`    |
+| `generateEmbedding(text: string): float[]`          | 将文本转换为语义向量                            | `text`：输入文本       | 浮点数向量            |
 | `isAvailable(): bool`                               | 检查 AI 服务当前是否可用（网络连通 + 配置有效） | 无                     | 可用返回 `true`       |
 | `isOcrAvailable(): bool`                            | 检查云端 OCR 服务是否可用                       | 无                     | 可用返回 `true`       |
 | `shutdown(): void`                                  | 释放 HTTP 客户端资源                            | 无                     | 无                    |

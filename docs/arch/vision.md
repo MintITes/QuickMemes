@@ -11,9 +11,9 @@
 
 | 优先级 | 能力             | 使用模型/服务          | 用途                                                                                  |
 | ------ | ---------------- | ---------------------- | ------------------------------------------------------------------------------------- |
-| 🔴 核心 | **OCR 文字识别** | 云端 OCR API（待适配） | 输入图片 → 提取图像中的文字内容，供搜索和向量化使用                                   |
-| 🔴 核心 | **图像分析**     | 视觉模型 (VLM)         | 输入图片 → 输出描述文本 + 推荐 Tags                                                   |
-| 🔴 核心 | **词向量转换**   | Embedding 模型         | 将 OCR 文本 / AI 描述 / Tags / 用户搜索关键词转换为语义向量，供 sqlite-vec 相似度搜索 |
+| 核心   | **OCR 文字识别** | 云端 OCR API（待适配） | 输入图片 → 提取图像中的文字内容，供搜索和向量化使用                                   |
+| 核心   | **图像分析**     | 视觉模型 (VLM)         | 输入图片 → 输出描述文本 + 推荐 Tags                                                   |
+| 核心   | **词向量转换**   | Embedding 模型         | 将 OCR 文本 / AI 描述 / Tags / 用户搜索关键词转换为语义向量，供 sqlite-vec 相似度搜索 |
 
 > OCR 文字识别、图像分析和词向量转换是搜索与索引的基石，三者均为核心能力。
 
@@ -62,19 +62,19 @@ graph TD
         AVAIL["可用性检查
         isAvailable()"]
 
-        OCR_FUNC["🔴 OCR 文字识别
+        OCR_FUNC[" OCR 文字识别
         recognize()
         ─────────────────
         云端 OCR API（占位）
         → fullText"]
 
-        ANALYZE["🔴 图像分析
+        ANALYZE[" 图像分析
         analyzeImage()
         ─────────────────
         视觉模型 VLM
         → suggestedTags + description"]
 
-        EMBED["🔴 词向量转换
+        EMBED[" 词向量转换
         generateEmbedding()
         ─────────────────
         Embedding 模型
@@ -116,13 +116,13 @@ graph TD
 VisionConfig {
     apiKey          : string  // AI API 鉴权密钥（Header: Authorization: Bearer {apiKey}）
     apiBaseUrl      : string  // AI API 基础 URL（兼容 OpenAI 接口格式，如 https://api.openai.com/v1）
-    visionModel     : string  // 🔴 图像分析模型名称（如 "gpt-4o"）
-    embeddingModel  : string  // 🔴 向量化模型名称（如 "text-embedding-3-small"）
+    visionModel     : string  // 图像分析模型名称（如 "gpt-4o"）
+    embeddingModel  : string  // 向量化模型名称（如 "text-embedding-3-small"）
     timeoutSeconds  : int     // 单次 API 请求超时秒数（默认 30）
     maxRetries      : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
-    ocrApiKey       : string  // 🔴 云端 OCR API 密钥（可为空，空则 OCR 降级为空文本）
-    ocrApiUrl       : string  // 🔴 云端 OCR API 地址（待适配具体提供商）
-    ocrProvider     : string  // 🔴 云端 OCR 提供商标识（如 "baidu" / "tencent" / "google"，占位字段）
+    ocrApiKey       : string  // 云端 OCR API 密钥（可为空，空则 OCR 降级为空文本）
+    ocrApiUrl       : string  // 云端 OCR API 地址（待适配具体提供商）
+    ocrProvider     : string  // 云端 OCR 提供商标识（如 "baidu" / "tencent" / "google"，占位字段）
 }
 ```
 
