@@ -3,6 +3,9 @@
 > **所属层级**：前端层（Electron + TypeScript + React + Tailwind CSS）  
 > **对应索引**：[Arch.md - 前端模块](../Arch.md#前端模块)
 
+> [!NOTE]
+> **UI 界面设计文档**请参阅 [docs/UI/UI.md](../UI/UI.md)，包含布局规格、组件库、交互流程、弹窗规格和视觉风格规范。本文档侧重于 Electron 主进程与 React 渲染进程的技术架构。
+
 ---
 
 ## 目录
@@ -66,13 +69,6 @@ graph TD
         disconnectWebSocket()
         onEvent()"]
 
-        subgraph PAGES ["页面组件"]
-            HOME["主页（Meme 画廊）"]
-            IMPORT["导入页"]
-            DETAIL["详情页"]
-            SETTINGS["设置页"]
-            PANEL_UI["快速面板"]
-        end
 
         subgraph STORE ["全局状态管理（Zustand）"]
             MEME_STORE["MemeStore - Meme 列表状态"]
@@ -85,7 +81,6 @@ graph TD
     ELECTRON_MAIN <-->|"contextBridge / IPC"| RENDERER
     HTTP_CLIENT <-->|"HTTP REST"| BACKEND[("C++ 后端")]
     WS_CLIENT <-->|"WebSocket"| BACKEND
-    PAGES --> STORE
     STORE --> HTTP_CLIENT
     WS_CLIENT --> STORE
 ```
@@ -279,7 +274,7 @@ unregisterGlobalShortcut(key: string): void
 showMemePanel(): void
 ```
 
-- **描述**：将 Meme 快速取用面板窗口（独立 `BrowserWindow`）设置为可见，并将其置于所有窗口最前。该面板为无边框、半透明的浮动窗口。
+- **描述**：将 Meme 快速取用面板窗口（独立 `BrowserWindow`）设置为可见，并将其置于所有窗口最前。该面板为无边框、半透明的浮动窗口。详细的面板 UI 设计规格见 [floating-panel.md](../UI/floating-panel.md)。
 - **输入**：无
 - **输出**：无
 
@@ -291,7 +286,7 @@ showMemePanel(): void
 hideMemePanel(): void
 ```
 
-- **描述**：隐藏 Meme 快速取用面板窗口。
+- **描述**：隐藏 Meme 快速取用面板窗口。详见 [floating-panel.md](../UI/floating-panel.md)。
 - **输入**：无
 - **输出**：无
 
