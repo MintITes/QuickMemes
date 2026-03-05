@@ -186,7 +186,7 @@ graph TD
 ```
 MemeEntry {
     id          : int64            // 数据库自增主键
-    filePath    : string           // 本地文件绝对路径
+    filePath    : string           // 本地文件相对路径
     fileHash    : string           // SHA-256 文件哈希（用于去重）
     mimeType    : string           // 文件 MIME 类型，如 "image/png"
     fileSize    : int64            // 文件大小，单位字节
