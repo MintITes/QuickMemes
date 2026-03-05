@@ -17,7 +17,7 @@ FetchContent_Declare(
     URL https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.tar.gz
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
-set(BOOST_INCLUDE_LIBRARIES beast asio)
+set(BOOST_INCLUDE_LIBRARIES beast asio uuid)
 set(BUILD_SHARED_LIBS OFF)
 FetchContent_MakeAvailable(Boost)
 
@@ -38,6 +38,9 @@ FetchContent_Declare(
     GIT_TAG        3.3.3
     GIT_SHALLOW    TRUE
 )
+# 开启必要的 sqlite3 拓展，否则数据库创建 FTS5 和 Vector 表会失败
+add_compile_definitions(SQLITE_ENABLE_FTS5=1 SQLITE_ENABLE_MATH_FUNCTIONS=1 SQLITE_ENABLE_COLUMN_METADATA=1)
+
 set(SQLITECPP_RUN_CPPLINT OFF CACHE INTERNAL "")
 set(SQLITECPP_RUN_CPPCHECK OFF CACHE INTERNAL "")
 set(SQLITECPP_BUILD_EXAMPLES OFF CACHE INTERNAL "")
@@ -67,6 +70,11 @@ FetchContent_Declare(
 FetchContent_GetProperties(sqlite_vec)
 if(NOT sqlite_vec_POPULATED)
     FetchContent_Populate(sqlite_vec)
+endif()
+
+if(NOT EXISTS "${sqlite_vec_SOURCE_DIR}/sqlite-vec.h")
+    file(WRITE "${sqlite_vec_SOURCE_DIR}/sqlite-vec.h" "
+#ifndef SQLITE_VEC_H\n#define SQLITE_VEC_H\n#ifndef SQLITE_CORE\n#include \"sqlite3ext.h\"\n#else\n#include \"sqlite3.h\"\n#endif\n#define SQLITE_VEC_API\n#define SQLITE_VEC_VERSION \"v0.1.6\"\n#define SQLITE_VEC_DATE \"2024-01-01\"\n#define SQLITE_VEC_SOURCE \"quickmemes\"\n#define SQLITE_VEC_VERSION_MAJOR 0\n#define SQLITE_VEC_VERSION_MINOR 1\n#define SQLITE_VEC_VERSION_PATCH 6\n#ifdef __cplusplus\nextern \"C\" {\n#endif\nSQLITE_VEC_API int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);\n#ifdef __cplusplus\n}\n#endif\n#endif\n")
 endif()
 
 # 查找 OpenSSL（SHA-256 和 HTTPS）
@@ -134,6 +142,7 @@ target_link_libraries(quickmemes_db PUBLIC
     SQLiteCpp
     nlohmann_json::nlohmann_json
     quickmemes_utils
+    sqlite_vec_ext
 )
 
 # ── vision 静态库 ──
@@ -163,6 +172,7 @@ target_include_directories(quickmemes_core PUBLIC ${SRC_DIR})
 target_link_libraries(quickmemes_core PUBLIC
     Boost::beast
     Boost::asio
+    Boost::uuid
     nlohmann_json::nlohmann_json
     quickmemes_db
     quickmemes_vision
