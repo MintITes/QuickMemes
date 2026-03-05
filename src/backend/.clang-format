@@ -1,0 +1,28 @@
+---
+BasedOnStyle: LLVM
+
+# 缩进与宽度
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+ColumnLimit: 120
+
+# 结构与对齐
+BreakBeforeBraces: Attach
+PointerAlignment: Right
+NamespaceIndentation: None
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: true
+
+# 语句控制
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+
+
+Standard: Latest
+Cpp11BracedListStyle: true
+SortIncludes: true
+IncludeBlocks: Regroup
+...
