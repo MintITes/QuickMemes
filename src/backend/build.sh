@@ -8,6 +8,9 @@ echo "Building QuickMemes Backend..."
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
+# do clean
+rm -rf Testing bin lib tests tests_storage *.jpg *.png *.jpeg
+
 # Generate build files
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 
