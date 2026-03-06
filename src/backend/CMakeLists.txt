@@ -67,10 +67,8 @@ FetchContent_Declare(
     CONFIGURE_COMMAND ""
     BUILD_COMMAND     ""
 )
-FetchContent_GetProperties(sqlite_vec)
-if(NOT sqlite_vec_POPULATED)
-    FetchContent_Populate(sqlite_vec)
-endif()
+FetchContent_MakeAvailable(sqlite_vec)
+
 
 if(NOT EXISTS "${sqlite_vec_SOURCE_DIR}/sqlite-vec.h")
     file(WRITE "${sqlite_vec_SOURCE_DIR}/sqlite-vec.h" "
