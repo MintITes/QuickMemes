@@ -52,8 +52,8 @@ add_test(NAME MemeCrud COMMAND test_meme_crud)
 
 ```bash
 cd build/backend
-cmake --build . --target all
-ctest --output-on-failure
+./build.sh
+./test.sh
 ```
 
 ---
