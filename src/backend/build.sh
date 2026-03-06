@@ -9,7 +9,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 # do clean
-rm -rf Testing bin lib tests tests_storage *.jpg *.png *.jpeg
+rm -rf Testing bin lib tests tests_storage *.jpg *.png *.jpeg :memory:*
 
 # Generate build files
 cmake -DCMAKE_BUILD_TYPE=Debug ..
