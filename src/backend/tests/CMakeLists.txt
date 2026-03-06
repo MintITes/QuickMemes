@@ -28,6 +28,12 @@ set(TEST_SOURCES
     utils/test_logger.cpp
     integration/integration_test.cpp
     core/test_handlers_extra.cpp
+    db/test_last_used.cpp
+    core/test_rebuild_embeddings.cpp
+    core/test_config_api.cpp
+    core/test_trash_purge.cpp
+    core/test_task_queue_stress.cpp
+    test_globals.cpp
 )
 
 # 编译测试可执行文件
