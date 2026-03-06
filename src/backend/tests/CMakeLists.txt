@@ -20,11 +20,14 @@ set(TEST_SOURCES
     core/test_task_queue.cpp
     db/test_meme_crud.cpp
     db/test_tag_ops.cpp
+    db/test_batch_ops.cpp
     db/test_search.cpp
     db/test_soft_delete.cpp
     vision/test_vision_mock.cpp
     utils/test_config_parser.cpp
     utils/test_logger.cpp
+    integration/integration_test.cpp
+    core/test_handlers_extra.cpp
 )
 
 # 编译测试可执行文件
