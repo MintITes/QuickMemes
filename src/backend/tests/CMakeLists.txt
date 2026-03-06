@@ -27,7 +27,10 @@ set(TEST_SOURCES
     utils/test_config_parser.cpp
     utils/test_logger.cpp
     integration/integration_test.cpp
+    integration/test_security.cpp
+    integration/test_ws_events.cpp
     core/test_handlers_extra.cpp
+    core/test_concurrency_race.cpp
     db/test_last_used.cpp
     core/test_rebuild_embeddings.cpp
     core/test_config_api.cpp
