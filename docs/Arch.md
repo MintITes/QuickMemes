@@ -56,11 +56,13 @@ graph TD
         ──────────────────
         GET    /api/health
         POST   /api/import
+        POST   /api/import/cancel
         POST   /api/memes/search
         GET    /api/meme/:id
         GET    /api/meme/:id/file
         GET    /api/meme/:id/thumbnail
         PUT    /api/meme/:id
+        POST   /api/meme/:id/use
         DELETE /api/meme/:id
         GET    /api/tags
         POST   /api/tags
@@ -84,6 +86,7 @@ graph TD
         meme:updated
         meme:deleted
         meme:processing
+        meme:used
         tag:created
         tag:deleted
         ping（心跳）"]
@@ -103,6 +106,7 @@ graph TD
         handleMemeFile()
         handleMemeThumbnail()
         handleMemeUpdate()
+        handleMemeUse()
         handleMemeDelete()
         handleBatchDelete()
         handleBatchTags()
@@ -200,8 +204,10 @@ MemeEntry {
     ocrStatus   : ProcessingStatus // OCR 处理状态
     aiStatus    : ProcessingStatus // AI 分析处理状态
     tagIds      : int64[]          // 关联标签 ID 列表
+    tags        : Tag[]            // 关联标签完整对象列表（可选）
     createdAt   : int64            // Unix 时间戳（毫秒）
     updatedAt   : int64            // Unix 时间戳（毫秒）
+    lastUsedAt  : int64            // 最后使用时间戳（毫秒，0 表示未使用）
     deletedAt   : int64            // 软删除时间戳（毫秒，0 表示未删除）
 }
 
@@ -243,7 +249,7 @@ SearchQuery {
     sizeMax    : int64     // 最大文件大小（字节，0 表示不限）
     regex        : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
     useVector    : bool      // 是否启用语义向量搜索
-    sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt"
+    sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt" | "lastUsedAt"
     sortOrder    : string    // 排序方向："ASC" | "DESC"
     limit        : int32     // 每页结果数量（默认 50，最大 200）
     offset       : int32     // 分页偏移量（默认 0）
@@ -334,11 +340,13 @@ AiAnalysisResult {
 | ------------------------------- | -------- | ------------------------------------ |
 | `/api/health`                   | `GET`    | 健康检查（各子模块就绪状态）         |
 | `/api/import`                   | `POST`   | 提交导入任务                         |
+| `/api/import/cancel`            | `POST`   | 取消当前正在处理的导入任务           |
 | `/api/memes/search`             | `POST`   | 搜索 Meme 列表                       |
 | `/api/meme/:id`                 | `GET`    | 获取单个 Meme                        |
 | `/api/meme/:id/file`            | `GET`    | 获取 Meme 原始图像文件（二进制流）   |
 | `/api/meme/:id/thumbnail`       | `GET`    | 获取 Meme 缩略图（二进制流）         |
 | `/api/meme/:id`                 | `PUT`    | 更新 Meme 元数据                     |
+| `/api/meme/:id/use`             | `POST`   | 记录 Meme 使用（复制到剪贴板时调用） |
 | `/api/meme/:id`                 | `DELETE` | 软删除 Meme（移入回收站）            |
 | `/api/meme/:id/restore`         | `POST`   | 从回收站恢复 Meme                    |
 | `/api/memes/trash`              | `GET`    | 获取回收站中的 Meme 列表             |
@@ -356,18 +364,19 @@ AiAnalysisResult {
 
 **WebSocket 推送事件（C++ 后端 → 前端）**
 
-| 事件名            | 说明                                |
-| ----------------- | ----------------------------------- |
-| `task:progress`   | 导入/处理任务进度更新               |
-| `task:complete`   | 任务完成通知                        |
-| `task:error`      | 任务失败通知                        |
-| `meme:added`      | 新 Meme 已入库通知                  |
-| `meme:updated`    | Meme 元数据更新通知                 |
-| `meme:deleted`    | Meme 已删除通知                     |
-| `meme:processing` | Meme OCR/AI 处理状态变更通知        |
-| `tag:created`     | 新标签已创建通知                    |
-| `tag:deleted`     | 标签已删除通知                      |
-| `ping`            | 心跳帧（每 30 秒，客户端回复 pong） |
+| 事件名            | 说明                                       |
+| ----------------- | ------------------------------------------ |
+| `task:progress`   | 导入/处理任务进度更新                      |
+| `task:complete`   | 任务完成通知                               |
+| `task:error`      | 任务失败通知                               |
+| `meme:added`      | 新 Meme 已入库通知                         |
+| `meme:updated`    | Meme 元数据更新通知                        |
+| `meme:deleted`    | Meme 已删除通知                            |
+| `meme:processing` | Meme OCR/AI 处理状态变更通知               |
+| `meme:used`       | Meme 使用记录更新通知（含 id, lastUsedAt） |
+| `tag:created`     | 新标签已创建通知                           |
+| `tag:deleted`     | 标签已删除通知                             |
+| `ping`            | 心跳帧（每 30 秒，客户端回复 pong）        |
 
 > 📄 详细规划 → [docs/arch/ipc_protocol.md](./arch/ipc_protocol.md)
 
@@ -385,11 +394,13 @@ AiAnalysisResult {
 | `stopServer(): void`                                           | 停止服务器并释放资源                | 无                               | 无                   |
 | `handleHealth(): HealthStatus`                                 | 返回各子模块就绪状态                | 无                               | 健康状态对象         |
 | `handleImport(req: ImportRequest): ImportTask`                 | 处理导入请求，先入库后异步 OCR/AI   | `req`：导入请求参数              | 创建的 `ImportTask`  |
+| `handlePostImportCancel(req: HttpRequestProxy): bool`          | 取消正在进行的导入任务              | `req`：包含 taskId 的请求体      | 操作成功返回 `true`  |
 | `handleSearch(query: SearchQuery): SearchResult`               | 处理搜索请求                        | `query`：搜索参数                | 带分数的 Meme 列表   |
 | `handleMemeGet(id: int64): MemeEntry`                          | 获取单个 Meme                       | `id`：Meme ID                    | 对应 `MemeEntry`     |
 | `handleMemeFile(id: int64): BinaryStream`                      | 返回 Meme 原始图像二进制流          | `id`：Meme ID                    | 图像二进制流         |
 | `handleMemeThumbnail(id: int64): BinaryStream`                 | 返回 Meme 缩略图二进制流            | `id`：Meme ID                    | 缩略图二进制流       |
 | `handleMemeUpdate(id: int64, patch: MemePatch): MemeEntry`     | 更新 Meme 元数据                    | `id`：Meme ID；`patch`：变更字段 | 更新后的 `MemeEntry` |
+| `handleMemeUse(id: int64): bool`                               | 记录 Meme 使用                      | `id`：Meme ID                    | 操作成功返回 `true`  |
 | `handleMemeDelete(id: int64): bool`                            | 软删除 Meme（移入回收站）           | `id`：Meme ID                    | 操作成功返回 `true`  |
 | `handleMemeRestore(id: int64): MemeEntry`                      | 从回收站恢复 Meme                   | `id`：Meme ID                    | 恢复后的 `MemeEntry` |
 | `handleGetTrash(limit, offset): SearchResult`                  | 获取回收站 Meme 列表                | `limit`/`offset`：分页参数       | 回收站 Meme 列表     |
@@ -444,6 +455,7 @@ AiAnalysisResult {
 | `searchMemes(query: SearchQuery): MemeEntry[]`              | 按条件搜索 Meme 列表             | `query`：搜索参数                        | 匹配结果列表          |
 | `vectorSearch(embedding: float[], limit: int): MemeEntry[]` | 按语义向量相似度查询 Meme        | `embedding`：查询向量；`limit`：返回数量 | 相似度排序结果列表    |
 | `updateMeme(id: int64, patch: MemePatch): bool`             | 更新 Meme 字段                   | `id`：Meme ID；`patch`：变更字段集合     | 更新成功返回 `true`   |
+| `updateMemeLastUsed(id: int64): bool`                       | 更新 Meme 最后使用时间           | `id`：Meme ID                            | 更新成功返回 `true`   |
 | `softDeleteMeme(id: int64): bool`                           | 软删除 Meme（设置 `deleted_at`） | `id`：Meme ID                            | 操作成功返回 `true`   |
 | `restoreMeme(id: int64): bool`                              | 从回收站恢复 Meme                | `id`：Meme ID                            | 恢复成功返回 `true`   |
 | `purgeDeletedMemes(olderThanDays: int): int`                | 彻底清理过期软删除记录           | `olderThanDays`：超过天数                | 清理的记录数          |
@@ -502,7 +514,7 @@ AiAnalysisResult {
 --ocr-api-key --ocr-api-url --ocr-provider
 --thumbnail-enabled --thumbnail-max-size
 --backup-enabled --backup-retention-days
---max-queue-size
+--max-queue-size --worker-count --recycle-bin-retention-days
 ```
 
 > 📄 详细规划 → [docs/arch/config.md](./arch/config.md)

@@ -238,7 +238,7 @@ readClipboardImage(): Promise<string | null>
 writeClipboardImage(filePath: string): Promise<void>
 ```
 
-- **描述**：读取指定路径的图像文件，通过 Electron `clipboard.writeImage()` 写入系统剪贴板。
+- **描述**：读取指定路径的图像文件，通过 Electron `clipboard.writeImage()` 写入系统剪贴板。**写入成功后，会自动或应手动调用 `/api/meme/:id/use` 接口，通知后端更新该 Meme 的最后使用时间。**
 - **输入**：`filePath`：本地图像文件的绝对路径
 - **输出**：写入成功后 resolve；文件不存在或格式不支持则 reject
 
@@ -411,6 +411,7 @@ sequenceDiagram
     用户->>面板窗口: 点击 Meme
     面板窗口->>Electron主进程: writeClipboardImage(filePath)
     Electron主进程->>OS: 写入剪贴板
+    Electron主进程->>后端: POST /api/meme/:id/use
     面板窗口->>面板窗口: hideMemePanel()
 ```
 

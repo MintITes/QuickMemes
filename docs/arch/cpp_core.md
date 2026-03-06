@@ -58,6 +58,7 @@ graph TD
         handleMemeFile()
         handleMemeThumbnail()
         handleMemeUpdate()
+        handleMemeUse()
         handleMemeDelete()
         handleMemeRestore()
         handleGetTrash()
@@ -329,6 +330,18 @@ handleMemeUpdate(id: int64, patch: MemePatch): MemeEntry
 - **描述**：校验 `id` 存在且未软删除，调用 `Persistence.updateMeme(id, patch)` 更新字段，查询并返回更新后的完整 `MemeEntry`，同时通过 `pushEvent("meme:updated", memeEntry)` 广播更新通知。
 - **输入**：`id`：Meme ID；`patch`：仅含变更字段的对象
 - **输出**：更新后的 `MemeEntry`
+
+---
+
+### `handleMemeUse`
+
+```
+handleMemeUse(id: int64): bool
+```
+
+- **描述**：当用户复制 Meme 到剪贴板时调用，调用 `Persistence.updateMemeLastUsed(id)` 更新数据库中的 `last_used_at` 字段。成功后通过 `pushEvent("meme:used", {id, lastUsedAt})` 广播通知，以便前端同步更新最后使用时间。
+- **输入**：`id`：Meme ID
+- **输出**：操作成功返回 `true`；ID 不存在抛出 `ERR_NOT_FOUND`
 
 ---
 

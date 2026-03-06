@@ -231,6 +231,13 @@ RuntimeConfigPatch {
 
 ---
 
+### `POST /api/import/cancel` — 取消导入任务
+
+- **描述**：取消指定的正在处理中的导入任务。
+- **请求体**：`{ "taskId": string }`
+- **成功响应**：`ApiResponse<{ "success": bool }>` — 操作是否成功
+- **可能错误**：`ERR_INVALID_PARAMS`（Bad JSON 或 taskId 缺失）、`ERR_NOT_FOUND`（任务不存在或已结束）
+
 ### `POST /api/memes/search` — 搜索 Meme 列表
 
 - **描述**：按 `SearchQuery` 参数搜索 Meme，支持模糊搜索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配、向量相似度搜索。默认不返回已软删除的 Meme
@@ -277,7 +284,16 @@ RuntimeConfigPatch {
 
 ---
 
-### `DELETE /api/meme/:id` — 软删除 Meme
+### `POST /api/meme/:id/use` — 记录 Meme 使用
+ 
+ - **描述**：当用户将 Meme 复制到剪贴板或分发时调用，更新该 Meme 的 "最后使用时间" (`lastUsedAt`) 为当前时间戳。
+ - **路径参数**：`id`：Meme ID（`int64`）
+ - **成功响应**：`ApiResponse<null>`
+ - **可能错误**：`ERR_NOT_FOUND`
+ 
+ ---
+ 
+ ### `DELETE /api/meme/:id` — 软删除 Meme
 
 - **描述**：将指定 Meme 移入回收站（设置 `deleted_at` 时间戳），不立即删除文件。超过配置的保留天数后由后台任务彻底清理
 - **路径参数**：`id`：Meme ID（`int64`）
@@ -455,10 +471,10 @@ payload: MemeEntry  // 完整的新 Meme 数据（ocrStatus/aiStatus 为 PENDING
 ---
 
 ### `meme:updated` — Meme 数据已更新
-
-```
-payload: MemeEntry  // 更新后的完整 Meme 数据
-```
+ 
+ ```
+ payload: MemeEntry  // 更新后的完整 Meme 数据
+ ```
 
 ---
 
@@ -467,6 +483,17 @@ payload: MemeEntry  // 更新后的完整 Meme 数据
 ```
 payload {
     id : int64  // 被软删除的 Meme ID
+}
+```
+
+---
+
+### `meme:used` — Meme 使用记录更新
+
+```
+payload {
+    id         : int64  // 使用的 Meme ID
+    lastUsedAt : int64  // 最新的使用时间戳（毫秒）
 }
 ```
 

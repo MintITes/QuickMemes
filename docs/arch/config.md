@@ -128,40 +128,44 @@ graph TD
     "backup": {
         "enabled": true,
         "retentionDays": 30
-    }
+    },
+    "recycleBinRetentionDays": 30,
+    "workerCount": 4
 }
 ```
 
 ### 字段说明
 
-| 字段路径                | 类型     | 默认值                         | 说明                                        |
-| ----------------------- | -------- | ------------------------------ | ------------------------------------------- |
-| `backendPort`           | `int`    | `57321`                        | C++ 后端 HTTP / WS 监听端口                 |
-| `bindAddress`           | `string` | `"127.0.0.1"`                  | HTTP / WS 绑定地址（仅回环，禁止外部访问）  |
-| `storagePath`           | `string` | `{app_dir}/storage`            | Meme 图像文件存储根目录                     |
-| `dbPath`                | `string` | `{app_dir}/data/quickmemes.db` | SQLite 数据库文件路径                       |
-| `logDir`                | `string` | `{app_dir}/logs`               | 日志文件输出目录                            |
-| `maxQueueSize`          | `int`    | `500`                          | 处理队列最大深度（满时新导入暂停）          |
-| `vision.apiKey`         | `string` | `""`                           | 云端 AI API 密钥（空字符串表示禁用 AI）     |
-| `vision.apiBaseUrl`     | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
-| `vision.visionModel`    | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
-| `vision.embeddingModel` | `string` | `"text-embedding-3-small"`     | 文本向量化模型名称                          |
-| `vision.timeoutSeconds` | `int`    | `30`                           | AI API 单次请求超时秒数                     |
-| `vision.maxRetries`     | `int`    | `2`                            | AI API 失败重试次数                         |
-| `ocr.apiKey`            | `string` | `""`                           | 云端 OCR API 密钥（空表示禁用 OCR）         |
-| `ocr.apiUrl`            | `string` | `""`                           | 云端 OCR API 地址（待适配具体提供商）       |
-| `ocr.provider`          | `string` | `""`                           | 云端 OCR 提供商标识（占位字段）             |
-| `ui.panelShortcut`      | `string` | `"Alt+M"`                      | 快速面板全局快捷键                          |
-| `ui.theme`              | `string` | `"system"`                     | 界面主题：`"light"` / `"dark"` / `"system"` |
-| `ui.viewMode`           | `string` | `"grid"`                       | Meme 画廊视图：`"grid"` / `"list"`          |
-| `ui.language`           | `string` | `"zh-CN"`                      | 界面语言（当前仅支持 `"zh-CN"`）            |
-| `log.minLevel`          | `string` | `"INFO"`                       | 最低日志输出等级                            |
-| `log.retentionEnabled`  | `bool`   | `true`                         | 是否启用日志自动清理                        |
-| `log.retentionDays`     | `int`    | `30`                           | 日志保留天数                                |
-| `thumbnail.enabled`     | `bool`   | `true`                         | 是否启用缩略图生成                          |
-| `thumbnail.maxSize`     | `int`    | `300`                          | 缩略图最大边长像素                          |
-| `backup.enabled`        | `bool`   | `true`                         | 是否启用数据库自动备份                      |
-| `backup.retentionDays`  | `int`    | `30`                           | 备份文件保留天数                            |
+| 字段路径                  | 类型     | 默认值                         | 说明                                        |
+| ------------------------- | -------- | ------------------------------ | ------------------------------------------- |
+| `backendPort`             | `int`    | `57321`                        | C++ 后端 HTTP / WS 监听端口                 |
+| `bindAddress`             | `string` | `"127.0.0.1"`                  | HTTP / WS 绑定地址（仅回环，禁止外部访问）  |
+| `storagePath`             | `string` | `{app_dir}/storage`            | Meme 图像文件存储根目录                     |
+| `dbPath`                  | `string` | `{app_dir}/data/quickmemes.db` | SQLite 数据库文件路径                       |
+| `logDir`                  | `string` | `{app_dir}/logs`               | 日志文件输出目录                            |
+| `maxQueueSize`            | `int`    | `500`                          | 处理队列最大深度（满时新导入暂停）          |
+| `vision.apiKey`           | `string` | `""`                           | 云端 AI API 密钥（空字符串表示禁用 AI）     |
+| `vision.apiBaseUrl`       | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
+| `vision.visionModel`      | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
+| `vision.embeddingModel`   | `string` | `"text-embedding-3-small"`     | 文本向量化模型名称                          |
+| `vision.timeoutSeconds`   | `int`    | `30`                           | AI API 单次请求超时秒数                     |
+| `vision.maxRetries`       | `int`    | `2`                            | AI API 失败重试次数                         |
+| `ocr.apiKey`              | `string` | `""`                           | 云端 OCR API 密钥（空表示禁用 OCR）         |
+| `ocr.apiUrl`              | `string` | `""`                           | 云端 OCR API 地址（待适配具体提供商）       |
+| `ocr.provider`            | `string` | `""`                           | 云端 OCR 提供商标识（占位字段）             |
+| `ui.panelShortcut`        | `string` | `"Alt+M"`                      | 快速面板全局快捷键                          |
+| `ui.theme`                | `string` | `"system"`                     | 界面主题：`"light"` / `"dark"` / `"system"` |
+| `ui.viewMode`             | `string` | `"grid"`                       | Meme 画廊视图：`"grid"` / `"list"`          |
+| `ui.language`             | `string` | `"zh-CN"`                      | 界面语言（当前仅支持 `"zh-CN"`）            |
+| `log.minLevel`            | `string` | `"INFO"`                       | 最低日志输出等级                            |
+| `log.retentionEnabled`    | `bool`   | `true`                         | 是否启用日志自动清理                        |
+| `log.retentionDays`       | `int`    | `30`                           | 日志保留天数                                |
+| `thumbnail.enabled`       | `bool`   | `true`                         | 是否启用缩略图生成                          |
+| `thumbnail.maxSize`       | `int`    | `300`                          | 缩略图最大边长像素                          |
+| `backup.enabled`          | `bool`   | `true`                         | 是否启用数据库自动备份                      |
+| `backup.retentionDays`    | `int`    | `30`                           | 备份文件保留天数                            |
+| `recycleBinRetentionDays` | `int`    | `30`                           | 回收站保留天数                              |
+| `workerCount`             | `int`    | `4`                            | 任务队列工作线程数                          |
 
 ---
 
@@ -195,7 +199,9 @@ QuickMemes-backend \
     --thumbnail-max-size <int>  \   # 缩略图最大边长
     --backup-enabled       <bool>  \   # 自动备份开关
     --backup-retention-days <int>  \   # 备份保留天数
-    --max-queue-size  <int>         # 处理队列最大深度（默认 500）
+    --max-queue-size  <int>         \   # 处理队列最大深度（默认 500）
+    --worker-count    <int>         \   # 任务队列工作线程数
+    --recycle-bin-retention-days <int>  # 回收站保留天数
 ```
 
 ### 参数解析函数（C++ 核心模块内）

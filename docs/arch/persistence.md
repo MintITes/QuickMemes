@@ -118,11 +118,13 @@ CREATE TABLE memes (
     ai_status   TEXT    NOT NULL DEFAULT 'PENDING',  -- PENDING/PROCESSING/DONE/FAILED/SKIPPED
     created_at  INTEGER NOT NULL,  -- Unix 时间戳（毫秒）
     updated_at  INTEGER NOT NULL,
+    last_used_at INTEGER NOT NULL DEFAULT 0, -- 最后一次复制到剪贴板的时间戳
     deleted_at  INTEGER NOT NULL DEFAULT 0  -- 软删除时间戳（0 表示未删除）
 );
 
 CREATE INDEX idx_memes_file_hash ON memes(file_hash);
 CREATE INDEX idx_memes_created_at ON memes(created_at);
+CREATE INDEX idx_memes_last_used_at ON memes(last_used_at);
 CREATE INDEX idx_memes_mime_type ON memes(mime_type);
 CREATE INDEX idx_memes_name ON memes(name);
 CREATE INDEX idx_memes_deleted_at ON memes(deleted_at);
@@ -218,6 +220,35 @@ MemePatch {
     description? : string
     sourceName?  : string
     sourceUrl?   : string
+}
+
+MemeEntry {
+    id          : int64
+    filePath    : string
+    fileHash    : string
+    mimeType    : string
+    fileSize    : int64
+    width       : int32
+    height      : int32
+    sourceName  : string
+    sourceUrl   : string
+    name        : string
+    description : string
+    ocrText     : string
+    ocrStatus   : ProcessingStatus
+    aiStatus    : ProcessingStatus
+    tagIds      : int64[]
+    tags        : Tag[]            // 关联标签完整对象列表（可选）
+    createdAt   : int64
+    updatedAt   : int64
+    lastUsedAt  : int64            // 最后使用时间
+    deletedAt   : int64
+}
+
+ExportRequest {
+    memeIds    : int64[]  // 要导出的 Meme ID 列表
+    destDir    : string   // 导出目标目录路径
+    keepNames  : bool     // 是否保留原文件名（false 则用 ID 命名）
 }
 ```
 
@@ -333,7 +364,7 @@ buildSearchSql(query: SearchQuery): SearchSql
   - `formats`：`mime_type IN (?,...)`
   - `sizeMin` / `sizeMax`：`file_size BETWEEN ? AND ?`
   - `regex`：SQLite 自定义函数 `regexp(pattern, column)` 匹配 `name`、`description`、`ocr_text`
-  - `sortBy` / `sortOrder`：安全白名单校验后拼入 ORDER BY（防止注入）
+  - `sortBy` / `sortOrder`：安全白名单校验后拼入 ORDER BY（支持 `createdAt` / `name` / `fileSize` / `updatedAt` / `lastUsedAt`）
 - **输入**：`query`：搜索参数
 - **输出**：`SearchSql`（含 WHERE 片段列表和参数列表）
 
@@ -395,7 +426,19 @@ updateMeme(id: int64, patch: MemePatch): bool
 
 ---
 
-### `deleteMeme`
+### `updateMemeLastUsed`
+ 
+ ```
+ updateMemeLastUsed(id: int64): bool
+ ```
+ 
+ - **描述**：更新指定 Meme 的 `last_used_at` 为当前时间戳。通常在用户复制 Meme 时触发。
+ - **输入**：`id`：Meme ID
+ - **输出**：更新成功返回 `true`；ID 不存在返回 `false`
+ 
+ ---
+ 
+ ### `deleteMeme`
 
 ```
 deleteMeme(id: int64): bool

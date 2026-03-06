@@ -213,7 +213,7 @@ recognize(imagePath: string): OcrResult
   5. 提取识别文本，拼接为 `fullText`
   6. 返回 `OcrResult`
 
-  > **当前状态**：占位接口。`recognize()` 内部直接返回降级结果 `OcrResult { fullText: "", success: true, error: "" }`，待后续适配具体云端 OCR API 后实现完整逻辑。
+  > **当前状态**：占位接口。`recognize()` 内部目前直接返回降级结果 `OcrResult { fullText: "", success: true, error: "" }`。
 - **输入**：`imagePath`：图像文件绝对路径
 - **输出**：`OcrResult`
 
