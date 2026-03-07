@@ -5,7 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 BUILD_DIR="$DIR/build"
 
 echo "Running build.sh clean test..."
-"$DIR/build.sh --test"
+"$DIR/build.sh" --test
 
 echo "Running tests..."
 cd "$BUILD_DIR"
