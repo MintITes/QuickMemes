@@ -1,25 +1,45 @@
 ---
 BasedOnStyle: LLVM
 
-# 缩进与宽度
 UseTab: ForIndentation
 TabWidth: 4
 IndentWidth: 4
 ColumnLimit: 120
 
-# 结构与对齐
 BreakBeforeBraces: Attach
 PointerAlignment: Right
 NamespaceIndentation: None
 AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
-AlignConsecutiveAssignments: true
+AlignConsecutiveAssignments: AcrossComments
+AlignConsecutiveDeclarations: AcrossComments
+AlignConsecutiveMacros: AcrossComments
+AlignArrayOfStructures: Right
+AlignConsecutiveBitFields: AcrossComments
+AlignEscapedNewlines: Left
+AlignOperands: AlignAfterOperator
+AlignTrailingComments: true
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AlwaysBreakBeforeMultilineStrings: false
+BitFieldColonSpacing: Both
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+CompactNamespaces: true
+LambdaBodyIndentation: Signature
 
-# 语句控制
-AllowShortIfStatementsOnASingleLine: Never
+BreakBeforeTernaryOperators: true
+AllowShortBlocksOnASingleLine: Always
+AlwaysBreakTemplateDeclarations: No
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
 AllowShortLoopsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: Inline
-
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLambdasOnASingleLine: Inline
+EmptyLineBeforeAccessModifier: LogicalBlock
 
 Standard: Latest
 Cpp11BracedListStyle: true
