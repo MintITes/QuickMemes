@@ -36,6 +36,7 @@ set(TEST_SOURCES
     core/test_config_api.cpp
     core/test_trash_purge.cpp
     core/test_task_queue_stress.cpp
+    core/test_core_fixes.cpp
     test_globals.cpp
 )
 
