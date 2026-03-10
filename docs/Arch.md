@@ -12,6 +12,7 @@
   - [全局架构图](#全局架构图)
   - [全局共享数据结构](#全局共享数据结构)
     - [`MemeEntry` — Meme 条目](#memeentry--meme-条目)
+    - [`Category` — 分类](#category--分类)
     - [`Tag` — 标签](#tag--标签)
     - [`SearchQuery` — 搜索查询参数](#searchquery--搜索查询参数)
     - [`ImportTask` — 导入任务](#importtask--导入任务)
@@ -76,7 +77,12 @@ graph TD
         POST   /api/admin/rebuild-embeddings
         POST   /api/meme/:id/restore
         GET    /api/memes/trash
-        DELETE /api/memes/trash/purge"]
+        DELETE /api/memes/trash/purge
+        GET    /api/categories
+        POST   /api/categories
+        PUT    /api/categories/:id
+        DELETE /api/categories/:id
+        POST   /api/memes/batch/category"]
         WS["WebSocket 推送事件
         ──────────────────
         task:progress
@@ -89,6 +95,9 @@ graph TD
         meme:used
         tag:created
         tag:deleted
+        category:created
+        category:updated
+        category:deleted
         ping（心跳）"]
     end
 
@@ -113,6 +122,11 @@ graph TD
         handleExport()
         handleConfigUpdate()
         handleRebuildEmbeddings()
+        handleGetCategories()
+        handleCreateCategory()
+        handleUpdateCategory()
+        handleDeleteCategory()
+        handleBatchCategory()
         pushEvent()"]
 
         VISION_MOD["Vision 模块
@@ -137,7 +151,12 @@ graph TD
         addMemeTag()
         removeMemeTag()
         backupDatabase()
-        restoreDatabase()"]
+        restoreDatabase()
+        insertCategory()
+        updateCategory()
+        deleteCategory()
+        getCategories()
+        updateMemeCategory()"]
 
         CORE --> VISION_MOD
         CORE --> DB_MOD
@@ -209,6 +228,7 @@ MemeEntry {
     updatedAt   : int64            // Unix 时间戳（毫秒）
     lastUsedAt  : int64            // 最后使用时间戳（毫秒，0 表示未使用）
     deletedAt   : int64            // 软删除时间戳（毫秒，0 表示未删除）
+    categoryId  : int64            // 所属分类 ID（0 表示未分类）
 }
 
 // ProcessingStatus 枚举
@@ -218,6 +238,21 @@ ProcessingStatus : "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
 // embedding 仅在 AiAnalysisResult 中携带并通过持久化模块的 upsertEmbedding() 独立写入 vec_memes 表，
 // HTTP 响应中不包含向量数据，以减少网络传输开销。
 // 向量搜索时，结果中会包含 similarityScore 字段。
+```
+
+---
+
+### `Category` — 分类
+
+```
+Category {
+    id        : int64    // 数据库自增主键
+    uuid      : string   // UUID v4
+    name      : string   // 分类名称（可重名）
+    color     : string   // 显示颜色，HEX 格式
+    createdAt : int64    // Unix 时间戳（毫秒）
+    updatedAt : int64    // Unix 时间戳（毫秒）
+}
 ```
 
 ---
@@ -241,6 +276,7 @@ Tag {
 SearchQuery {
     keyword    : string    // 关键词，用于模糊匹配名称/描述/OCR 文本（可为空）
     tagIds     : int64[]   // 按标签过滤（空表示不过滤）
+    categoryId : int64     // 按分类过滤（0 表示不过滤，-1 表示未分类，正数为具体分类 ID）
     source     : string    // 按来源名称过滤（可为空）
     timeFrom   : int64     // 时间范围起始时间戳（毫秒，0 表示不限）
     timeTo     : int64     // 时间范围结束时间戳（毫秒，0 表示不限）

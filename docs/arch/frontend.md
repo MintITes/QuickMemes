@@ -73,6 +73,7 @@ graph TD
         subgraph STORE ["全局状态管理（Zustand）"]
             MEME_STORE["MemeStore - Meme 列表状态"]
             TAG_STORE["TagStore - 标签状态"]
+            CAT_STORE["CategoryStore - 分类状态"]
             TASK_STORE["TaskStore - 导入任务状态"]
             UI_STORE["UiStore - UI 状态"]
         end

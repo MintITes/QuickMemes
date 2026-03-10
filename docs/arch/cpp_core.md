@@ -70,6 +70,11 @@ graph TD
         handleDeleteTag()
         handleAddMemeTag()
         handleRemoveMemeTag()
+        handleGetCategories()
+        handleCreateCategory()
+        handleUpdateCategory()
+        handleDeleteCategory()
+        handleBatchCategory()
         handleExport()
         handleConfigUpdate()
         handleRebuildEmbeddings()"]

@@ -60,6 +60,13 @@ graph TD
         addMemeTag()
         removeMemeTag()"]
 
+        CAT_OPS["分类操作
+        insertCategory()
+        updateCategory()
+        deleteCategory()
+        getCategories()
+        updateMemeCategory()"]
+
         VEC_SEARCH["向量搜索
         vectorSearch()
         upsertEmbedding()"]
@@ -85,6 +92,7 @@ graph TD
     subgraph DB_FILE ["SQLite 数据库文件"]
         MEME_TABLE[("memes 表")]
         TAG_TABLE[("tags 表")]
+        CAT_TABLE[("categories 表")]
         MEME_TAG_TABLE[("meme_tags 关联表")]
         SCHEMA_TABLE[("schema_version 表")]
         VEC_TABLE[("vec_memes 虚拟表（sqlite-vec）")]
@@ -119,7 +127,8 @@ CREATE TABLE memes (
     created_at  INTEGER NOT NULL,  -- Unix 时间戳（毫秒）
     updated_at  INTEGER NOT NULL,
     last_used_at INTEGER NOT NULL DEFAULT 0, -- 最后一次复制到剪贴板的时间戳
-    deleted_at  INTEGER NOT NULL DEFAULT 0  -- 软删除时间戳（0 表示未删除）
+    deleted_at  INTEGER NOT NULL DEFAULT 0,  -- 软删除时间戳（0 表示未删除）
+    category_id INTEGER NOT NULL DEFAULT 0   -- 所属分类 ID（0 表示未分类）
 );
 
 CREATE INDEX idx_memes_file_hash ON memes(file_hash);
@@ -128,6 +137,23 @@ CREATE INDEX idx_memes_last_used_at ON memes(last_used_at);
 CREATE INDEX idx_memes_mime_type ON memes(mime_type);
 CREATE INDEX idx_memes_name ON memes(name);
 CREATE INDEX idx_memes_deleted_at ON memes(deleted_at);
+CREATE INDEX idx_memes_category_id ON memes(category_id);
+```
+
+### `categories` 表
+
+```sql
+CREATE TABLE categories (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid       TEXT    NOT NULL UNIQUE,
+    name       TEXT    NOT NULL,
+    color      TEXT    NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX idx_categories_uuid ON categories(uuid);
+CREATE INDEX idx_categories_name ON categories(name);
 ```
 
 ### `tags` 表
@@ -243,6 +269,21 @@ MemeEntry {
     updatedAt   : int64
     lastUsedAt  : int64            // 最后使用时间
     deletedAt   : int64
+    categoryId  : int64            // 所属分类 ID
+}
+
+Category {
+    id        : int64
+    uuid      : string
+    name      : string
+    color     : string
+    createdAt : int64
+    updatedAt : int64
+}
+
+CategoryPatch {
+    name?       : string
+    color?      : string
 }
 
 ExportRequest {
@@ -543,6 +584,66 @@ removeMemeTag(memeId: int64, tagId: int64): bool
 - **描述**：从 `meme_tags` 表中删除指定的关联记录。
 - **输入**：`memeId`：Meme ID；`tagId`：Tag ID
 - **输出**：删除成功返回 `true`；关联不存在返回 `false`
+
+---
+
+### `insertCategory`
+
+```
+insertCategory(category: Category): int64
+```
+
+- **描述**：向 `categories` 表插入新分类，生成 UUID 并记录时间戳。
+- **输入**：`category`：分类数据（`id`, `uuid`, `createdAt`, `updatedAt` 忽略）
+- **输出**：新分类的自增 ID
+
+---
+
+### `updateCategory`
+
+```
+updateCategory(id: int64, patch: CategoryPatch): bool
+```
+
+- **描述**：更新分类名称或颜色，并更新 `updated_at`。
+- **输入**：`id`：分类 ID；`patch`：变更字段
+- **输出**：成功返回 `true`
+
+---
+
+### `deleteCategory`
+
+```
+deleteCategory(id: int64): bool
+```
+
+- **描述**：删除指定分类。删除前需将所有属于该分类的 Meme 的 `category_id` 置为 `0`。
+- **输入**：`id`：分类 ID
+- **输出**：成功返回 `true`
+
+---
+
+### `getCategories`
+
+```
+getCategories(): Category[]
+```
+
+- **描述**：获取系统中所有分类，按创建时间排序。
+- **输入**：无
+- **输出**：全量分类列表
+
+---
+
+### `updateMemeCategory`
+
+```
+updateMemeCategory(memeId: int64, categoryId: int64): bool
+```
+
+- **描述**：更新指定 Meme 的所属分类。
+- **输入**：`memeId`：Meme ID；`categoryId`：目标分类 ID（`0` 表示移出分类）
+- **输出**：成功返回 `true`
 
 ---
 

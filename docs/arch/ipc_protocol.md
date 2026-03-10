@@ -130,6 +130,25 @@ MemePatch {
     sourceName?  : string    // 新来源名称（可选）
     sourceUrl?   : string    // 新来源 URL（可选）
 }
+
+Category {
+    id        : int64
+    uuid      : string
+    name      : string
+    color     : string
+    createdAt : int64
+    updatedAt : int64
+}
+
+CategoryPatch {
+    name?  : string
+    color? : string
+}
+
+BatchCategoryRequest {
+    memeIds    : int64[]
+    categoryId : int64
+}
 ```
 
 ### `ExportRequest` — 导出请求体
@@ -327,6 +346,50 @@ RuntimeConfigPatch {
 
 ---
 
+### `GET /api/categories` — 获取全部分类
+
+- **描述**：返回系统中所有分类列表
+- **成功响应**：`ApiResponse<Category[]>`
+
+---
+
+### `POST /api/categories` — 创建新分类
+
+- **描述**：创建一个新分类，生成 UUID
+- **请求体**：`{ name: string, color?: string }`
+- **成功响应**：`ApiResponse<Category>`
+- **可能错误**：`ERR_INVALID_PARAMS`（名称为空）
+
+---
+
+### `PUT /api/categories/:id` — 更新分类
+
+- **描述**：更新分类名称或颜色
+- **路径参数**：`id`：分类 ID（`int64`）
+- **请求体**：`CategoryPatch`
+- **成功响应**：`ApiResponse<Category>`
+- **可能错误**：`ERR_NOT_FOUND`
+
+---
+
+### `DELETE /api/categories/:id` — 删除分类
+
+- **描述**：删除指定分类，关联的 Meme 会被置为“未分类”状态（`categoryId=0`）
+- **路径参数**：`id`：分类 ID（`int64`）
+- **成功响应**：`ApiResponse<null>`
+- **可能错误**：`ERR_NOT_FOUND`
+
+---
+
+### `POST /api/memes/batch/category` — 批量移动 Meme 到分类
+
+- **描述**：将指定的多个 Meme 移动到目标分类
+- **请求体**：`BatchCategoryRequest`
+- **成功响应**：`ApiResponse<BatchResult>`
+- **可能错误**：`ERR_INVALID_PARAMS`（memeIds 为空）
+
+---
+
 ### `GET /api/tags` — 获取全部标签
 
 - **描述**：返回系统中所有已创建的标签列表，不分页
@@ -512,6 +575,32 @@ payload {
 ```
 
 > 每当 Meme 的 OCR 或 AI 处理完成/失败时推送此事件，前端据此更新 UI 中的处理状态标识。
+
+---
+
+### `category:created` — 新分类已创建
+
+```
+payload: Category
+```
+
+---
+
+### `category:updated` — 分类已更新
+
+```
+payload: Category
+```
+
+---
+
+### `category:deleted` — 分类已删除
+
+```
+payload {
+    id : int64
+}
+```
 
 ---
 
