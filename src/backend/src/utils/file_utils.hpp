@@ -16,8 +16,8 @@ namespace quickmemes {
  * @brief 图像尺寸结构
  */
 struct ImageSize {
-    int32_t width  = 0;  ///< 图像宽度（像素）
-    int32_t height = 0;  ///< 图像高度（像素）
+	int32_t width  = 0; ///< 图像宽度（像素）
+	int32_t height = 0; ///< 图像高度（像素）
 };
 
 /**
@@ -29,7 +29,7 @@ struct ImageSize {
  * @return std::string 64 位十六进制 SHA-256 哈希字符串
  * @throws ApiException(ERR_IO) 文件不存在或读取失败时
  */
-[[nodiscard]] std::string computeHash(const std::string& filePath);
+[[nodiscard]] std::string computeHash(const std::string &filePath);
 
 /**
  * @brief 检测文件的 MIME 类型
@@ -40,7 +40,7 @@ struct ImageSize {
  * @param filePath std::string 文件绝对路径
  * @return std::string MIME 类型字符串；无法识别时返回 "application/octet-stream"
  */
-[[nodiscard]] std::string detectMimeType(const std::string& filePath);
+[[nodiscard]] std::string detectMimeType(const std::string &filePath);
 
 /**
  * @brief 读取图像宽高
@@ -50,7 +50,7 @@ struct ImageSize {
  * @param filePath std::string 图像文件绝对路径
  * @return ImageSize 包含 width 和 height 的结构体
  */
-[[nodiscard]] ImageSize readImageSize(const std::string& filePath);
+[[nodiscard]] ImageSize readImageSize(const std::string &filePath);
 
 /**
  * @brief 生成缩略图
@@ -63,9 +63,7 @@ struct ImageSize {
  * @param maxSize int 最大边长像素
  * @return bool 生成成功返回 true；失败记录日志返回 false
  */
-bool generateThumbnail(const std::string& srcPath,
-                       const std::string& destPath,
-                       int maxSize);
+bool generateThumbnail(const std::string &srcPath, const std::string &destPath, int maxSize);
 
 /**
  * @brief 复制文件到目标路径
@@ -76,6 +74,6 @@ bool generateThumbnail(const std::string& srcPath,
  * @param destPath std::string 目标文件路径
  * @return bool 复制成功返回 true
  */
-bool copyFile(const std::string& srcPath, const std::string& destPath);
+bool copyFile(const std::string &srcPath, const std::string &destPath);
 
-}  // namespace quickmemes
+} // namespace quickmemes

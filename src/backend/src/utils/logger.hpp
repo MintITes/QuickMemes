@@ -8,8 +8,11 @@
  */
 
 #include <cstdint>
+#include <fstream>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 
 namespace quickmemes {
 
@@ -20,11 +23,11 @@ namespace quickmemes {
  * 数值越大优先级越高，低于 minLevel 的日志不输出。
  */
 enum class LogLevel : int {
-    DEBUG = 0,  ///< 调试信息
-    INFO  = 1,  ///< 一般信息
-    WARN  = 2,  ///< 警告
-    ERROR = 3,  ///< 错误
-    FATAL = 4   ///< 致命错误（写入后终止进程）
+	DEBUG = 0, ///< 调试信息
+	INFO  = 1, ///< 一般信息
+	WARN  = 2, ///< 警告
+	ERROR = 3, ///< 错误
+	FATAL = 4  ///< 致命错误（写入后终止进程）
 };
 
 /**
@@ -39,7 +42,7 @@ enum class LogLevel : int {
  * @param str std::string 如 "DEBUG" / "INFO" / "WARN" / "ERROR" / "FATAL"
  * @return LogLevel 对应枚举值，未识别时返回 LogLevel::INFO
  */
-[[nodiscard]] LogLevel logLevelFromString(const std::string& str);
+[[nodiscard]] LogLevel logLevelFromString(const std::string &str);
 
 /**
  * @brief 全局 Logger 单例
@@ -49,69 +52,75 @@ enum class LogLevel : int {
  */
 class Logger {
 public:
-    /**
-     * @brief 获取全局 Logger 单例实例
-     * @return Logger& 单例引用
-     */
-    static Logger& get();
+	/**
+	 * @brief 获取全局 Logger 单例实例
+	 * @return Logger& 单例引用
+	 */
+	static Logger &get();
 
-    /**
-     * @brief 初始化 Logger
-     *
-     * 创建日志目录（若不存在），设置最低输出等级和日志清理配置。
-     *
-     * @param logDir std::string 日志文件输出目录
-     * @param minLevel LogLevel 最低输出等级
-     * @param retentionEnabled bool 是否启用日志自动清理（默认 true）
-     * @param retentionDays int 日志保留天数（默认 30）
-     */
-    void initialize(const std::string& logDir, LogLevel minLevel,
-                    bool retentionEnabled = true, int retentionDays = 30);
+	/**
+	 * @brief 初始化 Logger
+	 *
+	 * 创建日志目录（若不存在），设置最低输出等级和日志清理配置。
+	 *
+	 * @param logDir std::string 日志文件输出目录
+	 * @param minLevel LogLevel 最低输出等级
+	 * @param retentionEnabled bool 是否启用日志自动清理（默认 true）
+	 * @param retentionDays int 日志保留天数（默认 30）
+	 */
+	void initialize(const std::string &logDir, LogLevel minLevel, bool retentionEnabled = true, int retentionDays = 30);
 
-    /**
-     * @brief 写入一条日志
-     *
-     * 检查等级后格式化日志行，加锁写入文件和 stderr。
-     * FATAL 等级写入后调用 std::abort() 终止进程。
-     *
-     * @param level LogLevel 日志等级
-     * @param module std::string 模块名称（不超过 8 字符，如 "cpp_core"）
-     * @param message std::string 日志内容
-     */
-    void log(LogLevel level, const std::string& module, const std::string& message);
+	/**
+	 * @brief 写入一条日志
+	 *
+	 * 检查等级后格式化日志行，加锁写入文件和 stderr。
+	 * FATAL 等级写入后调用 std::abort() 终止进程。
+	 *
+	 * @param level LogLevel 日志等级
+	 * @param module std::string 模块名称（不超过 8 字符，如 "cpp_core"）
+	 * @param message std::string 日志内容
+	 */
+	void log(LogLevel level, const std::string &module, const std::string &message);
 
-    /**
-     * @brief 设置最低输出等级
-     * @param level LogLevel 新的最低输出等级
-     */
-    void setMinLevel(LogLevel level);
+	/**
+	 * @brief 设置最低输出等级
+	 * @param level LogLevel 新的最低输出等级
+	 */
+	void setMinLevel(LogLevel level);
 
-    /**
-     * @brief 清理超期日志文件
-     *
-     * 遍历 logDir 下所有 .log 文件，删除超过 retentionDays 天的文件。
-     *
-     * @param retentionDays int 日志保留天数
-     * @return int 已删除的日志文件数量
-     */
-    int cleanOldLogs(int retentionDays);
+	/**
+	 * @brief 清理超期日志文件
+	 *
+	 * 遍历 logDir 下所有 .log 文件，删除超过 retentionDays 天的文件。
+	 *
+	 * @param retentionDays int 日志保留天数
+	 * @return int 已删除的日志文件数量
+	 */
+	int cleanOldLogs(int retentionDays);
 
-    // 禁止拷贝和移动
-    Logger(const Logger&) = delete;
-    Logger& operator=(const Logger&) = delete;
+	// 禁止拷贝和移动
+	Logger(const Logger &)            = delete;
+	Logger &operator=(const Logger &) = delete;
 
 private:
-    Logger() = default;
+	Logger() = default;
 
-    std::string logDir_;                    ///< 日志文件输出目录
-    LogLevel    minLevel_ = LogLevel::INFO; ///< 最低输出等级
-    bool        retentionEnabled_ = true;   ///< 是否启用日志清理
-    int         retentionDays_ = 30;        ///< 日志保留天数
-    bool        initialized_ = false;       ///< 是否已初始化
-    std::mutex  mutex_;                     ///< 保护并发写入的互斥锁
+	std::string logDir_;                                                          ///< 日志文件输出目录
+	LogLevel minLevel_     = LogLevel::INFO;                                      ///< 最低输出等级
+	bool retentionEnabled_ = true;                                                ///< 是否启用日志清理
+	int retentionDays_     = 30;                                                  ///< 日志保留天数
+	bool initialized_      = false;                                               ///< 是否已初始化
+	std::mutex mutex_;                                                            ///< 保护并发写入的互斥锁
+	std::unordered_map<std::string, std::unique_ptr<std::ofstream>> fileStreams_; ///< 模块对应的文件流
+	std::string currentLogDate_;                                                  ///< 当前记录的日期，用于日志轮转
+
+	/**
+	 * @brief 内部无锁的日志清理方法
+	 */
+	int cleanOldLogsInternal(int retentionDays);
 };
 
-}  // namespace quickmemes
+} // namespace quickmemes
 
 // ─────────────────────────────────────────────────────────────
 // 日志宏定义 — 各模块通过宏调用
@@ -125,12 +134,12 @@ private:
 /// @brief 输出 INFO 级日志
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_INFO(module, msg)  ::quickmemes::Logger::get().log(::quickmemes::LogLevel::INFO,  module, msg)
+#define LOG_INFO(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::INFO, module, msg)
 
 /// @brief 输出 WARN 级日志
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_WARN(module, msg)  ::quickmemes::Logger::get().log(::quickmemes::LogLevel::WARN,  module, msg)
+#define LOG_WARN(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::WARN, module, msg)
 
 /// @brief 输出 ERROR 级日志
 /// @param module 模块名字符串

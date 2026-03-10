@@ -23,6 +23,7 @@ set(TEST_SOURCES
     db/test_batch_ops.cpp
     db/test_search.cpp
     db/test_soft_delete.cpp
+    db/test_category_ops.cpp
     vision/test_vision_mock.cpp
     utils/test_config_parser.cpp
     utils/test_logger.cpp

@@ -4,37 +4,36 @@
  */
 
 #include "utils/logger.hpp"
-#include <gtest/gtest.h>
+
 #include <filesystem>
+#include <gtest/gtest.h>
+#include "../test_utils.hpp"
 
 namespace quickmemes {
 namespace testing {
 
 class LoggerTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        tmpDir = std::filesystem::temp_directory_path() / "qm_test_logs";
-        std::filesystem::create_directory(tmpDir);
-    }
+	void SetUp() override {
+		tempDir_ = std::make_unique<TestDirectory>();
+	}
 
-    void TearDown() override {
-        std::filesystem::remove_all(tmpDir);
-    }
+	void TearDown() override { tempDir_.reset(); }
 
-    std::filesystem::path tmpDir;
+	std::unique_ptr<TestDirectory> tempDir_;
 };
 
 TEST_F(LoggerTest, LogWrite_AboveMinLevel_WritesToFile) {
-    // TODO: implement
+	// TODO: implement
 }
 
 TEST_F(LoggerTest, LogWrite_BelowMinLevel_IgnoresLog) {
-    // TODO: implement
+	// TODO: implement
 }
 
 TEST_F(LoggerTest, CleanOldLogs_RemovesExpiredFiles) {
-    // TODO: implement
+	// TODO: implement
 }
 
-}  // namespace testing
-}  // namespace quickmemes
+} // namespace testing
+} // namespace quickmemes

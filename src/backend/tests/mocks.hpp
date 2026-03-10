@@ -6,10 +6,17 @@
  * 严格按照 backend-testing.md「测试环境准备」要求实现。
  */
 
-#include "vision/http_client.hpp"
 #include "db/database.hpp"
-#include <gtest/gtest.h>
+#include "vision/http_client.hpp"
+
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include "test_utils.hpp"
+
+namespace quickmemes {
+class Server;
+}
+extern std::unique_ptr<quickmemes::Server> g_server;
 
 namespace quickmemes {
 namespace testing {
@@ -21,7 +28,8 @@ namespace testing {
  */
 class MockHttpClient : public HttpClientInterface {
 public:
-    MOCK_METHOD(std::string, post, (const std::string&, const std::string&, const std::string&, int), (override));
+	MOCK_METHOD(std::string, post, (const std::string &, const std::string &, const std::string &, int), (override));
+	MOCK_METHOD(std::string, get, (const std::string &, const std::string &, int), (override));
 };
 
 /**
@@ -31,18 +39,22 @@ public:
  */
 class MemeDbTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        db = std::make_unique<Database>();
-        ASSERT_TRUE(db->initialize(":memory:")); // 使用内存数据库
-    }
+	void SetUp() override {
+		tempDir_ = std::make_unique<TestDirectory>();
+		db = &Database::get();
+		ASSERT_TRUE(db->initialize(":memory:")); // 使用内存数据库
+	}
 
-    void TearDown() override {
-        db->shutdown();
-        db.reset();
-    }
+	void TearDown() override { 
+		db->shutdown(); 
+		tempDir_.reset();
+	}
 
-    std::unique_ptr<Database> db;
+	std::string getSubPath(const std::string& name) const { return tempDir_->getSubPath(name); }
+
+	Database *db;
+	std::unique_ptr<TestDirectory> tempDir_;
 };
 
-}  // namespace testing
-}  // namespace quickmemes
+} // namespace testing
+} // namespace quickmemes

@@ -7,9 +7,14 @@
  */
 
 #include "api_types.hpp"
+
+#include <functional>
+#include <memory>
 #include <string>
 
 namespace quickmemes {
+
+using WsSendCallback = std::function<void(std::shared_ptr<std::string>)>;
 
 class WsPusherImpl;
 
@@ -18,36 +23,42 @@ class WsPusherImpl;
  */
 class WsPusher {
 public:
-    static WsPusher& get();
+	static WsPusher &get();
 
-    /**
-     * @brief 广播事件给所有已连接客户端
-     *
-     * @param event WsEvent 包含名称和 JSON 负载的事件
-     */
-    void broadcast(const WsEvent& event);
+	/**
+	 * @brief 广播事件给所有已连接客户端
+	 *
+	 * @param event WsEvent 包含名称和 JSON 负载的事件
+	 */
+	void broadcast(const WsEvent &event);
 
-    /**
-     * @brief 将连接描述符注册到管理器
-     * @param sessionPtr void* 底层 WebSocket Session 指针
-     */
-    void addSession(void* sessionPtr);
+	/**
+	 * @brief [INTERNAL] 为测试准备的事件回调
+	 * @param cb 回调函数
+	 */
+	void setTestListener(std::function<void(const WsEvent &)> cb);
 
-    /**
-     * @brief 从管理器移除闭合的连接
-     * @param sessionPtr void* 底层 WebSocket Session 指针
-     */
-    void removeSession(void* sessionPtr);
+	/**
+	 * @brief 将连接描述符注册到管理器
+	 * @param sessionPtr void* 底层 WebSocket Session 指针
+	 */
+	void addSession(void *sessionPtr);
 
-    // 禁止拷贝和移动
-    WsPusher(const WsPusher&) = delete;
-    WsPusher& operator=(const WsPusher&) = delete;
+	/**
+	 * @brief 从管理器移除闭合的连接
+	 * @param sessionPtr void* 底层 WebSocket Session 指针
+	 */
+	void removeSession(void *sessionPtr);
+
+	// 禁止拷贝和移动
+	WsPusher(const WsPusher &)            = delete;
+	WsPusher &operator=(const WsPusher &) = delete;
 
 private:
-    WsPusher();
-    ~WsPusher();
+	WsPusher();
+	~WsPusher();
 
-    void* impl_;  ///< 隐藏连接集合细节
+	void *impl_; ///< 隐藏连接集合细节
 };
 
-}  // namespace quickmemes
+} // namespace quickmemes
