@@ -4,18 +4,17 @@
  */
 
 #include "../mocks.hpp"
+#include "../test_utils.hpp"
 #include "vision/vision.hpp"
 
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
-#include "../test_utils.hpp"
 
 using ::testing::_;
 using ::testing::Return;
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class VisionMockTest : public ::testing::Test {
 protected:
@@ -65,12 +64,14 @@ protected:
 		vision->initialize(config);
 	}
 
-	void TearDown() override { tempDir_.reset(); }
+	void TearDown() override {
+		tempDir_.reset();
+	}
 
 	std::shared_ptr<MockHttpClient> mockHttp;
-	std::unique_ptr<VisionModule> vision;
-	std::unique_ptr<TestDirectory> tempDir_;
-	std::string dummyPath;
+	std::unique_ptr<VisionModule>   vision;
+	std::unique_ptr<TestDirectory>  tempDir_;
+	std::string                     dummyPath;
 };
 
 TEST_F(VisionMockTest, AnalyzeImage_ValidMockResponse_ReturnsResult) {
@@ -137,5 +138,4 @@ TEST_F(VisionMockTest, AnalyzeImage_ApiHttp500_ReturnsFailure) {
 	EXPECT_EQ(result.error, "Internal Server Error");
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

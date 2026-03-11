@@ -5,8 +5,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class TrashPurgeTest : public MemeDbTest {};
 
@@ -49,5 +48,4 @@ TEST_F(TrashPurgeTest, PurgeTrash_Empty_ReturnsZero) {
 	EXPECT_EQ(j["data"]["purged"].get<int>(), 0);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

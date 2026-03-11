@@ -1,15 +1,15 @@
+#include "../test_utils.hpp"
+#include "core/handlers.hpp"
+#include "core/router.hpp"
 #include "core/task_queue.hpp"
 #include "core/ws_pusher.hpp"
 #include "db/database.hpp"
-#include "core/router.hpp"
-#include "core/handlers.hpp"
 #include "error_codes.hpp"
 
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <iostream>
-#include "../test_utils.hpp"
 
 namespace quickmemes {
 
@@ -34,7 +34,7 @@ TEST_F(SecurityTest, SSRF_Interception_Localhost) {
 	req.options.sourceName = "SSRF_TEST";
 
 	std::atomic<bool> eventReceived{false};
-	std::string receivedError;
+	std::string       receivedError;
 	WsPusher::get().setTestListener([&](const WsEvent &ev) {
 		if (ev.event == "task:error") {
 			receivedError = ev.payload["error"];

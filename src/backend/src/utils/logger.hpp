@@ -105,14 +105,14 @@ public:
 private:
 	Logger() = default;
 
-	std::string logDir_;                                                          ///< 日志文件输出目录
-	LogLevel minLevel_     = LogLevel::INFO;                                      ///< 最低输出等级
-	bool retentionEnabled_ = true;                                                ///< 是否启用日志清理
-	int retentionDays_     = 30;                                                  ///< 日志保留天数
-	bool initialized_      = false;                                               ///< 是否已初始化
-	std::mutex mutex_;                                                            ///< 保护并发写入的互斥锁
-	std::unordered_map<std::string, std::unique_ptr<std::ofstream>> fileStreams_; ///< 模块对应的文件流
-	std::string currentLogDate_;                                                  ///< 当前记录的日期，用于日志轮转
+	std::string                                                     logDir_;                    ///< 日志文件输出目录
+	LogLevel                                                        minLevel_ = LogLevel::INFO; ///< 最低输出等级
+	bool                                                            retentionEnabled_ = true;   ///< 是否启用日志清理
+	int                                                             retentionDays_    = 30;     ///< 日志保留天数
+	bool                                                            initialized_      = false;  ///< 是否已初始化
+	std::mutex                                                      mutex_;          ///< 保护并发写入的互斥锁
+	std::unordered_map<std::string, std::unique_ptr<std::ofstream>> fileStreams_;    ///< 模块对应的文件流
+	std::string                                                     currentLogDate_; ///< 当前记录的日期，用于日志轮转
 
 	/**
 	 * @brief 内部无锁的日志清理方法

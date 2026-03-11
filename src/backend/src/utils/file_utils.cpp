@@ -22,14 +22,10 @@ namespace quickmemes {
 
 std::string computeHash(const std::string &filePath) {
 	std::ifstream file(filePath, std::ios::binary);
-	if (!file.is_open()) {
-		throw ApiException(ERR_IO, "Failed to open file for hashing: " + filePath);
-	}
+	if (!file.is_open()) { throw ApiException(ERR_IO, "Failed to open file for hashing: " + filePath); }
 
 	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-	if (ctx == nullptr) {
-		throw ApiException(ERR_INTERNAL, "Failed to create EVP_MD_CTX");
-	}
+	if (ctx == nullptr) { throw ApiException(ERR_INTERNAL, "Failed to create EVP_MD_CTX"); }
 
 	if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1) {
 		EVP_MD_CTX_free(ctx);
@@ -41,12 +37,10 @@ std::string computeHash(const std::string &filePath) {
 		EVP_DigestUpdate(ctx, buffer, file.gcount());
 	}
 	// After read fails, gcount() returns bytes from the attempted read (can be > 0 and < sizeof(buffer))
-	if (file.gcount() > 0) {
-		EVP_DigestUpdate(ctx, buffer, file.gcount());
-	}
+	if (file.gcount() > 0) { EVP_DigestUpdate(ctx, buffer, file.gcount()); }
 
 	unsigned char hash[EVP_MAX_MD_SIZE];
-	unsigned int lengthOfHash = 0;
+	unsigned int  lengthOfHash = 0;
 
 	if (EVP_DigestFinal_ex(ctx, hash, &lengthOfHash) != 1) {
 		EVP_MD_CTX_free(ctx);
@@ -64,27 +58,19 @@ std::string computeHash(const std::string &filePath) {
 
 std::string detectMimeType(const std::string &filePath) {
 	std::ifstream file(filePath, std::ios::binary);
-	if (!file.is_open()) {
-		return "application/octet-stream";
-	}
+	if (!file.is_open()) { return "application/octet-stream"; }
 
 	unsigned char header[16] = {};
 	file.read(reinterpret_cast<char *>(header), sizeof(header));
 
 	// PNG: 89 50 4E 47 0D 0A 1A 0A
-	if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) {
-		return "image/png";
-	}
+	if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) { return "image/png"; }
 
 	// JPEG: FF D8 FF
-	if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) {
-		return "image/jpeg";
-	}
+	if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) { return "image/jpeg"; }
 
 	// GIF: 47 49 46 38
-	if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38) {
-		return "image/gif";
-	}
+	if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38) { return "image/gif"; }
 
 	// WebP: RIFF....WEBP
 	if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 && header[8] == 0x57 &&
@@ -93,16 +79,14 @@ std::string detectMimeType(const std::string &filePath) {
 	}
 
 	// AVIF: ....ftypavif
-	if (header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70) {
-		return "image/avif";
-	}
+	if (header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70) { return "image/avif"; }
 
 	return "application/octet-stream";
 }
 
 ImageSize readImageSize(const std::string &filePath) {
 	ImageSize size;
-	int channels = 0;
+	int       channels = 0;
 	// stbi_info 仅读取头部元数据，不完整解码图像
 	if (!stbi_info(filePath.c_str(), &size.width, &size.height, &channels)) {
 		LOG_WARN("file_util", "Failed to read image size: " + filePath);
@@ -111,7 +95,7 @@ ImageSize readImageSize(const std::string &filePath) {
 }
 
 bool generateThumbnail(const std::string &srcPath, const std::string &destPath, int maxSize) {
-	int width = 0, height = 0, channels = 0;
+	int            width = 0, height = 0, channels = 0;
 	// 强制请求 4 通道 (RGBA) 以匹配 stbir_resize_uint8_linear 的安全枚举
 	unsigned char *data = stbi_load(srcPath.c_str(), &width, &height, &channels, 4);
 	if (!data) {
@@ -136,7 +120,14 @@ bool generateThumbnail(const std::string &srcPath, const std::string &destPath, 
 
 	// 缩放
 	std::vector<unsigned char> resized(newWidth * newHeight * 4);
-	stbir_resize_uint8_linear(data, width, height, 0, resized.data(), newWidth, newHeight, 0,
+	stbir_resize_uint8_linear(data,
+	                          width,
+	                          height,
+	                          0,
+	                          resized.data(),
+	                          newWidth,
+	                          newHeight,
+	                          0,
 	                          static_cast<stbir_pixel_layout>(4)); // STBIR_RGBA
 	stbi_image_free(data);
 
@@ -166,7 +157,7 @@ bool generateThumbnail(const std::string &srcPath, const std::string &destPath, 
 
 bool copyFile(const std::string &srcPath, const std::string &destPath) {
 	std::error_code ec;
-	auto destDir = std::filesystem::path(destPath).parent_path();
+	auto            destDir = std::filesystem::path(destPath).parent_path();
 	std::filesystem::create_directories(destDir, ec);
 	if (ec) {
 		LOG_ERROR("file_util", "Failed to create directory: " + destDir.string());

@@ -3,31 +3,30 @@
  * @brief TaskQueue 模块单元测试
  */
 
+#include "../test_utils.hpp"
 #include "core/task_queue.hpp"
 #include "db/database.hpp"
 #include "error_codes.hpp"
-#include "../test_utils.hpp"
 
 #include <fstream>
 #include <gtest/gtest.h>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class TaskQueueTest : public ::testing::Test {
 protected:
 	void SetUp() override {
 		tempDir_ = std::make_unique<TestDirectory>();
 		tempDir_->createSubDirs("data");
-		
+
 		imagePath1_ = tempDir_->getSubPath("data/meme1.jpg");
 		imagePath2_ = tempDir_->getSubPath("test.jpg");
 		imagePath3_ = tempDir_->getSubPath("wait.jpg");
-		
+
 		createTestImage(imagePath1_);
 		createTestImage(imagePath2_);
 		createTestImage(imagePath3_);
-		
+
 		Database::get().initialize(":memory:");
 		TaskQueue::get().initialize(2, 5, tempDir_->getSubPath("storage"));
 	}
@@ -47,9 +46,9 @@ protected:
 	}
 
 	std::unique_ptr<TestDirectory> tempDir_;
-	std::string imagePath1_;
-	std::string imagePath2_;
-	std::string imagePath3_;
+	std::string                    imagePath1_;
+	std::string                    imagePath2_;
+	std::string                    imagePath3_;
 };
 
 TEST_F(TaskQueueTest, SubmitTask_ValidRequest_ReturnsTaskId) {
@@ -85,5 +84,4 @@ TEST_F(TaskQueueTest, CancelTask_ExistingTask_ReturnsTrue) {
 	EXPECT_TRUE(TaskQueue::get().cancelTask(taskId));
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

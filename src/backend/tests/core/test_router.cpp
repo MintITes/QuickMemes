@@ -9,8 +9,7 @@
 
 #include <gtest/gtest.h>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class RouterTest : public ::testing::Test {
 protected:
@@ -18,11 +17,12 @@ protected:
 		// Some handlers might call Database::get(), initialize a mock/memory one
 		try {
 			Database::get().initialize(":memory:");
-		} catch (...) {
-		}
+		} catch (...) {}
 		router.registerRoute("GET", "/api/health", handleGetHealth);
 	}
-	void TearDown() override { Database::get().shutdown(); }
+	void TearDown() override {
+		Database::get().shutdown();
+	}
 	Router router;
 };
 
@@ -97,5 +97,4 @@ TEST_F(RouterTest, Dispatch_RealEndpoint_Exists) {
 	EXPECT_NE(res.status, 404);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

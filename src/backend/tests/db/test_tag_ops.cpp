@@ -5,8 +5,7 @@
 
 #include "../mocks.hpp"
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 TEST_F(MemeDbTest, InsertTag_ValidTag_ReturnsId) {
 	Tag t;
@@ -85,5 +84,4 @@ TEST_F(MemeDbTest, DeleteTag_ExistingTag_RemovesTag) {
 	}
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

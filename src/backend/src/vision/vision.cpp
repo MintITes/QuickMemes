@@ -36,10 +36,8 @@ static std::string base64Encode(const unsigned char *data, size_t len) {
 
 	for (size_t i = 0; i < len; i += 3) {
 		unsigned int triple = (data[i] << 16);
-		if (i + 1 < len)
-			triple |= (data[i + 1] << 8);
-		if (i + 2 < len)
-			triple |= data[i + 2];
+		if (i + 1 < len) triple |= (data[i + 1] << 8);
+		if (i + 2 < len) triple |= data[i + 2];
 
 		result += base64Chars[(triple >> 18) & 0x3F];
 		result += base64Chars[(triple >> 12) & 0x3F];
@@ -56,7 +54,8 @@ static void stbiWriteCallback(void *context, void *data, int size) {
 	vec->insert(vec->end(), bytes, bytes + size);
 }
 
-VisionModule::VisionModule(std::shared_ptr<HttpClientInterface> httpClient) : httpClient_(std::move(httpClient)) {}
+VisionModule::VisionModule(std::shared_ptr<HttpClientInterface> httpClient)
+    : httpClient_(std::move(httpClient)) {}
 
 VisionModule::~VisionModule() = default;
 
@@ -87,8 +86,9 @@ bool VisionModule::initialize(const VisionConfig &config) {
 
 	isOcrAvailable_ = (!config_.ocrApiKey.empty() && !config_.ocrApiUrl.empty() && !config_.ocrProvider.empty());
 
-	LOG_INFO("vision", "VisionModule initialized — AI: " + std::string(isAiAvailable_ ? "available" : "unavailable") +
-	                       ", OCR: " + std::string(isOcrAvailable_ ? "available" : "unavailable"));
+	LOG_INFO("vision",
+	         "VisionModule initialized — AI: " + std::string(isAiAvailable_ ? "available" : "unavailable") +
+	             ", OCR: " + std::string(isOcrAvailable_ ? "available" : "unavailable"));
 
 	return isAiAvailable_ || isOcrAvailable_;
 }
@@ -145,25 +145,25 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 	                           "{\"tags\": [\"标签1\", \"标签2\"], \"description\": \"描述文本\"}";
 
 	std::string userText = "分析这张图片";
-	if (!ocrFullText.empty()) {
-		userText += "，图片中的 OCR 文本为：" + ocrFullText;
-	}
+	if (!ocrFullText.empty()) { userText += "，图片中的 OCR 文本为：" + ocrFullText; }
 
 	nlohmann::json requestBody;
-	requestBody["model"]    = config_.visionModel;
-	requestBody["messages"] = nlohmann::json::array(
-	    {{{"role", "system"}, {"content", systemPrompt}},
-	     {{"role", "user"},
-	      {"content", nlohmann::json::array(
-	                      {{{"type", "image_url"}, {"image_url", {{"url", "data:image/jpeg;base64," + imageBase64}}}},
-	                       {{"type", "text"}, {"text", userText}}})}}});
+	requestBody["model"]      = config_.visionModel;
+	requestBody["messages"]   = nlohmann::json::array({
+        {{"role", "system"},{"content", systemPrompt}                    },
+        {  {"role", "user"},
+         {"content",
+         nlohmann::json::array(
+         {{{"type", "image_url"}, {"image_url", {{"url", "data:image/jpeg;base64," + imageBase64}}}},
+         {{"type", "text"}, {"text", userText}}})}}
+    });
 	requestBody["max_tokens"] = 1000;
 
 	std::string url     = config_.apiBaseUrl + "/chat/completions";
 	std::string headers = "Authorization: Bearer " + config_.apiKey + "\r\n";
 
 	std::string responseBody;
-	int retries = config_.maxRetries;
+	int         retries = config_.maxRetries;
 	for (int attempt = 0; attempt <= retries; ++attempt) {
 		try {
 			responseBody = httpClient_->post(url, headers, requestBody.dump(), config_.timeoutSeconds);
@@ -196,8 +196,8 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 			return res;
 		}
 
-		std::string content = message["content"].get<std::string>();
-		auto analysisJson   = nlohmann::json::parse(content);
+		std::string content      = message["content"].get<std::string>();
+		auto        analysisJson = nlohmann::json::parse(content);
 
 		if (analysisJson.contains("tags") && analysisJson["tags"].is_array()) {
 			for (const auto &tag : analysisJson["tags"]) {
@@ -221,21 +221,15 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 }
 
 std::vector<float> VisionModule::generateEmbedding(const std::string &text) {
-	if (!isAiAvailable_) {
-		return {};
-	}
+	if (!isAiAvailable_) { return {}; }
 
 	if (text.empty()) {
-		if (embeddingDim_ > 0) {
-			return std::vector<float>(embeddingDim_, 0.0f);
-		}
+		if (embeddingDim_ > 0) { return std::vector<float>(embeddingDim_, 0.0f); }
 		return {};
 	}
 
 	std::string inputText = text;
-	if (inputText.size() > 8000) {
-		inputText = inputText.substr(0, 8000);
-	}
+	if (inputText.size() > 8000) { inputText = inputText.substr(0, 8000); }
 
 	nlohmann::json requestBody;
 	requestBody["model"] = config_.embeddingModel;
@@ -269,7 +263,9 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 	// Use scope exit or manual release to ensure semaphore is released
 	struct SemaphoreGuard {
 		std::counting_semaphore<4> &sem;
-		~SemaphoreGuard() { sem.release(); }
+		~SemaphoreGuard() {
+			sem.release();
+		}
 	} guard{processingSemaphore_};
 
 	int w, h, channels;
@@ -291,9 +287,9 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 	}
 
 	std::unique_ptr<unsigned char, decltype(&stbi_image_free)> scopedData(raw_data, stbi_image_free);
-	unsigned char *processData = scopedData.get();
+	unsigned char                                             *processData = scopedData.get();
 
-	int newW = w, newH = h;
+	int                        newW = w, newH = h;
 	std::vector<unsigned char> resizedData;
 	try {
 		if (w > 1024 || h > 1024) {

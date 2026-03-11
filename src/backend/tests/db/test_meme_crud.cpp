@@ -6,8 +6,7 @@
 #include "../mocks.hpp"
 #include "utils/logger.hpp"
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 TEST_F(MemeDbTest, InsertMeme_ValidEntry_ReturnsId) {
 	MemeEntry meme;
@@ -79,5 +78,4 @@ TEST_F(MemeDbTest, UpdateMeme_ValidPatch_UpdatesFields) {
 	EXPECT_EQ(loaded.description, "My New Description");
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

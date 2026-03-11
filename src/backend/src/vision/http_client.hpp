@@ -30,8 +30,8 @@ public:
 	 * @return std::string 服务端返回的响应体
 	 * @throws ApiException(ERR_AI_REQUEST_FAILED) 网络错误、超时或 HTTP 状态码非 2xx 时
 	 */
-	virtual std::string post(const std::string &url, const std::string &headers, const std::string &body,
-	                         int timeoutSeconds) = 0;
+	virtual std::string
+	post(const std::string &url, const std::string &headers, const std::string &body, int timeoutSeconds) = 0;
 
 	/**
 	 * @brief 发送 HTTP GET 请求
@@ -58,8 +58,8 @@ public:
 	 * @return std::string 响应体
 	 * @throws ApiException
 	 */
-	std::string post(const std::string &url, const std::string &headers, const std::string &body,
-	                 int timeoutSeconds) override;
+	std::string
+	post(const std::string &url, const std::string &headers, const std::string &body, int timeoutSeconds) override;
 
 	std::string get(const std::string &url, const std::string &headers, int timeoutSeconds) override;
 };

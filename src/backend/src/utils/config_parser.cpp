@@ -46,9 +46,7 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 		if (auto it = args.find(key); it != args.end()) {
 			try {
 				out = std::stoi(it->second);
-			} catch (...) {
-				throw std::invalid_argument("invalid integer value for " + key);
-			}
+			} catch (...) { throw std::invalid_argument("invalid integer value for " + key); }
 		} else if (required) {
 			throw std::invalid_argument("missing required argument " + key);
 		}

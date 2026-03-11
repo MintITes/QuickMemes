@@ -19,9 +19,7 @@ std::unique_ptr<quickmemes::Server> g_server = nullptr;
  */
 void handleSignal(int sig) {
 	std::cout << "\n[INFO] Caught signal " << sig << ", gracefully shutting down..." << std::endl;
-	if (g_server) {
-		g_server->stop();
-	}
+	if (g_server) { g_server->stop(); }
 }
 
 /**
@@ -40,8 +38,10 @@ int main(int argc, char *argv[]) {
 	try {
 		auto config = quickmemes::parseArgs(argc, argv);
 
-		quickmemes::Logger::get().initialize(config.logDir, quickmemes::logLevelFromString(config.logLevel),
-		                                     config.logRetentionEnabled, config.logRetentionDays);
+		quickmemes::Logger::get().initialize(config.logDir,
+		                                     quickmemes::logLevelFromString(config.logLevel),
+		                                     config.logRetentionEnabled,
+		                                     config.logRetentionDays);
 
 		LOG_INFO("main", "Starting QuickMemes Backend...");
 

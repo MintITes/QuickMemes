@@ -4,19 +4,18 @@
  */
 
 #include "../mocks.hpp"
+#include "../test_utils.hpp"
 
 #include <filesystem>
 #include <fstream>
-#include "../test_utils.hpp"
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class BackupRestoreTest : public ::testing::Test {
 protected:
 	void SetUp() override {
 		tempDir_ = std::make_unique<TestDirectory>();
-		dbPath = tempDir_->getSubPath("test.db");
+		dbPath   = tempDir_->getSubPath("test.db");
 
 		db = std::make_unique<Database>();
 		ASSERT_TRUE(db->initialize(dbPath));
@@ -28,8 +27,8 @@ protected:
 		tempDir_.reset();
 	}
 
-	std::string dbPath;
-	std::unique_ptr<Database> db;
+	std::string                    dbPath;
+	std::unique_ptr<Database>      db;
 	std::unique_ptr<TestDirectory> tempDir_;
 };
 
@@ -70,7 +69,7 @@ TEST_F(BackupRestoreTest, CreateBackup_RestoreFromBackup_DataPreserved) {
 
 	// Verify data inserted after backup is gone
 	SearchQuery q;
-	auto results = db->searchMemes(q);
+	auto        results = db->searchMemes(q);
 	EXPECT_EQ(results.items.size(), 1); // Only the first meme
 }
 
@@ -89,5 +88,4 @@ TEST_F(BackupRestoreTest, IntegrityCheck_DetectsCorruption) {
 	EXPECT_FALSE(db->checkIntegrity());
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

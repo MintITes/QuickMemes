@@ -31,16 +31,16 @@ namespace quickmemes {
 struct SearchSql {
 	std::vector<std::string> whereClauses; ///< WHERE 条件片段（AND 拼接）
 	std::vector<std::string> params;       ///< 绑定参数值
-	std::string orderBy;                   ///< ORDER BY 子句
-	std::string limitOffset;               ///< LIMIT/OFFSET 子句
+	std::string              orderBy;      ///< ORDER BY 子句
+	std::string              limitOffset;  ///< LIMIT/OFFSET 子句
 };
 
 /**
  * @brief 分页搜索结果
  */
 struct PagedMemeResults {
-	std::vector<MemeEntry> items; ///< 当前页结果
-	int32_t totalCount = 0;        ///< 匹配的总记录数
+	std::vector<MemeEntry> items;          ///< 当前页结果
+	int32_t                totalCount = 0; ///< 匹配的总记录数
 };
 
 /**
@@ -191,8 +191,11 @@ public:
 	 * @return bool 删除成功返回 true
 	 */
 	bool deleteMeme(int64_t id);
-	bool updateMemeProcessing(int64_t id, ProcessingStatus ocrStatus, ProcessingStatus aiStatus,
-	                          const std::string &ocrText, const std::string &description);
+	bool updateMemeProcessing(int64_t            id,
+	                          ProcessingStatus   ocrStatus,
+	                          ProcessingStatus   aiStatus,
+	                          const std::string &ocrText,
+	                          const std::string &description);
 
 	// ── 标签操作 ──
 
@@ -209,7 +212,7 @@ public:
 	 * @return std::vector<Tag> 按名称字典序排序
 	 */
 	std::vector<Tag> getTags();
-	bool deleteTag(int64_t tagId);
+	bool             deleteTag(int64_t tagId);
 
 	/**
 	 * @brief 获取指定 Meme 的所有标签
@@ -327,7 +330,9 @@ public:
 	 * @brief 获取底层 SQLiteCpp 数据库对象
 	 * @return SQLite::Database* 指针
 	 */
-	SQLite::Database *getRawDatabase() { return db_.get(); }
+	SQLite::Database *getRawDatabase() {
+		return db_.get();
+	}
 
 private:
 	/**
@@ -345,9 +350,9 @@ private:
 	 */
 	SearchSql buildSearchSql(const SearchQuery &query);
 
-	std::unique_ptr<SQLite::Database> db_; ///< SQLiteCpp 数据库实例
-	std::string dbPath_;                   ///< 数据库文件路径
-	mutable std::shared_mutex dbMutex_;    ///< 保护并发读写，特别是 rebuildVecTable
+	std::unique_ptr<SQLite::Database> db_;      ///< SQLiteCpp 数据库实例
+	std::string                       dbPath_;  ///< 数据库文件路径
+	mutable std::shared_mutex         dbMutex_; ///< 保护并发读写，特别是 rebuildVecTable
 };
 
 } // namespace quickmemes

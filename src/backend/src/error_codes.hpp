@@ -48,13 +48,17 @@ public:
 	 * @param code   int 业务错误码（ERR_* 常量之一）
 	 * @param message std::string 人类可读的错误描述
 	 */
-	ApiException(int code, const std::string &message) : std::runtime_error(message), code_(code) {}
+	ApiException(int code, const std::string &message)
+	    : std::runtime_error(message)
+	    , code_(code) {}
 
 	/**
 	 * @brief 获取业务错误码
 	 * @return int 错误码
 	 */
-	[[nodiscard]] int code() const noexcept { return code_; }
+	[[nodiscard]] int code() const noexcept {
+		return code_;
+	}
 
 private:
 	int code_; ///< 业务错误码

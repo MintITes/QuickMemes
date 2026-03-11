@@ -1,12 +1,12 @@
 #include "core/task_queue.hpp"
 
+#include "core/server.hpp"
 #include "core/ws_pusher.hpp"
 #include "db/database.hpp"
 #include "error_codes.hpp"
 #include "utils/file_utils.hpp"
 #include "utils/logger.hpp"
 #include "vision/vision.hpp"
-#include "core/server.hpp"
 
 #include <atomic>
 #include <boost/asio/connect.hpp>
@@ -40,10 +40,9 @@ namespace quickmemes {
 
 namespace {
 bool downloadImageToTemp(const std::string &url, std::string &outPath) {
-	std::regex urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
+	std::regex  urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
 	std::smatch match;
-	if (!std::regex_match(url, match, urlRegex))
-		return false;
+	if (!std::regex_match(url, match, urlRegex)) return false;
 
 	std::string protocol = match[1];
 	std::string host     = match[2];
@@ -59,16 +58,16 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 	    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 "
 	    "Mobile/15E148 Safari/604.1"};
 
-	thread_local std::mt19937 generator(std::random_device{}());
+	thread_local std::mt19937             generator(std::random_device{}());
 	std::uniform_int_distribution<size_t> distribution(0, userAgents.size() - 1);
-	std::string randomUA = userAgents[distribution(generator)];
+	std::string                           randomUA = userAgents[distribution(generator)];
 
 	int maxRetries = 3;
 	for (int attempt = 0; attempt < maxRetries; attempt++) {
 		try {
-			boost::asio::io_context ioc;
+			boost::asio::io_context        ioc;
 			boost::asio::ip::tcp::resolver resolver(ioc);
-			auto const results = resolver.resolve(host, port);
+			auto const                     results = resolver.resolve(host, port);
 
 			for (auto &result : results) {
 				auto addr = result.endpoint().address();
@@ -97,8 +96,7 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 				ctx.set_default_verify_paths();
 				ctx.set_verify_mode(boost::asio::ssl::verify_peer);
 				boost::beast::ssl_stream<boost::beast::tcp_stream> stream(ioc, ctx);
-				if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str()))
-					return false;
+				if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str())) return false;
 
 				boost::beast::get_lowest_layer(stream).connect(results);
 				boost::beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(30));
@@ -127,13 +125,12 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 				return false;
 			}
 
-			std::string tempTemplate = (std::filesystem::temp_directory_path() / "qmdl_XXXXXX").string();
+			std::string       tempTemplate = (std::filesystem::temp_directory_path() / "qmdl_XXXXXX").string();
 			std::vector<char> tempTpl(tempTemplate.begin(), tempTemplate.end());
 			tempTpl.push_back('\0');
 
 			int fd = mkstemp(tempTpl.data());
-			if (fd == -1)
-				return false;
+			if (fd == -1) return false;
 			close(fd);
 
 			std::ofstream ofs(tempTpl.data(), std::ios::binary);
@@ -159,13 +156,13 @@ std::string generateUUIDv4() {
 } // namespace
 
 struct TaskState {
-	int totalItems = 0;
-	std::atomic<int> finishedItems{0};
-	std::atomic<int> succeededItems{0};
-	std::atomic<int> failedItems{0};
-	std::mutex errorsMutex;
+	int                      totalItems = 0;
+	std::atomic<int>         finishedItems{0};
+	std::atomic<int>         succeededItems{0};
+	std::atomic<int>         failedItems{0};
+	std::mutex               errorsMutex;
 	std::vector<std::string> errors;
-	bool cancelled = false;
+	bool                     cancelled = false;
 };
 
 class TaskQueueImpl {
@@ -173,15 +170,16 @@ public:
 	std::unique_ptr<boost::asio::thread_pool> ioPool;
 	std::unique_ptr<boost::asio::thread_pool> aiPool;
 	std::unique_ptr<boost::asio::thread_pool> thumbPool;
-	int maxQueueSize = 500;
-	std::atomic<int> currentPending{0};
-	std::string storagePath;
+	int                                       maxQueueSize = 500;
+	std::atomic<int>                          currentPending{0};
+	std::string                               storagePath;
 
-	std::mutex tasksMutex;
+	std::mutex                                                  tasksMutex;
 	std::unordered_map<std::string, std::shared_ptr<TaskState>> activeTasks;
 };
 
-TaskQueue::TaskQueue() : impl_(std::make_unique<TaskQueueImpl>()) {}
+TaskQueue::TaskQueue()
+    : impl_(std::make_unique<TaskQueueImpl>()) {}
 TaskQueue::~TaskQueue() {
 	shutdown();
 }
@@ -192,16 +190,16 @@ TaskQueue &TaskQueue::get() {
 }
 
 void TaskQueue::initialize(int workerCount, int maxQueueSize, const std::string &storagePath) {
-	if (impl_->ioPool)
-		return;
+	if (impl_->ioPool) return;
 	impl_->maxQueueSize = maxQueueSize;
 	impl_->storagePath  = storagePath;
 	impl_->ioPool       = std::make_unique<boost::asio::thread_pool>(workerCount);
 	impl_->aiPool       = std::make_unique<boost::asio::thread_pool>(std::max(1, workerCount / 2));
 	impl_->thumbPool    = std::make_unique<boost::asio::thread_pool>(std::max(1, workerCount / 2));
-	LOG_INFO("queue", "TaskQueue initialized (IO workers: " + std::to_string(workerCount) +
-	                      ", AI: " + std::to_string(std::max(1, workerCount / 2)) + ", Thumb: " +
-	                      std::to_string(std::max(1, workerCount / 2)) + ", storage: " + storagePath + ")");
+	LOG_INFO("queue",
+	         "TaskQueue initialized (IO workers: " + std::to_string(workerCount) +
+	             ", AI: " + std::to_string(std::max(1, workerCount / 2)) +
+	             ", Thumb: " + std::to_string(std::max(1, workerCount / 2)) + ", storage: " + storagePath + ")");
 }
 
 void TaskQueue::shutdown() {
@@ -212,21 +210,21 @@ void TaskQueue::shutdown() {
 		// 1. 发起等待线程，负责在后台调用各池的 join()
 		// 2. detach 等待线程，不阻塞主关机流程
 		// 3. 给出宽限期，随后强制 stop() 以防任务挂起
-		
+
 		std::thread waiter([this]() {
 			if (impl_->ioPool) impl_->ioPool->join();
 			if (impl_->aiPool) impl_->aiPool->join();
 			if (impl_->thumbPool) impl_->thumbPool->join();
 		});
 
-		waiter.detach(); 
+		waiter.detach();
 
 		// 真正解决 Hanging 的办法是：直接调用 stop() 强制取消积压任务，
 		// 然后通过 reset() 释放资源。
-		
+
 		// 我们给任务一小段宽限期（例如 3s）来尝试自然完成
 		std::this_thread::sleep_for(std::chrono::seconds(3));
-		
+
 		LOG_INFO("queue", "Forcing TaskQueue pools to stop to prevent hanging.");
 		if (impl_->ioPool) impl_->ioPool->stop();
 		if (impl_->aiPool) impl_->aiPool->stop();
@@ -235,7 +233,7 @@ void TaskQueue::shutdown() {
 		impl_->ioPool.reset();
 		impl_->aiPool.reset();
 		impl_->thumbPool.reset();
-		
+
 		LOG_INFO("queue", "TaskQueue shutdown completed.");
 	}
 }
@@ -245,9 +243,7 @@ const std::string &TaskQueue::getStoragePath() const {
 }
 
 std::string TaskQueue::submitImportTask(const ImportRequest &request) {
-	if (!impl_->ioPool) {
-		throw ApiException(ERR_INTERNAL, "TaskQueue not initialized");
-	}
+	if (!impl_->ioPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
 
 	std::string taskId = generateUUIDv4();
 
@@ -255,7 +251,10 @@ std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 		// 发送符合规范的 task:error 推送
 		WsEvent errEvent;
 		errEvent.event   = "task:error";
-		errEvent.payload = {{"taskId", taskId}, {"error", "Task queue is full"}};
+		errEvent.payload = {
+		    {"taskId",               taskId},
+		    { "error", "Task queue is full"}
+        };
 		WsPusher::get().broadcast(errEvent);
 
 		throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full");
@@ -289,9 +288,7 @@ std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 			} catch (const std::exception &e) {
 				LOG_ERROR("queue", "Pipeline IO error: " + std::string(e.what()));
 				markItemDone(state, pipeline.taskId, false, "Pipeline IO error: " + std::string(e.what()));
-			} catch (...) {
-				markItemDone(state, pipeline.taskId, false, "Unknown pipeline error");
-			}
+			} catch (...) { markItemDone(state, pipeline.taskId, false, "Unknown pipeline error"); }
 		});
 	}
 
@@ -299,30 +296,26 @@ std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 }
 
 std::string TaskQueue::submitRebuildTask() {
-	if (!impl_->aiPool) {
-		throw ApiException(ERR_INTERNAL, "TaskQueue not initialized");
-	}
+	if (!impl_->aiPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
 
-	if (impl_->currentPending >= impl_->maxQueueSize) {
-		throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full");
-	}
+	if (impl_->currentPending >= impl_->maxQueueSize) { throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full"); }
 
 	std::string taskId = "rebuild-" + generateUUIDv4();
 
 	auto state = std::make_shared<TaskState>();
 
 	// Use batching to avoid OOM for large datasets
-	int batchSize     = 100;
-	int offset        = 0;
-	bool more         = true;
-	int totalEnqueued = 0;
+	int  batchSize     = 100;
+	int  offset        = 0;
+	bool more          = true;
+	int  totalEnqueued = 0;
 
 	while (more) {
 		SearchQuery batchQuery;
-		batchQuery.limit  = batchSize;
-		batchQuery.offset = offset;
-		auto batchResults = Database::get().searchMemes(batchQuery);
-		auto &batchMemes  = batchResults.items;
+		batchQuery.limit   = batchSize;
+		batchQuery.offset  = offset;
+		auto  batchResults = Database::get().searchMemes(batchQuery);
+		auto &batchMemes   = batchResults.items;
 
 		if (batchMemes.empty()) {
 			more = false;
@@ -334,7 +327,8 @@ std::string TaskQueue::submitRebuildTask() {
 			totalEnqueued++;
 
 			boost::asio::post(
-			    *impl_->aiPool, [this, memeId = meme.id, ocrText = meme.ocrText, desc = meme.description, taskId, state]() {
+			    *impl_->aiPool,
+			    [this, memeId = meme.id, ocrText = meme.ocrText, desc = meme.description, taskId, state]() {
 				    if (state->cancelled) {
 					    markItemDone(state, taskId, false, "Cancelled");
 					    return;
@@ -343,42 +337,38 @@ std::string TaskQueue::submitRebuildTask() {
 				    try {
 					    WsEvent progEvent;
 					    progEvent.event   = "task:progress";
-					    progEvent.payload = {{"taskId", taskId}, {"status", "processing"}, {"memeId", memeId}};
+					    progEvent.payload = {
+					        {"taskId",       taskId},
+					        {"status", "processing"},
+					        {"memeId",       memeId}
+                        };
 					    WsPusher::get().broadcast(progEvent);
 
 					    if (VisionModule::get().isAvailable()) {
 						    auto embedVector = VisionModule::get().generateEmbedding(ocrText + " " + desc);
-						    if (!embedVector.empty()) {
-							    Database::get().upsertEmbedding(memeId, embedVector);
-						    }
+						    if (!embedVector.empty()) { Database::get().upsertEmbedding(memeId, embedVector); }
 					    }
 
 					    markItemDone(state, taskId, true, "");
 				    } catch (const std::exception &e) {
 					    markItemDone(state, taskId, false, "Rebuild error: " + std::string(e.what()));
-				    } catch (...) {
-					    markItemDone(state, taskId, false, "Unknown rebuild error");
-				    }
+				    } catch (...) { markItemDone(state, taskId, false, "Unknown rebuild error"); }
 			    });
 		}
 		offset += batchSize;
 	}
 	state->totalItems = totalEnqueued;
 
-	if (totalEnqueued == 0) {
-		markItemDone(state, taskId, true, "");
-	}
+	if (totalEnqueued == 0) { markItemDone(state, taskId, true, ""); }
 
 	return taskId;
 }
 
 std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
-	if (!impl_->ioPool) {
-		throw ApiException(ERR_INTERNAL, "TaskQueue not initialized");
-	}
+	if (!impl_->ioPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
 
 	std::string taskId = "thumb-" + std::to_string(memeId) + "-" + generateUUIDv4();
-	auto state         = std::make_shared<TaskState>();
+	auto        state  = std::make_shared<TaskState>();
 	state->totalItems  = 1;
 
 	{
@@ -394,18 +384,14 @@ std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
 		}
 
 		try {
-			auto meme               = Database::get().getMeme(memeId);
+			auto        meme        = Database::get().getMeme(memeId);
 			std::string storageRoot = impl_->storagePath;
-			if (storageRoot.empty())
-				storageRoot = "storage";
-			if (storageRoot.back() != '/')
-				storageRoot += '/';
+			if (storageRoot.empty()) storageRoot = "storage";
+			if (storageRoot.back() != '/') storageRoot += '/';
 
-			auto posSlash      = meme.filePath.find('/');
-			std::string relDir = "";
-			if (posSlash != std::string::npos) {
-				relDir = meme.filePath.substr(0, posSlash + 1);
-			}
+			auto        posSlash = meme.filePath.find('/');
+			std::string relDir   = "";
+			if (posSlash != std::string::npos) { relDir = meme.filePath.substr(0, posSlash + 1); }
 
 			std::string thumbDir = storageRoot + "thumbs/" + relDir;
 			std::filesystem::create_directories(thumbDir);
@@ -413,17 +399,13 @@ std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
 
 			if (!std::filesystem::exists(thumbPath)) {
 				int maxSize = 300;
-				if (g_server) {
-					maxSize = g_server->getConfig().thumbnailMaxSize;
-				}
+				if (g_server) { maxSize = g_server->getConfig().thumbnailMaxSize; }
 				generateThumbnail(storageRoot + meme.filePath, thumbPath, maxSize);
 			}
 			markItemDone(state, taskId, true, "");
 		} catch (const std::exception &e) {
 			markItemDone(state, taskId, false, "Thumbnail task error: " + std::string(e.what()));
-		} catch (...) {
-			markItemDone(state, taskId, false, "Unknown thumbnail task error");
-		}
+		} catch (...) { markItemDone(state, taskId, false, "Unknown thumbnail task error"); }
 	});
 
 	return taskId;
@@ -431,7 +413,7 @@ std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
 
 bool TaskQueue::cancelTask(const std::string &taskId) {
 	std::lock_guard<std::mutex> lock(impl_->tasksMutex);
-	auto it = impl_->activeTasks.find(taskId);
+	auto                        it = impl_->activeTasks.find(taskId);
 	if (it != impl_->activeTasks.end() && !it->second->cancelled) {
 		it->second->cancelled = true;
 		LOG_INFO("queue", "Task " + taskId + " marked as cancelled");
@@ -442,7 +424,7 @@ bool TaskQueue::cancelTask(const std::string &taskId) {
 
 ImportTask TaskQueue::getTask(const std::string &taskId) {
 	std::lock_guard<std::mutex> lock(impl_->tasksMutex);
-	auto it = impl_->activeTasks.find(taskId);
+	auto                        it = impl_->activeTasks.find(taskId);
 	if (it == impl_->activeTasks.end()) {
 		// In a real app, we might check a completed tasks history.
 		// For now, return a generic failed/not found task or empty.
@@ -452,7 +434,7 @@ ImportTask TaskQueue::getTask(const std::string &taskId) {
 		return t;
 	}
 
-	auto state = it->second;
+	auto       state = it->second;
 	ImportTask t;
 	t.taskId    = taskId;
 	t.total     = state->totalItems;
@@ -460,9 +442,7 @@ ImportTask TaskQueue::getTask(const std::string &taskId) {
 	t.succeeded = state->succeededItems.load();
 	t.failed    = state->failedItems.load();
 	t.status    = state->cancelled ? TaskStatus::CANCELLED : TaskStatus::PROCESSING;
-	if (t.processed >= t.total && t.total > 0) {
-		t.status = TaskStatus::DONE;
-	}
+	if (t.processed >= t.total && t.total > 0) { t.status = TaskStatus::DONE; }
 
 	std::lock_guard<std::mutex> errLock(state->errorsMutex);
 	t.errors = state->errors;
@@ -470,8 +450,10 @@ ImportTask TaskQueue::getTask(const std::string &taskId) {
 	return t;
 }
 
-void TaskQueue::markItemDone(std::shared_ptr<TaskState> state, const std::string &taskId, bool success,
-                             const std::string &errorMsg) {
+void TaskQueue::markItemDone(std::shared_ptr<TaskState> state,
+                             const std::string         &taskId,
+                             bool                       success,
+                             const std::string         &errorMsg) {
 	if (success) {
 		state->succeededItems++;
 	} else {
@@ -481,7 +463,10 @@ void TaskQueue::markItemDone(std::shared_ptr<TaskState> state, const std::string
 			state->errors.push_back(errorMsg);
 			WsEvent errEvent;
 			errEvent.event   = "task:error";
-			errEvent.payload = {{"taskId", taskId}, {"error", errorMsg}};
+			errEvent.payload = {
+			    {"taskId",   taskId},
+			    { "error", errorMsg}
+            };
 			WsPusher::get().broadcast(errEvent);
 		}
 	}
@@ -495,12 +480,14 @@ void TaskQueue::markItemDone(std::shared_ptr<TaskState> state, const std::string
 		}
 		WsEvent doneEvent;
 		doneEvent.event   = "task:complete";
-		doneEvent.payload = {{"taskId", taskId},
-		                     {"status", "done"},
-		                     {"total", state->totalItems},
-		                     {"succeeded", state->succeededItems.load()},
-		                     {"failed", state->failedItems.load()},
-		                     {"errors", errList}};
+		doneEvent.payload = {
+		    {   "taskId",		               taskId},
+		    {   "status",		               "done"},
+		    {    "total",            state->totalItems},
+		    {"succeeded", state->succeededItems.load()},
+		    {   "failed",    state->failedItems.load()},
+		    {   "errors",                      errList}
+        };
 		WsPusher::get().broadcast(doneEvent);
 
 		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
@@ -512,8 +499,8 @@ void TaskQueue::markItemDone(std::shared_ptr<TaskState> state, const std::string
 void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<TaskState> state) {
 	LOG_INFO("queue", "1-Stage IO Pipeline started for: " + pipeline.inputPath);
 
-	std::string actualPath = pipeline.inputPath;
-	bool isTempDownloaded  = false;
+	std::string actualPath       = pipeline.inputPath;
+	bool        isTempDownloaded = false;
 
 	// Check if it's a URL
 	if (pipeline.inputPath.find("http://") == 0 || pipeline.inputPath.find("https://") == 0) {
@@ -534,8 +521,7 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 		hash = computeHash(actualPath);
 	} catch (const std::exception &e) {
 		LOG_ERROR("queue", "Hash computation failed: " + std::string(e.what()));
-		if (isTempDownloaded)
-			std::filesystem::remove(actualPath);
+		if (isTempDownloaded) std::filesystem::remove(actualPath);
 		markItemDone(state, pipeline.taskId, false, "Hash computation failed: " + std::string(e.what()));
 		return;
 	}
@@ -548,8 +534,7 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	if (std::filesystem::exists(actualPath)) {
 		meme.fileSize = std::filesystem::file_size(actualPath);
 	} else {
-		if (isTempDownloaded)
-			std::filesystem::remove(actualPath);
+		if (isTempDownloaded) std::filesystem::remove(actualPath);
 		markItemDone(state, pipeline.taskId, false, "File does not exist: " + actualPath);
 		return;
 	}
@@ -558,7 +543,7 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	meme.width  = s.width;
 	meme.height = s.height;
 
-	auto now       = std::chrono::system_clock::now();
+	auto     now   = std::chrono::system_clock::now();
 	uint64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 	meme.createdAt = nowMs;
 	meme.updatedAt = nowMs;
@@ -567,12 +552,10 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	meme.aiStatus  = ProcessingStatus::PENDING;
 
 	std::string storageRoot = impl_->storagePath;
-	if (storageRoot.empty())
-		storageRoot = "storage";
-	if (storageRoot.back() != '/')
-		storageRoot += '/';
+	if (storageRoot.empty()) storageRoot = "storage";
+	if (storageRoot.back() != '/') storageRoot += '/';
 
-	auto nowT = std::time(nullptr);
+	auto    nowT = std::time(nullptr);
 	std::tm tm{};
 	localtime_r(&nowT, &tm);
 	char dirStr[16];
@@ -602,26 +585,22 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	} catch (const ApiException &e) {
 		if (e.code() == ERR_DUPLICATE) {
 			LOG_INFO("queue", "Meme already exists: " + hash);
-			if (isTempDownloaded)
-				std::filesystem::remove(actualPath);
+			if (isTempDownloaded) std::filesystem::remove(actualPath);
 			markItemDone(state, pipeline.taskId, false, "Meme already exists: " + hash);
 			return;
 		}
 		LOG_ERROR("queue", "Failed to initially save DB record: " + std::string(e.what()));
-		if (isTempDownloaded)
-			std::filesystem::remove(actualPath);
+		if (isTempDownloaded) std::filesystem::remove(actualPath);
 		markItemDone(state, pipeline.taskId, false, "Failed to base DB record: " + std::string(e.what()));
 		return;
 	}
 
 	try {
 		copyFile(actualPath, finalPath);
-		if (isTempDownloaded)
-			std::filesystem::remove(actualPath);
+		if (isTempDownloaded) std::filesystem::remove(actualPath);
 	} catch (...) {
 		LOG_WARN("queue", "Failed to copy image to final storage");
-		if (isTempDownloaded)
-			std::filesystem::remove(actualPath);
+		if (isTempDownloaded) std::filesystem::remove(actualPath);
 	}
 
 	// 异步生成缩略图，避免阻塞 IO 线程
@@ -643,11 +622,15 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 
 			WsEvent progEvent;
 			progEvent.event   = "task:progress";
-			progEvent.payload = {{"taskId", taskId}, {"status", "processing"}, {"memeId", memeId}};
+			progEvent.payload = {
+			    {"taskId",       taskId},
+			    {"status", "processing"},
+			    {"memeId",       memeId}
+            };
 			WsPusher::get().broadcast(progEvent);
 
-			VisionModule &vision       = VisionModule::get();
-			std::string finalOcr       = "";
+			VisionModule    &vision    = VisionModule::get();
+			std::string      finalOcr  = "";
 			ProcessingStatus ocrStatus = ProcessingStatus::SKIPPED;
 			if (vision.isOcrAvailable()) {
 				auto res = vision.recognize(finalPath);
@@ -659,8 +642,8 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 				}
 			}
 
-			std::string finalDesc     = "";
-			ProcessingStatus aiStatus = ProcessingStatus::SKIPPED;
+			std::string      finalDesc = "";
+			ProcessingStatus aiStatus  = ProcessingStatus::SKIPPED;
 			if (vision.isAvailable()) {
 				auto res = vision.analyzeImage(finalPath, finalOcr);
 				if (res.success) {
@@ -676,9 +659,7 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 
 			if (vision.isAvailable() && !finalDesc.empty()) {
 				auto embedVector = vision.generateEmbedding(finalOcr + " " + finalDesc);
-				if (!embedVector.empty()) {
-					db.upsertEmbedding(memeId, embedVector);
-				}
+				if (!embedVector.empty()) { db.upsertEmbedding(memeId, embedVector); }
 			}
 
 			LOG_INFO("queue", "2-Stage Pipeline completed for meme: " + std::to_string(memeId));

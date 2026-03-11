@@ -3,18 +3,17 @@
  * @brief TaskQueue 压力与并发测试
  */
 
+#include "../test_utils.hpp"
 #include "core/task_queue.hpp"
 #include "db/database.hpp"
 #include "vision/vision.hpp"
-#include "../test_utils.hpp"
 
 #include <atomic>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class TaskQueueStressTest : public ::testing::Test {
 protected:
@@ -32,8 +31,8 @@ protected:
 };
 
 TEST_F(TaskQueueStressTest, ConcurrentSubmissions_Stability) {
-	const int numThreads     = 10;
-	const int tasksPerThread = 20;
+	const int        numThreads     = 10;
+	const int        tasksPerThread = 20;
 	std::atomic<int> submitted{0};
 
 	std::vector<std::thread> workers;
@@ -45,8 +44,7 @@ TEST_F(TaskQueueStressTest, ConcurrentSubmissions_Stability) {
 				try {
 					TaskQueue::get().submitImportTask(req);
 					submitted++;
-				} catch (...) {
-				}
+				} catch (...) {}
 			}
 		});
 	}
@@ -75,5 +73,4 @@ TEST_F(TaskQueueStressTest, ConcurrentCancel_NoCrash) {
 	            task.status == TaskStatus::DONE || task.status == TaskStatus::FAILED);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

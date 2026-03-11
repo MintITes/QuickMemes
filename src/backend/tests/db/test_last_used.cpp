@@ -9,8 +9,7 @@
 #include <chrono>
 #include <thread>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class LastUsedTest : public MemeDbTest {
 protected:
@@ -31,7 +30,7 @@ protected:
 
 TEST_F(LastUsedTest, UpdateMemeLastUsed_InitialIsZero_UpdatedIsNow) {
 	MemeEntry meme = createTestMeme("lastused1");
-	int64_t id     = db->insertMeme(meme);
+	int64_t   id   = db->insertMeme(meme);
 
 	// Initial lastUsedAt should be 0
 	MemeEntry loaded = db->getMeme(id);
@@ -80,5 +79,4 @@ TEST_F(LastUsedTest, SortByLastUsed_ReturnsCorrectOrder) {
 	EXPECT_EQ(resultsAsc.items[2].id, id3);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

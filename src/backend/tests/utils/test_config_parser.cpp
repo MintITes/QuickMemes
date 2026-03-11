@@ -7,8 +7,7 @@
 
 #include <gtest/gtest.h>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	// TODO: implement — 模拟 arc/argv 数组
@@ -21,5 +20,4 @@ TEST(ConfigParserTest, ParseArgs_MissingRequired_Exits) {
 	// TODO: implement
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

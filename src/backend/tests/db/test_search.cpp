@@ -5,8 +5,7 @@
 
 #include "../mocks.hpp"
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 TEST_F(MemeDbTest, SearchMemes_ValidQuery_ReturnsMatchingResults) {
 	MemeEntry meme;
@@ -133,5 +132,4 @@ TEST_F(MemeDbTest, SearchMemes_Sorting_Works) {
 	EXPECT_EQ(res2.items[0].fileHash, "h1");
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

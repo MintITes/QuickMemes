@@ -4,16 +4,15 @@
  */
 
 #include "../mocks.hpp"
+#include "../test_utils.hpp"
 #include "core/handlers.hpp"
 #include "core/task_queue.hpp"
 #include "db/database.hpp"
-#include "../test_utils.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class HandlersExtraTest : public MemeDbTest {
 protected:
@@ -137,5 +136,4 @@ TEST_F(HandlersExtraTest, TrashManagement_Workflow_Success) {
 	EXPECT_EQ(jFinal["data"]["total"].get<int>(), 0);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

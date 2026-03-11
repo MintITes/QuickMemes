@@ -53,9 +53,7 @@ void handleGetHealth(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	data.modules.db     = Database::get().checkIntegrity();
 	data.modules.vision = VisionModule::get().isAvailable();
 
-	if (!data.modules.db || !data.modules.vision) {
-		data.status = "degraded";
-	}
+	if (!data.modules.db || !data.modules.vision) { data.status = "degraded"; }
 
 	res.status = 200;
 	res.body   = makeSuccessResponse(data);
@@ -66,7 +64,7 @@ void handlePostImport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		auto importReq = nlohmann::json::parse(req.body).get<ImportRequest>();
 
 		std::string taskId = TaskQueue::get().submitImportTask(importReq);
-		auto task          = TaskQueue::get().getTask(taskId);
+		auto        task   = TaskQueue::get().getTask(taskId);
 
 		res.status = 200; // Standardized to 200 OK
 		res.body   = makeSuccessResponse(task);
@@ -83,21 +81,21 @@ void handlePostImport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostImportCancel(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto j             = nlohmann::json::parse(req.body);
+		auto        j      = nlohmann::json::parse(req.body);
 		std::string taskId = j.value("taskId", "");
 
 		bool success = TaskQueue::get().cancelTask(taskId);
 		if (success) {
-			nlohmann::json data = {{"success", true}};
-			res.status          = 200;
-			res.body            = makeSuccessResponse(data);
+			nlohmann::json data = {
+			    {"success", true}
+            };
+			res.status = 200;
+			res.body   = makeSuccessResponse(data);
 		} else {
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Task not found or already completed");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Bad JSON");
 	}
@@ -108,7 +106,7 @@ void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res) 
 		auto query = nlohmann::json::parse(req.body).get<SearchQuery>();
 
 		std::vector<MemeEntry> vectorResults;
-		bool didVectorSearch = false;
+		bool                   didVectorSearch = false;
 
 		if (query.useVector && !query.keyword.empty()) {
 			auto emb = VisionModule::get().generateEmbedding(query.keyword);
@@ -118,16 +116,16 @@ void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res) 
 			}
 		}
 
-		auto dbResults = Database::get().searchMemes(query);
-		auto &keywordResults = dbResults.items;
-		int32_t total = dbResults.totalCount;
+		auto    dbResults      = Database::get().searchMemes(query);
+		auto   &keywordResults = dbResults.items;
+		int32_t total          = dbResults.totalCount;
 
 		if (didVectorSearch) {
 			std::map<int64_t, SearchResultItem> merged;
-			const float k = 60.0f;
+			const float                         k = 60.0f;
 
 			for (size_t i = 0; i < keywordResults.size(); ++i) {
-				const auto &meme = keywordResults[i];
+				const auto      &meme = keywordResults[i];
 				SearchResultItem item;
 				item.meme            = meme;
 				item.similarityScore = 1.0f / (k + i + 1);
@@ -155,9 +153,7 @@ void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res) 
 				return a.similarityScore > b.similarityScore;
 			});
 
-			if (data.items.size() > static_cast<size_t>(query.limit)) {
-				data.items.resize(query.limit);
-			}
+			if (data.items.size() > static_cast<size_t>(query.limit)) { data.items.resize(query.limit); }
 
 			data.total = total;
 
@@ -197,9 +193,7 @@ void handleGetMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	} catch (const ApiException &e) {
 		res.status = (e.code() == ERR_NOT_FOUND) ? 404 : 500;
 		res.body   = makeErrorResponse(e.code(), e.what());
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid ID");
 	}
@@ -207,8 +201,8 @@ void handleGetMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePutMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto pos   = req.path.find_last_of('/');
-		int64_t id = std::stoll(req.path.substr(pos + 1));
+		auto    pos = req.path.find_last_of('/');
+		int64_t id  = std::stoll(req.path.substr(pos + 1));
 
 		auto patch = nlohmann::json::parse(req.body).get<MemePatch>();
 
@@ -222,9 +216,7 @@ void handlePutMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Update failed or Not Found");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -232,7 +224,7 @@ void handlePutMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex re(R"(^/api/memes?/(\d+)/use/?$)");
+		std::regex  re(R"(^/api/memes?/(\d+)/use/?$)");
 		std::smatch match;
 		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
 			throw std::invalid_argument("ID not found in path");
@@ -245,18 +237,21 @@ void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
 			// Broadcast event
-			WsPusher::get().broadcast({"meme:used", {{"id", id}, {"lastUsedAt", static_cast<int64_t>(nowMs)}}});
+			WsPusher::get().broadcast({
+			    "meme:used",
+			    {{"id", id}, {"lastUsedAt", static_cast<int64_t>(nowMs)}}
+            });
 
 			res.status = 200;
-			res.body =
-			    makeSuccessResponse(nlohmann::json{{"success", true}, {"lastUsedAt", static_cast<int64_t>(nowMs)}});
+			res.body   = makeSuccessResponse(nlohmann::json{
+			      {   "success",                        true},
+			      {"lastUsedAt", static_cast<int64_t>(nowMs)}
+            });
 		} else {
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Meme not found");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -264,7 +259,7 @@ void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex re(R"(^/api/memes?/(\d+)/file/?$)");
+		std::regex  re(R"(^/api/memes?/(\d+)/file/?$)");
 		std::smatch match;
 		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
 			throw std::invalid_argument("ID not found in path");
@@ -277,17 +272,14 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		}
 
 		std::string storageRoot = TaskQueue::get().getStoragePath();
-		if (storageRoot.empty())
-			storageRoot = "storage";
+		if (storageRoot.empty()) storageRoot = "storage";
 
 		std::filesystem::path rootPath = std::filesystem::absolute(storageRoot);
 		std::filesystem::path filePath = rootPath / meme.filePath;
 
 		try {
 			filePath = std::filesystem::weakly_canonical(filePath);
-		} catch (...) {
-			throw ApiException(ERR_IO, "Invalid path resolution");
-		}
+		} catch (...) { throw ApiException(ERR_IO, "Invalid path resolution"); }
 
 		// Ensure the file is inside the storage root
 		auto rootStr = rootPath.string();
@@ -301,15 +293,11 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 		// 异步生成缩略图（若缺失且启用）
 		if (g_server && g_server->getConfig().thumbnailEnabled) {
-			auto posSlash      = meme.filePath.find('/');
-			std::string relDir = "";
-			if (posSlash != std::string::npos) {
-				relDir = meme.filePath.substr(0, posSlash + 1);
-			}
+			auto        posSlash = meme.filePath.find('/');
+			std::string relDir   = "";
+			if (posSlash != std::string::npos) { relDir = meme.filePath.substr(0, posSlash + 1); }
 			std::string thumbPath = storageRoot + "thumbs/" + relDir + meme.fileHash + ".jpg";
-			if (!std::filesystem::exists(thumbPath)) {
-				TaskQueue::get().submitThumbnailTask(id);
-			}
+			if (!std::filesystem::exists(thumbPath)) { TaskQueue::get().submitThumbnailTask(id); }
 		}
 
 		res.filePath    = fullPath;
@@ -318,9 +306,7 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	} catch (const ApiException &e) {
 		res.status = (e.code() == ERR_NOT_FOUND) ? 404 : 500;
 		res.body   = makeErrorResponse(e.code(), e.what());
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -328,7 +314,7 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex re(R"(^/api/memes?/(\d+)/thumbnail/?$)");
+		std::regex  re(R"(^/api/memes?/(\d+)/thumbnail/?$)");
 		std::smatch match;
 		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
 			throw std::invalid_argument("ID not found in path");
@@ -341,23 +327,18 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 		}
 
 		std::string storageRoot = TaskQueue::get().getStoragePath();
-		if (storageRoot.empty())
-			storageRoot = "storage";
+		if (storageRoot.empty()) storageRoot = "storage";
 
 		std::filesystem::path rootPath = std::filesystem::absolute(storageRoot);
 
-		auto posSlash      = meme.filePath.find('/');
-		std::string relDir = "";
-		if (posSlash != std::string::npos) {
-			relDir = meme.filePath.substr(0, posSlash + 1);
-		}
+		auto        posSlash = meme.filePath.find('/');
+		std::string relDir   = "";
+		if (posSlash != std::string::npos) { relDir = meme.filePath.substr(0, posSlash + 1); }
 
 		std::filesystem::path thumbPath = rootPath / "thumbs" / relDir / (meme.fileHash + ".jpg");
 		try {
 			thumbPath = std::filesystem::weakly_canonical(thumbPath);
-		} catch (...) {
-			throw ApiException(ERR_IO, "Invalid thumb resolution");
-		}
+		} catch (...) { throw ApiException(ERR_IO, "Invalid thumb resolution"); }
 
 		// Security Check
 		auto rootStr  = rootPath.string();
@@ -369,9 +350,7 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 
 		if (!std::filesystem::exists(thumbPath)) {
 			// 如果缩略图不存在，且启用了生成功能，则提交异步任务
-			if (g_server && g_server->getConfig().thumbnailEnabled) {
-				TaskQueue::get().submitThumbnailTask(id);
-			}
+			if (g_server && g_server->getConfig().thumbnailEnabled) { TaskQueue::get().submitThumbnailTask(id); }
 			// 策略优化：缺失缩略图时立即返回原图作为替代，不阻塞 HTTP 线程
 			std::filesystem::path originalPath = rootPath / meme.filePath;
 			if (std::filesystem::exists(originalPath)) {
@@ -388,9 +367,7 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 	} catch (const ApiException &e) {
 		res.status = (e.code() == ERR_NOT_FOUND) ? 404 : 500;
 		res.body   = makeErrorResponse(e.code(), e.what());
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -399,8 +376,7 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 void handlePostTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto tag = nlohmann::json::parse(req.body).get<Tag>();
-		if (tag.color.empty())
-			tag.color = "#000000";
+		if (tag.color.empty()) tag.color = "#000000";
 		if (tag.name.empty()) {
 			res.status = 400;
 			res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Tag name required");
@@ -417,9 +393,7 @@ void handlePostTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	} catch (const ApiException &e) {
 		res.status = 409;
 		res.body   = makeErrorResponse(e.code(), e.what());
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Bad JSON");
 	}
@@ -431,9 +405,7 @@ void handleGetTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		auto tags  = Database::get().getTags();
 		res.status = 200;
 		res.body   = makeSuccessResponse(tags);
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 500;
 		res.body   = makeErrorResponse(ERR_INTERNAL, "DB Error");
 	}
@@ -456,9 +428,7 @@ void handleDeleteTag(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Tag not found");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid ID");
 	}
@@ -466,14 +436,14 @@ void handleDeleteTag(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex re(R"(/(\d+)/tags/?$)");
+		std::regex  re(R"(/(\d+)/tags/?$)");
 		std::smatch match;
 		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
 			throw std::invalid_argument("Invalid path format for importing tags");
 		}
 		int64_t id = std::stoll(match[1].str());
 
-		auto j        = nlohmann::json::parse(req.body);
+		auto    j     = nlohmann::json::parse(req.body);
 		int64_t tagId = j.value("tagId", 0LL);
 
 		bool ok = Database::get().addMemeTag(id, tagId);
@@ -484,9 +454,7 @@ void handlePostMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			res.status = 400;
 			res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Failed to add tag");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -494,7 +462,7 @@ void handlePostMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleDeleteMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex re(R"(/(\d+)/tags/(\d+)/?$)");
+		std::regex  re(R"(/(\d+)/tags/(\d+)/?$)");
 		std::smatch match;
 		if (!std::regex_search(req.path, match, re) || match.size() < 3) {
 			res.status = 400;
@@ -513,9 +481,7 @@ void handleDeleteMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Not found");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid params");
 	}
@@ -530,14 +496,12 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			return;
 		}
 
-		std::string destDir = exportReq.destDir;
-		const char *homeEnv = std::getenv("HOME");
+		std::string           destDir = exportReq.destDir;
+		const char           *homeEnv = std::getenv("HOME");
 		std::filesystem::path homeDir = homeEnv ? std::filesystem::path(homeEnv) : std::filesystem::current_path();
 
 		// 如果未指定路径，强制使用默认路径
-		if (destDir.empty()) {
-			destDir = (homeDir / "Downloads" / "QuickMemes").string();
-		}
+		if (destDir.empty()) { destDir = (homeDir / "Downloads" / "QuickMemes").string(); }
 
 		// 处理 ~ 符号
 		if (destDir.find("~/") == 0) {
@@ -575,16 +539,14 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			return;
 		}
 
-		if (destDir.back() != '/' && destDir.back() != '\\')
-			destDir += "/";
+		if (destDir.back() != '/' && destDir.back() != '\\') destDir += "/";
 
 		std::filesystem::create_directories(destDir);
 
 		ExportResult data;
 
 		std::string storageRoot = TaskQueue::get().getStoragePath();
-		if (storageRoot.empty())
-			storageRoot = "storage";
+		if (storageRoot.empty()) storageRoot = "storage";
 
 		std::filesystem::path rootPath = std::filesystem::absolute(storageRoot);
 
@@ -605,18 +567,16 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 					// Sanitize name: remove any path separators or ".."
 					destFileName.erase(std::remove(destFileName.begin(), destFileName.end(), '/'), destFileName.end());
 					destFileName.erase(std::remove(destFileName.begin(), destFileName.end(), '\\'), destFileName.end());
-					if (destFileName == ".." || destFileName == ".")
-						destFileName = "meme_" + std::to_string(id);
+					if (destFileName == ".." || destFileName == ".") destFileName = "meme_" + std::to_string(id);
 
 					auto posExt = srcPath.find_last_of('.');
 					if (posExt != std::string::npos && destFileName.find('.') == std::string::npos) {
 						destFileName += srcPath.substr(posExt);
 					}
 				} else {
-					auto posExt     = srcPath.find_last_of('.');
-					std::string ext = "";
-					if (posExt != std::string::npos)
-						ext = srcPath.substr(posExt);
+					auto        posExt = srcPath.find_last_of('.');
+					std::string ext    = "";
+					if (posExt != std::string::npos) ext = srcPath.substr(posExt);
 					destFileName = std::to_string(id) + ext;
 				}
 
@@ -627,9 +587,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 					data.failed++;
 					data.errors.push_back("Copy failed for " + std::to_string(id));
 				}
-			} catch (const std::bad_alloc &) {
-				throw;
-			} catch (const std::exception &e) {
+			} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 				data.failed++;
 				data.errors.push_back("Not found id " + std::to_string(id));
 			}
@@ -637,9 +595,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -647,7 +603,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeRestore(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex re(R"(^/api/memes?/(\d+)/restore/?$)");
+		std::regex  re(R"(^/api/memes?/(\d+)/restore/?$)");
 		std::smatch match;
 		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
 			throw std::invalid_argument("ID not found in path");
@@ -663,9 +619,7 @@ void handlePostMemeRestore(const HttpRequestProxy &req, HttpResponseProxy &res) 
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Meme not found");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -674,9 +628,7 @@ void handlePostMemeRestore(const HttpRequestProxy &req, HttpResponseProxy &res) 
 void handleDeleteTrashPurge(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		int retentionDays = 30;
-		if (g_server) {
-			retentionDays = g_server->getConfig().recycleBinRetentionDays;
-		}
+		if (g_server) { retentionDays = g_server->getConfig().recycleBinRetentionDays; }
 
 		// Allow manual override via query param: ?olderThanDays=0
 		if (!req.query.empty()) {
@@ -684,18 +636,17 @@ void handleDeleteTrashPurge(const HttpRequestProxy &req, HttpResponseProxy &res)
 			if (pos != std::string::npos) {
 				try {
 					retentionDays = std::stoi(req.query.substr(pos + 14));
-				} catch (...) {
-				}
+				} catch (...) {}
 			}
 		}
 
-		int deleted         = Database::get().purgeDeletedMemes(retentionDays);
-		nlohmann::json data = {{"purged", deleted}};
-		res.status          = 200;
-		res.body            = makeSuccessResponse(data);
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+		int            deleted = Database::get().purgeDeletedMemes(retentionDays);
+		nlohmann::json data    = {
+            {"purged", deleted}
+        };
+		res.status = 200;
+		res.body   = makeSuccessResponse(data);
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 500;
 		res.body   = makeErrorResponse(ERR_INTERNAL, "Purge Failed");
 	}
@@ -703,8 +654,8 @@ void handleDeleteTrashPurge(const HttpRequestProxy &req, HttpResponseProxy &res)
 
 void handleDeleteMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto pos   = req.path.find_last_of('/');
-		int64_t id = std::stoll(req.path.substr(pos + 1));
+		auto    pos = req.path.find_last_of('/');
+		int64_t id  = std::stoll(req.path.substr(pos + 1));
 
 		bool ok = Database::get().softDeleteMeme(id);
 		if (ok) {
@@ -715,9 +666,7 @@ void handleDeleteMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			res.status = 404;
 			res.body   = makeErrorResponse(ERR_NOT_FOUND, "Not found");
 		}
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -727,12 +676,10 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto patch = nlohmann::json::parse(req.body).get<RuntimeConfigPatch>();
 		if (g_server) {
-			ServerConfig config = g_server->getConfig();
-			bool changed        = false;
+			ServerConfig config  = g_server->getConfig();
+			bool         changed = false;
 
-			if (patch.logMinLevel) {
-				Logger::get().setMinLevel(logLevelFromString(*patch.logMinLevel));
-			}
+			if (patch.logMinLevel) { Logger::get().setMinLevel(logLevelFromString(*patch.logMinLevel)); }
 			if (patch.aiApiKey) {
 				config.visionConfig.apiKey = *patch.aiApiKey;
 				changed                    = true;
@@ -778,9 +725,7 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		}
 		res.status = 200;
 		res.body   = makeSuccessResponse(nullptr);
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid JSON");
 	}
@@ -789,9 +734,7 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 void handleDeleteMemesBatch(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto j = nlohmann::json::parse(req.body);
-		if (!j.contains("ids") || !j["ids"].is_array()) {
-			throw std::invalid_argument("ids array missing");
-		}
+		if (!j.contains("ids") || !j["ids"].is_array()) { throw std::invalid_argument("ids array missing"); }
 		BatchResult data;
 		for (const auto &id_json : j["ids"]) {
 			int64_t id = id_json.get<int64_t>();
@@ -803,9 +746,7 @@ void handleDeleteMemesBatch(const HttpRequestProxy &req, HttpResponseProxy &res)
 		}
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -820,10 +761,9 @@ void handlePostMemesBatchTags(const HttpRequestProxy &req, HttpResponseProxy &re
 		int64_t tagId = j.value("tagId", 0LL);
 
 		BatchResult data;
-		Database &db = Database::get();
-		auto rawDb   = db.getRawDatabase();
-		if (!rawDb)
-			throw std::runtime_error("DB not available");
+		Database   &db    = Database::get();
+		auto        rawDb = db.getRawDatabase();
+		if (!rawDb) throw std::runtime_error("DB not available");
 		SQLite::Transaction txn(*rawDb);
 
 		for (const auto &id_json : j["memeIds"]) {
@@ -839,9 +779,7 @@ void handlePostMemesBatchTags(const HttpRequestProxy &req, HttpResponseProxy &re
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
 
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 400;
 		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
 	}
@@ -851,9 +789,9 @@ void handleGetMemesTrash(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto parseQuery = [](const std::string &q) {
 			std::map<std::string, std::string> params;
-			std::regex re("([^?=&]+)=([^&]*)");
-			std::smatch m;
-			auto it = q.cbegin();
+			std::regex                         re("([^?=&]+)=([^&]*)");
+			std::smatch                        m;
+			auto                               it = q.cbegin();
 			while (std::regex_search(it, q.cend(), m, re)) {
 				params[m[1].str()] = m[2].str();
 				it                 = m[0].second;
@@ -864,16 +802,13 @@ void handleGetMemesTrash(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		// Better parsing using string splitting if regex is overkill or buggy
 		auto getParam = [](const std::string &q, const std::string &key, int defaultVal) {
 			std::string search = key + "=";
-			size_t pos         = q.find(search);
-			if (pos == std::string::npos)
-				return defaultVal;
+			size_t      pos    = q.find(search);
+			if (pos == std::string::npos) return defaultVal;
 			size_t start = pos + search.length();
 			size_t end   = q.find('&', start);
 			try {
 				return std::stoi(q.substr(start, end - start));
-			} catch (...) {
-				return defaultVal;
-			}
+			} catch (...) { return defaultVal; }
 		};
 
 		int limit  = getParam(req.query, "limit", 50);
@@ -891,9 +826,7 @@ void handleGetMemesTrash(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		}
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
-	} catch (const std::bad_alloc &) {
-		throw;
-	} catch (const std::exception &e) {
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
 		res.status = 500;
 		res.body   = makeErrorResponse(ERR_INTERNAL, "DB Error");
 	}
@@ -903,8 +836,8 @@ void handleGetCategories(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	(void)req;
 	try {
 		auto categories = Database::get().getCategories();
-		res.status     = 200;
-		res.body       = makeSuccessResponse(categories);
+		res.status      = 200;
+		res.body        = makeSuccessResponse(categories);
 	} catch (const std::exception &e) {
 		res.status = 500;
 		res.body   = makeErrorResponse(ERR_INTERNAL, "DB Error");
@@ -921,9 +854,10 @@ void handlePostCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		}
 
 		category.id = Database::get().insertCategory(category);
-		
+
 		auto categories = Database::get().getCategories();
-		auto it = std::find_if(categories.begin(), categories.end(), [&](const Category& c){ return c.id == category.id; });
+		auto it =
+		    std::find_if(categories.begin(), categories.end(), [&](const Category &c) { return c.id == category.id; });
 		if (it != categories.end()) category = *it;
 
 		WsPusher::get().broadcast({"category:created", category});
@@ -938,15 +872,15 @@ void handlePostCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePutCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto pos = req.path.find_last_of('/');
-		int64_t id = std::stoll(req.path.substr(pos + 1));
+		auto    pos = req.path.find_last_of('/');
+		int64_t id  = std::stoll(req.path.substr(pos + 1));
 
 		auto patch = nlohmann::json::parse(req.body).get<CategoryPatch>();
-		bool ok = Database::get().updateCategory(id, patch);
+		bool ok    = Database::get().updateCategory(id, patch);
 
 		if (ok) {
 			auto categories = Database::get().getCategories();
-			auto it = std::find_if(categories.begin(), categories.end(), [&](const Category& c){ return c.id == id; });
+			auto it = std::find_if(categories.begin(), categories.end(), [&](const Category &c) { return c.id == id; });
 			if (it != categories.end()) {
 				WsPusher::get().broadcast({"category:updated", *it});
 				res.status = 200;
@@ -967,8 +901,8 @@ void handlePutCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleDeleteCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto pos = req.path.find_last_of('/');
-		int64_t id = std::stoll(req.path.substr(pos + 1));
+		auto    pos = req.path.find_last_of('/');
+		int64_t id  = std::stoll(req.path.substr(pos + 1));
 
 		bool ok = Database::get().deleteCategory(id);
 		if (ok) {
@@ -987,7 +921,7 @@ void handleDeleteCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemesBatchCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto batchReq = nlohmann::json::parse(req.body).get<BatchCategoryRequest>();
+		auto        batchReq = nlohmann::json::parse(req.body).get<BatchCategoryRequest>();
 		BatchResult result;
 
 		for (int64_t memeId : batchReq.memeIds) {
@@ -1016,10 +950,12 @@ void handlePostAdminRebuildEmbeddings(const HttpRequestProxy &req, HttpResponseP
 		res.body   = makeErrorResponse(ERR_AI_UNAVAILABLE, "AI unavailable");
 		return;
 	}
-	std::string taskId  = TaskQueue::get().submitRebuildTask();
-	nlohmann::json data = {{"taskId", taskId}};
-	res.status          = 200; // Standardized to 200 OK
-	res.body            = makeSuccessResponse(data);
+	std::string    taskId = TaskQueue::get().submitRebuildTask();
+	nlohmann::json data   = {
+        {"taskId", taskId}
+    };
+	res.status = 200; // Standardized to 200 OK
+	res.body   = makeSuccessResponse(data);
 }
 
 } // namespace quickmemes

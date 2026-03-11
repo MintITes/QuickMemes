@@ -1,7 +1,6 @@
 #include "../mocks.hpp"
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class BatchOpsTest : public MemeDbTest {};
 
@@ -16,7 +15,7 @@ TEST_F(BatchOpsTest, DeleteMemesBatch_ValidIds_RemovesMemes) {
 	int64_t id1 = db->insertMeme(m1);
 	int64_t id2 = db->insertMeme(m2);
 
-	auto memes                 = db->getDeletedMemes(10, 0);
+	auto   memes               = db->getDeletedMemes(10, 0);
 	size_t initialDeletedCount = memes.size();
 
 	EXPECT_TRUE(db->softDeleteMeme(id1));
@@ -66,5 +65,4 @@ TEST_F(BatchOpsTest, AddMemeTagBatch_NonExistentTag_ReturnsFalseDueToConstraint)
 	EXPECT_FALSE(db->addMemeTag(mId, 999999));
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

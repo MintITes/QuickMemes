@@ -69,7 +69,9 @@ public:
 	/**
 	 * @brief 设置自定义 HttpClient（主要用于测试注入）
 	 */
-	void setHttpClient(std::shared_ptr<HttpClientInterface> client) { httpClient_ = std::move(client); }
+	void setHttpClient(std::shared_ptr<HttpClientInterface> client) {
+		httpClient_ = std::move(client);
+	}
 
 	/**
 	 * @brief 检查大模型能力是否可用
@@ -87,7 +89,9 @@ public:
 	 * @brief 获取探测到的向量维度
 	 * @return int 维度大小，若未探测到返回 0
 	 */
-	[[nodiscard]] int getEmbeddingDimension() const { return embeddingDim_; }
+	[[nodiscard]] int getEmbeddingDimension() const {
+		return embeddingDim_;
+	}
 
 	/**
 	 * @brief 执行文本识别 (OCR)
@@ -130,11 +134,11 @@ private:
 	 */
 	std::string encodeImageToBase64(const std::string &imagePath) const;
 
-	VisionConfig config_;                             ///< 当前运行时配置
-	std::shared_ptr<HttpClientInterface> httpClient_; ///< HTTP 客户端抽象接口
-	bool isAiAvailable_  = false;                     ///< AI 连通性状态标记
-	bool isOcrAvailable_ = false;                     ///< OCR 连通性状态标记
-	int embeddingDim_    = 0;                         ///< 探测到的 embedding 向量维度
+	VisionConfig                         config_;                 ///< 当前运行时配置
+	std::shared_ptr<HttpClientInterface> httpClient_;             ///< HTTP 客户端抽象接口
+	bool                                 isAiAvailable_  = false; ///< AI 连通性状态标记
+	bool                                 isOcrAvailable_ = false; ///< OCR 连通性状态标记
+	int                                  embeddingDim_   = 0;     ///< 探测到的 embedding 向量维度
 
 	// Limit concurrent image processing to prevent OOM
 	mutable std::counting_semaphore<4> processingSemaphore_{4};

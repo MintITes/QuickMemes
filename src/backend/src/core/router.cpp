@@ -11,11 +11,12 @@ namespace quickmemes {
 
 class RouterImpl {
 public:
-	std::unordered_map<std::string, RouteHandler> exactRoutes;
+	std::unordered_map<std::string, RouteHandler>                                  exactRoutes;
 	std::vector<std::pair<std::function<bool(const std::string &)>, RouteHandler>> dynamicRoutes;
 };
 
-Router::Router() : impl_(std::make_unique<RouterImpl>()) {
+Router::Router()
+    : impl_(std::make_unique<RouterImpl>()) {
 	auto impl = impl_.get();
 
 	impl->exactRoutes["GET /api/health"]                    = handleGetHealth;
@@ -37,28 +38,25 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "GET /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
-		                               auto rest  = key.substr(p.size());
-		                               size_t pos = rest.find('/');
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find('/');
 		                               return pos != std::string::npos && rest.substr(pos) == "/file";
 	                               },
 	                               handleGetMemeFile});
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "GET /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
-		                               auto rest  = key.substr(p.size());
-		                               size_t pos = rest.find('/');
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find('/');
 		                               return pos != std::string::npos && rest.substr(pos) == "/thumbnail";
 	                               },
 	                               handleGetMemeThumbnail});
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "GET /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
+		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());
 		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
 		                                      !rest.empty();
@@ -67,8 +65,7 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "PUT /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
+		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());
 		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
 		                                      !rest.empty();
@@ -77,8 +74,7 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "DELETE /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
+		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());
 		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
 		                                      !rest.empty();
@@ -87,20 +83,18 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
-		                               auto rest  = key.substr(p.size());
-		                               size_t pos = rest.find('/');
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find('/');
 		                               return pos != std::string::npos && rest.substr(pos) == "/tags";
 	                               },
 	                               handlePostMemeTags});
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "DELETE /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
-		                               auto rest  = key.substr(p.size());
-		                               size_t pos = rest.find("/tags/");
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find("/tags/");
 		                               return pos != std::string::npos &&
 		                                      rest.find_first_not_of("0123456789", pos + 6) == std::string::npos &&
 		                                      rest.size() > pos + 6;
@@ -109,28 +103,25 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
-		                               auto rest  = key.substr(p.size());
-		                               size_t pos = rest.find('/');
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find('/');
 		                               return pos != std::string::npos && rest.substr(pos) == "/restore";
 	                               },
 	                               handlePostMemeRestore});
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
-		                               auto rest  = key.substr(p.size());
-		                               size_t pos = rest.find('/');
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find('/');
 		                               return pos != std::string::npos && rest.substr(pos) == "/use";
 	                               },
 	                               handlePostMemeUse});
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "DELETE /api/tags/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
+		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());
 		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
 		                                      !rest.empty();
@@ -139,8 +130,7 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "PUT /api/categories/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
+		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());
 		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
 		                                      !rest.empty();
@@ -149,8 +139,7 @@ Router::Router() : impl_(std::make_unique<RouterImpl>()) {
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "DELETE /api/categories/";
-		                               if (key.compare(0, p.size(), p) != 0)
-			                               return false;
+		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());
 		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
 		                                      !rest.empty();

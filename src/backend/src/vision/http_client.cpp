@@ -28,12 +28,12 @@ namespace net   = boost::asio;
 namespace ssl   = net::ssl;
 using tcp       = net::ip::tcp;
 
-std::string HttpClient::post(const std::string &url, const std::string &headers, const std::string &body,
-                             int timeoutSeconds) {
+std::string
+HttpClient::post(const std::string &url, const std::string &headers, const std::string &body, int timeoutSeconds) {
 	try {
 		// 1. 解析 URL
 		// 支持 https://api.openai.com/v1/... 或者 http://localhost:11434/...
-		std::regex urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
+		std::regex  urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
 		std::smatch urlMatchResults;
 
 		if (!std::regex_match(url, urlMatchResults, urlRegex)) {
@@ -51,7 +51,7 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 
 		// 这里采用同步接口，依靠 Asio timeout/deadline_timer 能控制，但对于简单的 HttpClient，我们先直接调用。
 		tcp::resolver resolver(ioc);
-		auto const results = resolver.resolve(host, port);
+		auto const    results = resolver.resolve(host, port);
 
 		// 3. 构建 HTTP 负载
 		http::request<http::string_body> req{http::verb::post, target, 11};
@@ -61,10 +61,9 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 
 		// 简单按行分割解析额外 header
 		std::istringstream headersStream(headers);
-		std::string headerLine;
+		std::string        headerLine;
 		while (std::getline(headersStream, headerLine)) {
-			if (headerLine.empty() || headerLine == "\r")
-				continue;
+			if (headerLine.empty() || headerLine == "\r") continue;
 			auto colonPos = headerLine.find(':');
 			if (colonPos != std::string::npos) {
 				std::string k = headerLine.substr(0, colonPos);
@@ -86,7 +85,7 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 			// TLS
 			ssl::context ctx(ssl::context::tlsv12_client);
 			// 默认启用证书验证；开发环境可通过 QM_SSL_NOVERIFY=1 跳过
-			const char *noVerify = std::getenv("QM_SSL_NOVERIFY");
+			const char  *noVerify = std::getenv("QM_SSL_NOVERIFY");
 			if (noVerify && std::string(noVerify) == "1") {
 				ctx.set_verify_mode(ssl::verify_none);
 			} else {
@@ -107,7 +106,7 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 			stream.handshake(ssl::stream_base::client);
 			http::write(stream, req);
 
-			beast::flat_buffer buffer;
+			beast::flat_buffer                buffer;
 			http::response<http::string_body> res;
 
 			http::read(stream, buffer, res);
@@ -117,8 +116,9 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 			// 收到 non_recoverable 或 EOF 往往在此处出现，不抛异常
 
 			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED, "HTTP Request returned " + std::to_string(res.result_int()) +
-				                                              ". Body: " + res.body());
+				throw ApiException(ERR_AI_REQUEST_FAILED,
+				                   "HTTP Request returned " + std::to_string(res.result_int()) +
+				                       ". Body: " + res.body());
 			}
 			responseBody = res.body();
 		} else {
@@ -128,7 +128,7 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 			stream.expires_after(std::chrono::seconds(timeoutSeconds));
 
 			http::write(stream, req);
-			beast::flat_buffer buffer;
+			beast::flat_buffer                buffer;
 			http::response<http::string_body> res;
 
 			http::read(stream, buffer, res);
@@ -136,8 +136,9 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 			stream.socket().shutdown(tcp::socket::shutdown_both, ec);
 
 			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED, "HTTP Request returned " + std::to_string(res.result_int()) +
-				                                              ". Body: " + res.body());
+				throw ApiException(ERR_AI_REQUEST_FAILED,
+				                   "HTTP Request returned " + std::to_string(res.result_int()) +
+				                       ". Body: " + res.body());
 			}
 			responseBody = res.body();
 		}
@@ -152,7 +153,7 @@ std::string HttpClient::post(const std::string &url, const std::string &headers,
 
 std::string HttpClient::get(const std::string &url, const std::string &headers, int timeoutSeconds) {
 	try {
-		std::regex urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
+		std::regex  urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
 		std::smatch urlMatchResults;
 
 		if (!std::regex_match(url, urlMatchResults, urlRegex)) {
@@ -168,17 +169,16 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 		net::io_context ioc;
 
 		tcp::resolver resolver(ioc);
-		auto const results = resolver.resolve(host, port);
+		auto const    results = resolver.resolve(host, port);
 
 		http::request<http::string_body> req{http::verb::get, target, 11};
 		req.set(http::field::host, host);
 		req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
 
 		std::istringstream headersStream(headers);
-		std::string headerLine;
+		std::string        headerLine;
 		while (std::getline(headersStream, headerLine)) {
-			if (headerLine.empty() || headerLine == "\r")
-				continue;
+			if (headerLine.empty() || headerLine == "\r") continue;
 			auto colonPos = headerLine.find(':');
 			if (colonPos != std::string::npos) {
 				std::string k = headerLine.substr(0, colonPos);
@@ -195,7 +195,7 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 
 		if (protocol == "https") {
 			ssl::context ctx(ssl::context::tlsv12_client);
-			const char *noVerify = std::getenv("QM_SSL_NOVERIFY");
+			const char  *noVerify = std::getenv("QM_SSL_NOVERIFY");
 			if (noVerify && std::string(noVerify) == "1") {
 				ctx.set_verify_mode(ssl::verify_none);
 			} else {
@@ -215,7 +215,7 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 			stream.handshake(ssl::stream_base::client);
 			http::write(stream, req);
 
-			beast::flat_buffer buffer;
+			beast::flat_buffer                buffer;
 			http::response<http::string_body> res;
 
 			http::read(stream, buffer, res);
@@ -224,8 +224,9 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 			stream.shutdown(ec);
 
 			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED, "HTTP Request returned " + std::to_string(res.result_int()) +
-				                                              ". Body: " + res.body());
+				throw ApiException(ERR_AI_REQUEST_FAILED,
+				                   "HTTP Request returned " + std::to_string(res.result_int()) +
+				                       ". Body: " + res.body());
 			}
 			responseBody = res.body();
 		} else {
@@ -234,7 +235,7 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 			stream.expires_after(std::chrono::seconds(timeoutSeconds));
 
 			http::write(stream, req);
-			beast::flat_buffer buffer;
+			beast::flat_buffer                buffer;
 			http::response<http::string_body> res;
 
 			http::read(stream, buffer, res);
@@ -242,8 +243,9 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 			stream.socket().shutdown(tcp::socket::shutdown_both, ec);
 
 			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED, "HTTP Request returned " + std::to_string(res.result_int()) +
-				                                              ". Body: " + res.body());
+				throw ApiException(ERR_AI_REQUEST_FAILED,
+				                   "HTTP Request returned " + std::to_string(res.result_int()) +
+				                       ". Body: " + res.body());
 			}
 			responseBody = res.body();
 		}

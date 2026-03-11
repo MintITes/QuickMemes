@@ -1,14 +1,13 @@
 #include "../mocks.hpp"
+#include "../test_utils.hpp"
 #include "core/handlers.hpp"
 #include "core/task_queue.hpp"
 #include "vision/vision.hpp"
-#include "../test_utils.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class RebuildEmbeddingsTest : public MemeDbTest {
 protected:
@@ -53,5 +52,4 @@ TEST_F(RebuildEmbeddingsTest, HandleRebuild_Success) {
 	EXPECT_TRUE(j["data"]["taskId"].get<std::string>().find("rebuild-") == 0);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

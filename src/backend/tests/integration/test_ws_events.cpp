@@ -1,7 +1,7 @@
+#include "../test_utils.hpp"
 #include "core/task_queue.hpp"
 #include "core/ws_pusher.hpp"
 #include "db/database.hpp"
-#include "../test_utils.hpp"
 
 #include <atomic>
 #include <fstream>
@@ -29,15 +29,13 @@ protected:
 		tempDir_.reset();
 	}
 	std::unique_ptr<TestDirectory> tempDir_;
-	std::string imagePath_;
+	std::string                    imagePath_;
 };
 
 TEST_F(WsEventTest, MemeAdded_Event_Broadcast) {
 	std::atomic<bool> addedEventReceived{false};
 	WsPusher::get().setTestListener([&](const WsEvent &ev) {
-		if (ev.event == "meme:added") {
-			addedEventReceived = true;
-		}
+		if (ev.event == "meme:added") { addedEventReceived = true; }
 	});
 
 	ImportRequest req;

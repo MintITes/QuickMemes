@@ -5,8 +5,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class ConfigApiTest : public MemeDbTest {
 protected:
@@ -50,5 +49,4 @@ TEST_F(ConfigApiTest, PatchConfig_InvalidJson_ReturnsError) {
 	EXPECT_EQ(res.status, 400);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

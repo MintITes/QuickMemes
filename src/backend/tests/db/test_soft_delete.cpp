@@ -8,8 +8,7 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <chrono>
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 TEST_F(MemeDbTest, SoftDelete_ValidMeme_HidesFromSearch) {
 	MemeEntry meme;
@@ -21,7 +20,7 @@ TEST_F(MemeDbTest, SoftDelete_ValidMeme_HidesFromSearch) {
 	EXPECT_TRUE(db->softDeleteMeme(id));
 
 	SearchQuery q;
-	auto res = db->searchMemes(q);
+	auto        res = db->searchMemes(q);
 	EXPECT_TRUE(res.items.empty());
 }
 
@@ -36,7 +35,7 @@ TEST_F(MemeDbTest, RestoreMeme_SoftDeletedMeme_ReturnsToSearch) {
 	EXPECT_TRUE(db->restoreMeme(id));
 
 	SearchQuery q;
-	auto res = db->searchMemes(q);
+	auto        res = db->searchMemes(q);
 	EXPECT_EQ(res.items.size(), 1);
 }
 
@@ -60,8 +59,8 @@ TEST_F(MemeDbTest, PurgeDeletedMemes_OlderThan30Days_RemovesPermanently) {
 
 	{
 		SQLite::Database rawDb(dbPath, SQLite::OPEN_READWRITE);
-		auto now     = std::chrono::system_clock::now();
-		auto older   = now - std::chrono::hours(24 * 31);
+		auto             now   = std::chrono::system_clock::now();
+		auto             older = now - std::chrono::hours(24 * 31);
 		auto olderMs = std::chrono::duration_cast<std::chrono::milliseconds>(older.time_since_epoch()).count();
 		SQLite::Statement stmt(rawDb, "UPDATE memes SET deleted_at = ? WHERE id = ?");
 		stmt.bind(1, static_cast<int64_t>(olderMs));
@@ -74,5 +73,4 @@ TEST_F(MemeDbTest, PurgeDeletedMemes_OlderThan30Days_RemovesPermanently) {
 	EXPECT_EQ(db->getDeletedMemesCount(), 0);
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

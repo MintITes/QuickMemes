@@ -3,14 +3,13 @@
  * @brief Logger 模块测试
  */
 
+#include "../test_utils.hpp"
 #include "utils/logger.hpp"
 
 #include <filesystem>
 #include <gtest/gtest.h>
-#include "../test_utils.hpp"
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 class LoggerTest : public ::testing::Test {
 protected:
@@ -18,7 +17,9 @@ protected:
 		tempDir_ = std::make_unique<TestDirectory>();
 	}
 
-	void TearDown() override { tempDir_.reset(); }
+	void TearDown() override {
+		tempDir_.reset();
+	}
 
 	std::unique_ptr<TestDirectory> tempDir_;
 };
@@ -35,5 +36,4 @@ TEST_F(LoggerTest, CleanOldLogs_RemovesExpiredFiles) {
 	// TODO: implement
 }
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

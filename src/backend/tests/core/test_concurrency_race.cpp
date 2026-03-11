@@ -1,3 +1,4 @@
+#include "../test_utils.hpp"
 #include "core/task_queue.hpp"
 #include "db/database.hpp"
 
@@ -5,7 +6,6 @@
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
-#include "../test_utils.hpp"
 
 namespace quickmemes {
 
@@ -24,7 +24,7 @@ protected:
 
 TEST_F(ConcurrencyRaceTest, Import_vs_Rebuild_Race) {
 	std::atomic<bool> start{false};
-	std::atomic<int> completed{0};
+	std::atomic<int>  completed{0};
 
 	// Thread 1: Keep inserting memes
 	std::thread t1([&]() {
@@ -37,8 +37,7 @@ TEST_F(ConcurrencyRaceTest, Import_vs_Rebuild_Race) {
 			meme.mimeType = "image/jpeg";
 			try {
 				Database::get().insertMeme(meme);
-			} catch (...) {
-			}
+			} catch (...) {}
 		}
 		completed++;
 	});

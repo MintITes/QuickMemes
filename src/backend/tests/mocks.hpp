@@ -7,19 +7,18 @@
  */
 
 #include "db/database.hpp"
+#include "test_utils.hpp"
 #include "vision/http_client.hpp"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include "test_utils.hpp"
 
 namespace quickmemes {
 class Server;
 }
 extern std::unique_ptr<quickmemes::Server> g_server;
 
-namespace quickmemes {
-namespace testing {
+namespace quickmemes { namespace testing {
 
 /**
  * @brief Mock HTTP 客户端，供 Vision 模块测试使用
@@ -41,20 +40,21 @@ class MemeDbTest : public ::testing::Test {
 protected:
 	void SetUp() override {
 		tempDir_ = std::make_unique<TestDirectory>();
-		db = &Database::get();
+		db       = &Database::get();
 		ASSERT_TRUE(db->initialize(":memory:")); // 使用内存数据库
 	}
 
-	void TearDown() override { 
-		db->shutdown(); 
+	void TearDown() override {
+		db->shutdown();
 		tempDir_.reset();
 	}
 
-	std::string getSubPath(const std::string& name) const { return tempDir_->getSubPath(name); }
+	std::string getSubPath(const std::string &name) const {
+		return tempDir_->getSubPath(name);
+	}
 
-	Database *db;
+	Database                      *db;
 	std::unique_ptr<TestDirectory> tempDir_;
 };
 
-} // namespace testing
-} // namespace quickmemes
+}} // namespace quickmemes::testing

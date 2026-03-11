@@ -17,29 +17,20 @@ namespace quickmemes {
 
 std::string logLevelToString(LogLevel level) {
 	switch (level) {
-	case LogLevel::DEBUG:
-		return "DEBUG";
-	case LogLevel::INFO:
-		return "INFO ";
-	case LogLevel::WARN:
-		return "WARN ";
-	case LogLevel::ERROR:
-		return "ERROR";
-	case LogLevel::FATAL:
-		return "FATAL";
+	case LogLevel::DEBUG: return "DEBUG";
+	case LogLevel::INFO: return "INFO ";
+	case LogLevel::WARN: return "WARN ";
+	case LogLevel::ERROR: return "ERROR";
+	case LogLevel::FATAL: return "FATAL";
 	}
 	return "?????";
 }
 
 LogLevel logLevelFromString(const std::string &str) {
-	if (str == "DEBUG")
-		return LogLevel::DEBUG;
-	if (str == "WARN")
-		return LogLevel::WARN;
-	if (str == "ERROR")
-		return LogLevel::ERROR;
-	if (str == "FATAL")
-		return LogLevel::FATAL;
+	if (str == "DEBUG") return LogLevel::DEBUG;
+	if (str == "WARN") return LogLevel::WARN;
+	if (str == "ERROR") return LogLevel::ERROR;
+	if (str == "FATAL") return LogLevel::FATAL;
 	return LogLevel::INFO;
 }
 
@@ -72,13 +63,12 @@ void Logger::initialize(const std::string &logDir, LogLevel minLevel, bool reten
 }
 
 void Logger::log(LogLevel level, const std::string &module, const std::string &message) {
-	if (level < minLevel_)
-		return;
+	if (level < minLevel_) return;
 
 	// 格式化时间戳
-	auto now   = std::chrono::system_clock::now();
-	auto timeT = std::chrono::system_clock::to_time_t(now);
-	auto ms    = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+	auto    now   = std::chrono::system_clock::now();
+	auto    timeT = std::chrono::system_clock::to_time_t(now);
+	auto    ms    = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 	std::tm tm{};
 	localtime_r(&timeT, &tm);
 
@@ -87,9 +77,7 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 
 	// 格式化模块名（固定宽度 8 字符）
 	std::string paddedModule = module;
-	if (paddedModule.size() < 8) {
-		paddedModule.resize(8, ' ');
-	}
+	if (paddedModule.size() < 8) { paddedModule.resize(8, ' '); }
 
 	// 格式化日志行
 	std::ostringstream line;
@@ -119,10 +107,8 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 			auto it = fileStreams_.find(module);
 			if (it == fileStreams_.end()) {
 				std::string filename = logDir_ + "/" + module + "-" + date + ".log";
-				auto ofs             = std::make_unique<std::ofstream>(filename, std::ios::app);
-				if (ofs->is_open()) {
-					it = fileStreams_.emplace(module, std::move(ofs)).first;
-				}
+				auto        ofs      = std::make_unique<std::ofstream>(filename, std::ios::app);
+				if (ofs->is_open()) { it = fileStreams_.emplace(module, std::move(ofs)).first; }
 			}
 
 			if (it != fileStreams_.end() && it->second->is_open()) {
@@ -133,9 +119,7 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 	}
 
 	// FATAL 级别写入后终止进程
-	if (level == LogLevel::FATAL) {
-		std::abort();
-	}
+	if (level == LogLevel::FATAL) { std::abort(); }
 }
 
 void Logger::setMinLevel(LogLevel level) {
@@ -149,12 +133,11 @@ int Logger::cleanOldLogs(int retentionDays) {
 }
 
 int Logger::cleanOldLogsInternal(int retentionDays) {
-	if (logDir_.empty())
-		return 0;
+	if (logDir_.empty()) return 0;
 
 	int deletedCount = 0;
 	try {
-		auto now = std::chrono::system_clock::now();
+		auto                                now = std::chrono::system_clock::now();
 		std::filesystem::directory_iterator dirIter(logDir_);
 
 		for (auto &entry : dirIter) {
