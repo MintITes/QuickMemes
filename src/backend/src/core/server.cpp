@@ -161,29 +161,36 @@ private:
 	void handleRequest() {
 		if (beast::websocket::is_upgrade(req_)) {
 			auto        path          = std::string(req_.target());
-			bool        authOk        = false;
-			std::string expectedToken = router_->getAuthToken();
-			if (expectedToken.empty() || path.find("/ws") != 0) {
-				authOk = true;
-			} else {
-				size_t pos = path.find("?token=");
-				if (pos == std::string::npos) { pos = path.find("&token="); }
+			const bool       isWsPath      = path.rfind("/ws", 0) == 0; // strict path prefix check
+			bool             authOk        = false;
+			const std::string expectedToken = router_->getAuthToken();
 
-				if (pos != std::string::npos) {
-					std::string t         = path.substr(pos + 7);
-					auto        ampersand = t.find('&');
-					if (ampersand != std::string::npos) t.resize(ampersand);
-					if (Router::verifyAuthToken(t, expectedToken)) { authOk = true; }
+			if (isWsPath) {
+				if (expectedToken.empty()) {
+					authOk = true; // WS auth disabled
+				} else {
+					size_t pos = path.find("?token=");
+					if (pos == std::string::npos) { pos = path.find("&token="); }
+
+					if (pos != std::string::npos) {
+						std::string t         = path.substr(pos + 7);
+						auto        ampersand = t.find('&');
+						if (ampersand != std::string::npos) t.resize(ampersand);
+						if (Router::verifyAuthToken(t, expectedToken)) { authOk = true; }
+					}
 				}
 			}
+
 			if (authOk) {
 				auto session = std::make_shared<WsSession>(std::move(stream_));
 				session->run(std::move(req_));
 				return;
 			} else {
 				HttpResponseProxy resProxy;
-				resProxy.status = 401;
-				resProxy.body   = R"({"success": false, "data": null, "error": "Unauthorized WS", "code": 1001})";
+				resProxy.status = isWsPath ? 401 : 404;
+				resProxy.body   = isWsPath ?
+				                   R"({"success": false, "data": null, "error": "Unauthorized WS", "code": 1001})" :
+				                   R"({"success": false, "data": null, "error": "Not Found", "code": 1002})";
 				auto res =
 				    std::make_shared<http::response<http::string_body>>(static_cast<http::status>(resProxy.status),
 				                                                        req_.version());
