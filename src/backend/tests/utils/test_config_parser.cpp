@@ -91,7 +91,7 @@ TEST(ConfigParserTest, ParseArgs_MissingRequired_Exits) {
 	EXPECT_THROW(
 	    {
 		    try {
-		        parseArgs(argc, argv.data());
+		        (void)parseArgs(argc, argv.data());
 		    } catch (const std::invalid_argument &e) {
 		        EXPECT_NE(std::string(e.what()).find("missing required argument --port"), std::string::npos);
 		        throw;
