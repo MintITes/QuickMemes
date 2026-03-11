@@ -11,37 +11,62 @@
 namespace quickmemes { namespace testing {
 
 TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
-	const std::vector<const char *> rawArgs = {
-	    "quickmemes",
-	    "--bind-address", "0.0.0.0",
-	    "--port", "8080",
-	    "--auth-token", "secret-token",
-	    "--storage-path", "/var/lib/quickmemes/storage",
-	    "--db-path", "/var/lib/quickmemes/db.sqlite3",
-	    "--log-dir", "/var/log/quickmemes",
-	    "--log-level", "info",
-	    "--log-retention-enabled", "true",
-	    "--log-retention-days", "7",
-	    "--api-key", "vision-key",
-	    "--api-base-url", "https://api.example.com/v1",
-	    "--vision-model", "gpt-4v",
-	    "--embedding-model", "text-embed-v1",
-	    "--api-timeout", "45",
-	    "--api-retries", "3",
-	    "--ocr-api-key", "ocr-key",
-	    "--ocr-api-url", "https://ocr.example.com",
-	    "--ocr-provider", "azure",
-	    "--thumbnail-enabled", "false",
-	    "--thumbnail-max-size", "256",
-	    "--backup-enabled", "true",
-	    "--backup-retention-days", "14",
-	    "--recycle-bin-retention-days", "21",
-	    "--max-queue-size", "1200",
-	    "--worker-count", "8"};
+	const std::vector<const char *> rawArgs = {"quickmemes",
+	                                           "--bind-address",
+	                                           "0.0.0.0",
+	                                           "--port",
+	                                           "8080",
+	                                           "--auth-token",
+	                                           "secret-token",
+	                                           "--storage-path",
+	                                           "/var/lib/quickmemes/storage",
+	                                           "--db-path",
+	                                           "/var/lib/quickmemes/db.sqlite3",
+	                                           "--log-dir",
+	                                           "/var/log/quickmemes",
+	                                           "--log-level",
+	                                           "info",
+	                                           "--log-retention-enabled",
+	                                           "true",
+	                                           "--log-retention-days",
+	                                           "7",
+	                                           "--api-key",
+	                                           "vision-key",
+	                                           "--api-base-url",
+	                                           "https://api.example.com/v1",
+	                                           "--vision-model",
+	                                           "gpt-4v",
+	                                           "--embedding-model",
+	                                           "text-embed-v1",
+	                                           "--api-timeout",
+	                                           "45",
+	                                           "--api-retries",
+	                                           "3",
+	                                           "--ocr-api-key",
+	                                           "ocr-key",
+	                                           "--ocr-api-url",
+	                                           "https://ocr.example.com",
+	                                           "--ocr-provider",
+	                                           "azure",
+	                                           "--thumbnail-enabled",
+	                                           "false",
+	                                           "--thumbnail-max-size",
+	                                           "256",
+	                                           "--backup-enabled",
+	                                           "true",
+	                                           "--backup-retention-days",
+	                                           "14",
+	                                           "--recycle-bin-retention-days",
+	                                           "21",
+	                                           "--max-queue-size",
+	                                           "1200",
+	                                           "--worker-count",
+	                                           "8"};
 
 	std::vector<char *> argv;
 	argv.reserve(rawArgs.size());
-	for (const auto *arg : rawArgs) argv.push_back(const_cast<char *>(arg));
+	for (const auto *arg : rawArgs)
+		argv.push_back(const_cast<char *>(arg));
 
 	const int argc = static_cast<int>(argv.size());
 
@@ -84,17 +109,18 @@ TEST(ConfigParserTest, ParseArgs_MissingRequired_Exits) {
 
 	std::vector<char *> argv;
 	argv.reserve(rawArgs.size());
-	for (const auto *arg : rawArgs) argv.push_back(const_cast<char *>(arg));
+	for (const auto *arg : rawArgs)
+		argv.push_back(const_cast<char *>(arg));
 
 	const int argc = static_cast<int>(argv.size());
 
 	EXPECT_THROW(
 	    {
 		    try {
-		        (void)parseArgs(argc, argv.data());
+			    (void)parseArgs(argc, argv.data());
 		    } catch (const std::invalid_argument &e) {
-		        EXPECT_NE(std::string(e.what()).find("missing required argument --port"), std::string::npos);
-		        throw;
+			    EXPECT_NE(std::string(e.what()).find("missing required argument --port"), std::string::npos);
+			    throw;
 		    }
 	    },
 	    std::invalid_argument);
