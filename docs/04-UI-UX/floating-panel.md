@@ -1,8 +1,8 @@
 # 便捷悬浮选择窗口 (Convenience Floating Panel)
 
 > **所属层级**：前端 UI 设计 — 悬浮面板  
-> **索引**：[UI.md](UI.md) · [布局规格](layout.md)  
-> **技术接口**：[frontend.md - showMemePanel()](../arch/frontend.md#showmemepanel) / [hideMemePanel()](../arch/frontend.md#hidememepanel)
+> **索引**：[UI.md](overview.md) · [布局规格](layout.md)  
+> **技术接口**：[frontend.md - showMemePanel()](../03-Modules/frontend.md#showmemepanel) / [hideMemePanel()](../03-Modules/frontend.md#hidememepanel)
 
 ---
 

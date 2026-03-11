@@ -333,8 +333,8 @@ AiAnalysisResult {
 
 ---
 
-> 其余协议专用数据结构（`ImportRequest`、`MemePatch`、`ExportRequest`、`ExportResult`、`RuntimeConfigPatch` 等）定义于 [ipc_protocol.md](./arch/ipc_protocol.md#模块独有数据结构)。
-> 云端 OCR 识别结果数据结构 `OcrResult` 定义于 [vision.md](./arch/vision.md#ocrresult--ocr-识别结果)。
+> 其余协议专用数据结构（`ImportRequest`、`MemePatch`、`ExportRequest`、`ExportResult`、`RuntimeConfigPatch` 等）定义于 [ipc_protocol.md](../03-Modules/ipc_protocol.md#模块独有数据结构)。
+> 云端 OCR 识别结果数据结构 `OcrResult` 定义于 [vision.md](../03-Modules/vision.md#ocrresult--ocr-识别结果)。
 
 ---
 
@@ -362,7 +362,7 @@ AiAnalysisResult {
 | `openFileDialog(options: FileDialogOptions): Promise<string[]>`       | 打开系统文件选择对话框     | `options`：过滤器等配置                   | 用户选择的文件路径列表                     |
 | `saveFileDialog(options: SaveDialogOptions): Promise<string \| null>` | 打开系统文件保存对话框     | `options`：默认文件名等配置               | 用户选择的保存路径                         |
 
-> 📄 详细规划 → [docs/arch/frontend.md](./arch/frontend.md)
+> 📄 详细规划 → [docs/arch/frontend.md](../03-Modules/frontend.md)
 
 ---
 
@@ -414,7 +414,7 @@ AiAnalysisResult {
 | `tag:deleted`     | 标签已删除通知                             |
 | `ping`            | 心跳帧（每 30 秒，客户端回复 pong）        |
 
-> 📄 详细规划 → [docs/arch/ipc_protocol.md](./arch/ipc_protocol.md)
+> 📄 详细规划 → [docs/arch/ipc_protocol.md](../03-Modules/ipc_protocol.md)
 
 ---
 
@@ -453,7 +453,7 @@ AiAnalysisResult {
 | `handleRebuildEmbeddings(): ImportTask`                        | 重建所有 Meme 语义向量（异步）      | 无                               | 重建任务对象         |
 | `pushEvent(event: WsEvent): void`                              | 向所有已连接前端推送 WebSocket 事件 | `event`：事件对象                | 无                   |
 
-> 📄 详细规划 → [docs/arch/cpp_core.md](./arch/cpp_core.md)
+> 📄 详细规划 → [docs/arch/cpp_core.md](../03-Modules/cpp_core.md)
 
 ---
 
@@ -473,7 +473,7 @@ AiAnalysisResult {
 | `isOcrAvailable(): bool`                            | 检查云端 OCR 服务是否可用                       | 无                     | 可用返回 `true`       |
 | `shutdown(): void`                                  | 释放 HTTP 客户端资源                            | 无                     | 无                    |
 
-> 📄 详细规划 → [docs/arch/vision.md](./arch/vision.md)
+> 📄 详细规划 → [docs/arch/vision.md](../03-Modules/vision.md)
 
 ---
 
@@ -504,7 +504,7 @@ AiAnalysisResult {
 | `restoreDatabase(backupPath: string): bool`                 | 从备份恢复数据库                 | `backupPath`：备份文件路径               | 恢复成功返回 `true`   |
 | `shutdown(): void`                                          | 关闭数据库连接，释放资源         | 无                                       | 无                    |
 
-> 📄 详细规划 → [docs/arch/persistence.md](./arch/persistence.md)
+> 📄 详细规划 → [docs/arch/persistence.md](../03-Modules/persistence.md)
 
 ---
 
@@ -521,7 +521,7 @@ AiAnalysisResult {
 | `LOG_DEBUG(module, msg)` / `LOG_INFO` / `LOG_WARN` / `LOG_ERROR` / `LOG_FATAL` | C++（宏）            | 各等级日志宏，调用全局 Logger 单例写入文件和 stderr         |
 | `Logger::initialize(logDir: string, minLevel: LogLevel): void`                 | C++                  | 初始化 Logger，设置日志目录和最低等级                       |
 
-> 📄 详细规划 → [docs/arch/logger.md](./arch/logger.md)
+> 📄 详细规划 → [docs/arch/logger.md](../03-Modules/logger.md)
 
 ---
 
@@ -553,4 +553,4 @@ AiAnalysisResult {
 --max-queue-size --worker-count --recycle-bin-retention-days
 ```
 
-> 📄 详细规划 → [docs/arch/config.md](./arch/config.md)
+> 📄 详细规划 → [docs/arch/config.md](../03-Modules/config.md)

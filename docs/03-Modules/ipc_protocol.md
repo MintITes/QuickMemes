@@ -1,7 +1,7 @@
 # 通信协议模块
 
 > **所属层级**：通信层（Boost.Beast HTTP REST + WebSocket）  
-> **对应索引**：[Arch.md - 通信协议模块](../Arch.md#通信协议模块)
+> **对应索引**：[Arch.md - 通信协议模块](../02-Architecture/overview.md#通信协议模块)
 
 ---
 

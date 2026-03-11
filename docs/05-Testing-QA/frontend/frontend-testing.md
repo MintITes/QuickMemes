@@ -3,7 +3,7 @@
 > **所属层级**：QA / 前端测试  
 > **测试框架**：Vitest + React Testing Library  
 > **Mock 工具**：msw (Mock Service Worker)  
-> **架构参考**：[frontend.md](../arch/frontend.md)
+> **架构参考**：[frontend.md](../../03-Modules/frontend.md)
 
 ---
 

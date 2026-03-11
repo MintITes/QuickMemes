@@ -2,7 +2,7 @@
 
 > **所属层级**：QA / 后端测试  
 > **测试框架**：Google Test (GTest)  
-> **架构参考**：[cpp_core.md](../arch/cpp_core.md) · [persistence.md](../arch/persistence.md) · [vision.md](../arch/vision.md)
+> **架构参考**：[cpp_core.md](../../03-Modules/cpp_core.md) · [persistence.md](../../03-Modules/persistence.md) · [vision.md](../../03-Modules/vision.md)
 
 ---
 

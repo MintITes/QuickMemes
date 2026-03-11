@@ -2,7 +2,7 @@
 
 > **所属层级**：QA / 端到端测试  
 > **测试框架**：Playwright  
-> **架构参考**：[frontend.md](../arch/frontend.md) · [ipc_protocol.md](../arch/ipc_protocol.md)
+> **架构参考**：[frontend.md](../../03-Modules/frontend.md) · [ipc_protocol.md](../../03-Modules/ipc_protocol.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # 整体布局规格
 
 > **所属层级**：前端 UI 设计 — 布局架构  
-> **索引**：[UI.md](UI.md) · [组件规格](components.md) · [交互流程](interactions.md)
+> **索引**：[UI.md](overview.md) · [组件规格](components.md) · [交互流程](interactions.md)
 
 ---
 

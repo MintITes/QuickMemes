@@ -1,7 +1,7 @@
 # 用户交互流程
 
 > **所属层级**：前端 UI 设计 — 交互规范  
-> **索引**：[UI.md](UI.md) · [布局规格](layout.md) · [组件规格](components.md) · [弹窗规格](dialogs.md)
+> **索引**：[UI.md](overview.md) · [布局规格](layout.md) · [组件规格](components.md) · [弹窗规格](dialogs.md)
 
 ---
 

@@ -1,7 +1,7 @@
 # C++ 核心模块
 
 > **所属层级**：C++ 后端层（C++23，CMake 构建）  
-> **对应索引**：[Arch.md - C++ 核心模块](../Arch.md#c-核心模块)
+> **对应索引**：[Arch.md - C++ 核心模块](../02-Architecture/overview.md#c-核心模块)
 
 ---
 

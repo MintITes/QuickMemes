@@ -1,7 +1,7 @@
 # 持久化模块
 
 > **所属层级**：持久化层（SQLite3 + SQLiteCpp + sqlite-vec 扩展）  
-> **对应索引**：[Arch.md - 持久化模块](../Arch.md#持久化模块)
+> **对应索引**：[Arch.md - 持久化模块](../02-Architecture/overview.md#持久化模块)
 
 ---
 

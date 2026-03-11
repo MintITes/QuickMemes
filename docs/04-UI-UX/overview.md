@@ -1,7 +1,7 @@
 # QuickMemes 前端 UI 设计文档
 
 > **所属层级**：前端 UI/UX 设计规范  
-> **技术架构参考**：[frontend.md](../arch/frontend.md)（Electron 主进程 / React 渲染进程）
+> **技术架构参考**：[frontend.md](../03-Modules/frontend.md)（Electron 主进程 / React 渲染进程）
 
 ---
 

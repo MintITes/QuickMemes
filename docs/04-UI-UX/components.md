@@ -1,7 +1,7 @@
 # 组件库规格
 
 > **所属层级**：前端 UI 设计 — 组件规范  
-> **索引**：[UI.md](UI.md) · [布局规格](layout.md) · [交互流程](interactions.md)
+> **索引**：[UI.md](overview.md) · [布局规格](layout.md) · [交互流程](interactions.md)
 
 ---
 

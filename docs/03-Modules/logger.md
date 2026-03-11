@@ -1,7 +1,7 @@
 # 日志模块
 
 > **所属层级**：横切关注点（前端 Electron 层 + C++ 后端层均覆盖）  
-> **对应索引**：[Arch.md - 日志模块](../Arch.md#日志模块)
+> **对应索引**：[Arch.md - 日志模块](../02-Architecture/overview.md#日志模块)
 
 ---
 

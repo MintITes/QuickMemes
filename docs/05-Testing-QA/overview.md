@@ -1,7 +1,7 @@
 # QuickMemes 测试与质量保证策略
 
 > **所属层级**：项目级 QA 规范  
-> **架构参考**：[Arch.md](../Arch.md)（全局架构总索引）
+> **架构参考**：[Arch.md](../02-Architecture/overview.md)（全局架构总索引）
 
 ---
 
@@ -31,9 +31,9 @@
 
 | 文档                                       | 说明                                                                 |
 | ------------------------------------------ | -------------------------------------------------------------------- |
-| [backend-testing.md](backend-testing.md)   | C++ 后端测试规范：GTest 配置、目录结构、Mock 策略、关键路径清单      |
-| [frontend-testing.md](frontend-testing.md) | 前端测试规范：Vitest + RTL 配置、组件测试、Mock Server、关键路径清单 |
-| [e2e-testing.md](e2e-testing.md)           | E2E 测试规范：Playwright + Electron 集成、测试场景清单、运行策略     |
+| [backend-testing.md](backend/backend-testing.md)   | C++ 后端测试规范：GTest 配置、目录结构、Mock 策略、关键路径清单      |
+| [frontend-testing.md](frontend/frontend-testing.md) | 前端测试规范：Vitest + RTL 配置、组件测试、Mock Server、关键路径清单 |
+| [e2e-testing.md](e2e/e2e-testing.md)           | E2E 测试规范：Playwright + Electron 集成、测试场景清单、运行策略     |
 
 ---
 

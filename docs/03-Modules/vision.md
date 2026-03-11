@@ -1,7 +1,7 @@
 # Vision 模块
 
 > **所属层级**：C++ 后端层（云端 OCR / LLM / VLM API）  
-> **对应索引**：[Arch.md - Vision 模块](../Arch.md#vision-模块)
+> **对应索引**：[Arch.md - Vision 模块](../02-Architecture/overview.md#vision-模块)
 
 ---
 

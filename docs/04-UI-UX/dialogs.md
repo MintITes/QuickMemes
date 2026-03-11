@@ -1,7 +1,7 @@
 # 弹窗与子窗口规格
 
 > **所属层级**：前端 UI 设计 — 弹窗规范  
-> **索引**：[UI.md](UI.md) · [交互流程](interactions.md) · [组件规格](components.md)
+> **索引**：[UI.md](overview.md) · [交互流程](interactions.md) · [组件规格](components.md)
 
 ---
 
