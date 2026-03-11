@@ -216,9 +216,7 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 			content = content.substr(3);
 		}
 		// 去除结尾的 ```
-		if (content.size() >= 3 && content.substr(content.size() - 3) == "```") {
-			content.resize(content.size() - 3);
-		}
+		if (content.size() >= 3 && content.substr(content.size() - 3) == "```") { content.resize(content.size() - 3); }
 		ltrim(content);
 		rtrim(content);
 

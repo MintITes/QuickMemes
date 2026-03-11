@@ -90,7 +90,7 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 			req.set(boost::beast::http::field::user_agent, randomUA);
 
 			// 修复内存耗尽风险：为 string_body 添加响应体大小限制（10MB）
-			constexpr size_t kMaxBody = 10 * 1024 * 1024; // 10 MB
+			constexpr size_t                                                     kMaxBody = 10 * 1024 * 1024; // 10 MB
 			boost::beast::http::response_parser<boost::beast::http::string_body> parser;
 			parser.body_limit(kMaxBody);
 
@@ -121,7 +121,6 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 			}
 
 			auto &res = parser.get();
-
 
 			if (res.result() != boost::beast::http::status::ok) {
 				if (attempt < maxRetries - 1) {
@@ -279,7 +278,7 @@ std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 		WsEvent errEvent;
 		errEvent.event   = "task:error";
 		errEvent.payload = {
-		    {"taskId",                                       taskId},
+		    {"taskId",		                         taskId},
 		    { "error", "Task queue is full (batch too large)"}
         };
 		WsPusher::get().broadcast(errEvent);

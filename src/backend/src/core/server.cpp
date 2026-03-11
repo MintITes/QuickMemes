@@ -160,9 +160,9 @@ private:
 
 	void handleRequest() {
 		if (beast::websocket::is_upgrade(req_)) {
-			auto        path          = std::string(req_.target());
-			const bool       isWsPath      = path.rfind("/ws", 0) == 0; // strict path prefix check
-			bool             authOk        = false;
+			auto              path          = std::string(req_.target());
+			const bool        isWsPath      = path.rfind("/ws", 0) == 0; // strict path prefix check
+			bool              authOk        = false;
 			const std::string expectedToken = router_->getAuthToken();
 
 			if (isWsPath) {
@@ -188,9 +188,9 @@ private:
 			} else {
 				HttpResponseProxy resProxy;
 				resProxy.status = isWsPath ? 401 : 404;
-				resProxy.body   = isWsPath ?
-				                   R"({"success": false, "data": null, "error": "Unauthorized WS", "code": 1001})" :
-				                   R"({"success": false, "data": null, "error": "Not Found", "code": 1002})";
+				resProxy.body   = isWsPath
+				                    ? R"({"success": false, "data": null, "error": "Unauthorized WS", "code": 1001})"
+				                    : R"({"success": false, "data": null, "error": "Not Found", "code": 1002})";
 				auto res =
 				    std::make_shared<http::response<http::string_body>>(static_cast<http::status>(resProxy.status),
 				                                                        req_.version());

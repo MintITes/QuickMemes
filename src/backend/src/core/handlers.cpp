@@ -344,7 +344,7 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 
 		// Security Check
 		// 修复路径穿越：确保 rootStr 尾部带 /，防止同级目录名前缀匹配绕过
-		auto rootStr  = rootPath.string();
+		auto rootStr = rootPath.string();
 		if (!rootStr.empty() && rootStr.back() != '/') rootStr += '/';
 		auto thumbStr = thumbPath.string();
 		if (thumbStr.length() < rootStr.length() || thumbStr.substr(0, rootStr.length()) != rootStr) {
