@@ -53,6 +53,7 @@ target_link_libraries(quickmemes_tests PRIVATE
     gtest_main
     gmock
 )
+target_precompile_headers(quickmemes_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/pch.hpp)
 
 # 注册测试以供 CTest 运行
 gtest_discover_tests(quickmemes_tests)

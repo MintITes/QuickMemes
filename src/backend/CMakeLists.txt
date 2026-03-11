@@ -117,6 +117,7 @@ set_target_properties(sqlite_vec_ext PROPERTIES
 # 源代码子目录
 # ─────────────────────────────────────────────────────────────
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
+set(PCH_HEADER ${SRC_DIR}/pch.hpp)
 
 # ── utils 静态库 ──
 add_library(quickmemes_utils STATIC
@@ -130,6 +131,7 @@ target_link_libraries(quickmemes_utils PUBLIC
     OpenSSL::Crypto
     stb_impl
 )
+target_precompile_headers(quickmemes_utils PRIVATE ${PCH_HEADER})
 
 # ── db 静态库 ──
 add_library(quickmemes_db STATIC
@@ -142,6 +144,7 @@ target_link_libraries(quickmemes_db PUBLIC
     quickmemes_utils
     sqlite_vec_ext
 )
+target_precompile_headers(quickmemes_db PRIVATE ${PCH_HEADER})
 
 # ── vision 静态库 ──
 add_library(quickmemes_vision STATIC
@@ -157,6 +160,7 @@ target_link_libraries(quickmemes_vision PUBLIC
     OpenSSL::Crypto
     quickmemes_utils
 )
+target_precompile_headers(quickmemes_vision PRIVATE ${PCH_HEADER})
 
 # ── core 静态库 ──
 add_library(quickmemes_core STATIC
@@ -176,6 +180,7 @@ target_link_libraries(quickmemes_core PUBLIC
     quickmemes_vision
     quickmemes_utils
 )
+target_precompile_headers(quickmemes_core PRIVATE ${PCH_HEADER})
 
 # ── 可执行文件 ──
 add_executable(quickmemes-backend ${SRC_DIR}/main.cpp)
@@ -185,6 +190,7 @@ target_link_libraries(quickmemes-backend PRIVATE
     quickmemes_vision
     quickmemes_utils
 )
+target_precompile_headers(quickmemes-backend PRIVATE ${PCH_HEADER})
 
 # ─────────────────────────────────────────────────────────────
 # 测试
