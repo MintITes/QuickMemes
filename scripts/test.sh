@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-DIR="../src/backend"
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../src/backend >/dev/null 2>&1 && pwd )"
 BUILD_DIR="$DIR/build"
 
 echo "Running build.sh clean test..."
