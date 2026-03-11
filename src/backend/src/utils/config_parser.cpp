@@ -19,11 +19,11 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	std::unordered_map<std::string, std::string> args;
 	for (int i = 1; i < argc; ++i) {
 		std::string arg = argv[i];
-		if (arg.find("--") == 0) {
+		if (arg.starts_with("--")) {
 			auto eqPos = arg.find('=');
 			if (eqPos != std::string::npos) {
 				args[arg.substr(0, eqPos)] = arg.substr(eqPos + 1);
-			} else if (i + 1 < argc && std::string(argv[i + 1]).find("--") != 0) {
+			} else if (i + 1 < argc && !std::string(argv[i + 1]).starts_with("--")) {
 				args[arg] = argv[i + 1];
 				++i;
 			} else {

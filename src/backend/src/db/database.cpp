@@ -26,8 +26,8 @@ extern "C" int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_
 namespace {
 static void regexp_func(sqlite3_context *context, int argc, sqlite3_value **argv) {
 	if (argc != 2) return;
-	const char *re   = (const char *)sqlite3_value_text(argv[0]);
-	const char *text = (const char *)sqlite3_value_text(argv[1]);
+	const char *re   = reinterpret_cast<const char *>(sqlite3_value_text(argv[0]));
+	const char *text = reinterpret_cast<const char *>(sqlite3_value_text(argv[1]));
 	if (!re || !text) {
 		sqlite3_result_int(context, 0);
 		return;
@@ -425,6 +425,7 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
 }
 
 bool Database::updateMeme(int64_t id, const MemePatch &patch) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		std::string              sql = "UPDATE memes SET updated_at = ?";
 		std::vector<std::string> bindStrings;
@@ -479,6 +480,7 @@ bool Database::updateMeme(int64_t id, const MemePatch &patch) {
 }
 
 bool Database::updateMemeLastUsed(int64_t id) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		auto              now   = std::chrono::system_clock::now();
 		auto              nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
@@ -493,6 +495,7 @@ bool Database::updateMemeLastUsed(int64_t id) {
 }
 
 bool Database::softDeleteMeme(int64_t id) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		auto              now   = std::chrono::system_clock::now();
 		auto              nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
@@ -601,6 +604,7 @@ bool Database::updateMemeProcessing(int64_t            id,
                                     ProcessingStatus   aiStatus,
                                     const std::string &ocrText,
                                     const std::string &description) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_,
 		                       "UPDATE memes SET updated_at = ?, ocr_status = ?, ai_status = ?, ocr_text = ?, "
@@ -624,6 +628,7 @@ bool Database::updateMemeProcessing(int64_t            id,
 }
 
 bool Database::deleteMeme(int64_t id) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Transaction txn(*db_);
 		// delete from main (foreign keys to meme_tags cascading)
@@ -648,6 +653,7 @@ bool Database::deleteMeme(int64_t id) {
 }
 
 int64_t Database::insertTag(const Tag &tag) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "INSERT INTO tags (name, color, created_at) VALUES (?, ?, ?)");
 		stmt.bind(1, tag.name);
@@ -684,6 +690,7 @@ std::vector<Tag> Database::getTags() {
 }
 
 bool Database::deleteTag(int64_t tagId) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "DELETE FROM tags WHERE id = ?");
 		stmt.bind(1, tagId);
@@ -715,6 +722,7 @@ std::vector<Tag> Database::getMemeTags(int64_t memeId) {
 }
 
 bool Database::addMemeTag(int64_t memeId, int64_t tagId) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "INSERT OR IGNORE INTO meme_tags (meme_id, tag_id) VALUES (?, ?)");
 		stmt.bind(1, memeId);
@@ -727,6 +735,7 @@ bool Database::addMemeTag(int64_t memeId, int64_t tagId) {
 }
 
 bool Database::removeMemeTag(int64_t memeId, int64_t tagId) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "DELETE FROM meme_tags WHERE meme_id = ? AND tag_id = ?");
 		stmt.bind(1, memeId);
@@ -739,6 +748,7 @@ bool Database::removeMemeTag(int64_t memeId, int64_t tagId) {
 }
 
 int64_t Database::insertCategory(const Category &category) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(
 		    *db_,
@@ -766,6 +776,7 @@ int64_t Database::insertCategory(const Category &category) {
 }
 
 bool Database::updateCategory(int64_t id, const CategoryPatch &patch) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		std::string              sql = "UPDATE categories SET updated_at = ?";
 		std::vector<std::string> params;

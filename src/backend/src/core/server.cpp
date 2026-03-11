@@ -172,12 +172,13 @@ private:
 				if (pos != std::string::npos) {
 					std::string t         = path.substr(pos + 7);
 					auto        ampersand = t.find('&');
-					if (ampersand != std::string::npos) t = t.substr(0, ampersand);
+					if (ampersand != std::string::npos) t.resize(ampersand);
 					if (Router::verifyAuthToken(t, expectedToken)) { authOk = true; }
 				}
 			}
 			if (authOk) {
-				std::make_shared<WsSession>(std::move(stream_))->run(std::move(req_));
+				auto session = std::make_shared<WsSession>(std::move(stream_));
+				session->run(std::move(req_));
 				return;
 			} else {
 				HttpResponseProxy resProxy;

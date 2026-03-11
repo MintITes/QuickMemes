@@ -282,7 +282,9 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		} catch (...) { throw ApiException(ERR_IO, "Invalid path resolution"); }
 
 		// Ensure the file is inside the storage root
+		// 修复路径穿越：确保 rootStr 尾部带 /，防止 /storage_evil/ 等同级目录前缀匹配绕过
 		auto rootStr = rootPath.string();
+		if (!rootStr.empty() && rootStr.back() != '/') rootStr += '/';
 		auto fileStr = filePath.string();
 		if (fileStr.length() < rootStr.length() || fileStr.substr(0, rootStr.length()) != rootStr) {
 			LOG_ERROR("security", "Path traversal attempt detected: " + fileStr);
@@ -341,7 +343,9 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 		} catch (...) { throw ApiException(ERR_IO, "Invalid thumb resolution"); }
 
 		// Security Check
+		// 修复路径穿越：确保 rootStr 尾部带 /，防止同级目录名前缀匹配绕过
 		auto rootStr  = rootPath.string();
+		if (!rootStr.empty() && rootStr.back() != '/') rootStr += '/';
 		auto thumbStr = thumbPath.string();
 		if (thumbStr.length() < rootStr.length() || thumbStr.substr(0, rootStr.length()) != rootStr) {
 			LOG_ERROR("security", "Thumb path traversal attempt: " + thumbStr);
@@ -504,7 +508,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		if (destDir.empty()) { destDir = (homeDir / "Downloads" / "QuickMemes").string(); }
 
 		// 处理 ~ 符号
-		if (destDir.find("~/") == 0) {
+		if (destDir.starts_with("~/")) {
 			destDir = (homeDir / destDir.substr(2)).string();
 		} else if (destDir == "~") {
 			destDir = homeDir.string();
@@ -531,8 +535,10 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		}
 
 		// 白名单校验：必须在用户主目录下
+		// 修复路径穿越：确保 homeStr 尾部带 /，防止 /home/user_evil/ 等路径绕过
 		std::string homeStr = homeDir.string();
-		if (destDir.find(homeStr) != 0) {
+		if (!homeStr.empty() && homeStr.back() != '/') homeStr += '/';
+		if (!destDir.starts_with(homeStr)) {
 			LOG_ERROR("security", "Export path outside home directory blocked: " + destDir);
 			res.status = 403;
 			res.body   = makeErrorResponse(ERR_INTERNAL, "Export only allowed within home directory for security");

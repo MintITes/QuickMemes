@@ -196,8 +196,33 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 			return res;
 		}
 
-		std::string content      = message["content"].get<std::string>();
-		auto        analysisJson = nlohmann::json::parse(content);
+		std::string content = message["content"].get<std::string>();
+
+		// 修复问题4：清洗LLM可能返回的Markdown代码块包装（```json ... ```）
+		// 去除首尾空白
+		auto ltrim = [](std::string &s) {
+			s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); }));
+		};
+		auto rtrim = [](std::string &s) {
+			s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(),
+			        s.end());
+		};
+		ltrim(content);
+		rtrim(content);
+		// 去除 ```json 或 ``` 开头
+		if (content.size() >= 7 && content.substr(0, 7) == "```json") {
+			content = content.substr(7);
+		} else if (content.size() >= 3 && content.substr(0, 3) == "```") {
+			content = content.substr(3);
+		}
+		// 去除结尾的 ```
+		if (content.size() >= 3 && content.substr(content.size() - 3) == "```") {
+			content.resize(content.size() - 3);
+		}
+		ltrim(content);
+		rtrim(content);
+
+		auto analysisJson = nlohmann::json::parse(content);
 
 		if (analysisJson.contains("tags") && analysisJson["tags"].is_array()) {
 			for (const auto &tag : analysisJson["tags"]) {
@@ -229,7 +254,7 @@ std::vector<float> VisionModule::generateEmbedding(const std::string &text) {
 	}
 
 	std::string inputText = text;
-	if (inputText.size() > 8000) { inputText = inputText.substr(0, 8000); }
+	if (inputText.size() > 8000) { inputText.resize(8000); }
 
 	nlohmann::json requestBody;
 	requestBody["model"] = config_.embeddingModel;
