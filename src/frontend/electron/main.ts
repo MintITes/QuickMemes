@@ -98,11 +98,6 @@ function createTray() {
                 }
             }
         },
-        { type: 'separator' },
-        {
-            label: '本程序由 MintIT 驱动',
-            enabled: false
-        },
         {
             label: '退出',
             click: () => {

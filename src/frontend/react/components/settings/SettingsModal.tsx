@@ -85,7 +85,7 @@ export function SettingsModal() {
                                 <div className="font-medium text-sm mb-1">主存储路径</div>
                                 <div className="text-xs opacity-60 mb-3">当前所有梗图保存的根目录</div>
                                 <div className="flex gap-2">
-                                    <input type="text" readOnly value="C:\Users\NekoType\Pictures\QuickMemes" className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none" />
+                                    <input type="text" readOnly value="C:\Users\NekoType\Pictures\QuickMemes" className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text" />
                                     <button className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm">更改</button>
                                 </div>
                             </div>
@@ -142,7 +142,7 @@ export function SettingsModal() {
                 return (
                     <div className="space-y-6 flex flex-col items-center justify-center text-center mt-10">
                         <img src={resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'} alt="Logo" className="w-20 h-20 mb-4 opacity-80 drop-shadow-lg" draggable={false} />
-                        <h3 className="font-bold text-xl tracking-wider">QuickMemes</h3>
+                        <h3 className="font-bold text-xl tracking-wider select-none">QuickMemes</h3>
                         <p className="text-sm opacity-60">Version 1.0.0-alpha</p>
                         <p className="text-xs opacity-40 mt-8">Copyright © 2026 NekoType & Contributors</p>
                     </div>
@@ -166,7 +166,7 @@ export function SettingsModal() {
             >
                 {/* Header */}
                 <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
-                    <h2 className="text-base font-bold tracking-wide">设置中心</h2>
+                    <h2 className="text-base font-bold tracking-wide select-none">设置中心</h2>
                     <button
                         onClick={() => toggleSettings(false)}
                         className="absolute left-4 w-8 h-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
@@ -180,7 +180,7 @@ export function SettingsModal() {
                 {/* Content Body - Split View */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Left Sidebar */}
-                    <div className="w-[180px] shrink-0 border-r border-white/5 bg-black/5 dark:bg-black/20 p-3 flex flex-col gap-1.5 overflow-y-auto">
+                    <div className="w-[180px] shrink-0 border-r border-white/5 bg-black/5 dark:bg-black/20 p-3 flex flex-col gap-1.5 overflow-y-auto select-none">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
@@ -204,7 +204,7 @@ export function SettingsModal() {
                     </div>
 
                     {/* Right Content */}
-                    <div className="flex-1 p-8 overflow-y-auto bg-gradient-to-br from-transparent to-black/5 dark:to-transparent">
+                    <div className="flex-1 p-8 overflow-y-auto bg-white/40 dark:bg-white/5 shadow-inner select-none">
                         {renderContent()}
                     </div>
                 </div>

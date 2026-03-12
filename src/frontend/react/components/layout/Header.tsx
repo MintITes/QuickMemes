@@ -28,7 +28,7 @@ export function Header() {
                     className="h-8 w-auto drop-shadow-sm"
                     draggable={false}
                 />
-                <span className="font-bold opacity-80 text-[15px] tracking-wide cursor-default ml-1">QuickMemes</span>
+                <span className="font-bold opacity-80 text-[15px] tracking-wide cursor-default ml-1 select-none">QuickMemes</span>
             </div>
 
             {/* Global Search Bar (Centered safely by Grid) */}

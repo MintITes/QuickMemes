@@ -28,7 +28,7 @@ export function Sidebar() {
     };
 
     return (
-        <aside className="w-64 flex-shrink-0 h-full bg-transparent flex flex-col p-3 space-y-6 overflow-y-auto">
+        <aside className="w-64 flex-shrink-0 h-full bg-transparent flex flex-col p-3 space-y-6 overflow-y-auto select-none">
             <div className="flex flex-col space-y-1">
                 <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-1">System</span>
                 <button
