@@ -1,9 +1,69 @@
 import { useMemeStore } from '../../stores/MemeStore';
 import { VirtuosoGrid } from 'react-virtuoso';
-import { ChevronLeft, ChevronRight, Grid2X2, Tags, ImagePlus, MoreHorizontal, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Grid2X2, Tags, ImagePlus, SearchX, Inbox, Sparkles, Copy, MoreHorizontal } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
+import { EmptyState } from '../common/EmptyState';
+import { useUiStore } from '../../stores/UiStore';
+
 export function Gallery() {
     const memes = useMemeStore(state => state.memes);
+    const activeNav = useUiStore(state => state.activeNav);
+    const searchQuery = useUiStore(state => state.searchQuery);
+    const setSearchQuery = useUiStore(state => state.setSearchQuery);
+
+    const renderEmptyState = () => {
+        // 1. Search Results Empty
+        if (searchQuery.keyword) {
+            return (
+                <EmptyState
+                    icon={<SearchX size={48} />}
+                    title="没有找到匹配的梗图"
+                    description={`未发现与 "${searchQuery.keyword}" 相关的梗图...`}
+                    action={{
+                        label: "清除搜索",
+                        onClick: () => setSearchQuery({ keyword: '' }),
+                        icon: <SearchX size={16} />
+                    }}
+                />
+            );
+        }
+
+        // 2. Trash Empty
+        if (activeNav === 'trash') {
+            return (
+                <EmptyState
+                    icon={<Inbox size={48} />}
+                    title="回收站是空的"
+                    description="保持整洁是个好习惯！回收站目前没有任何内容。"
+                />
+            );
+        }
+
+        // 3. Untagged Empty
+        if (activeNav === 'untagged') {
+            return (
+                <EmptyState
+                    icon={<Sparkles size={48} />}
+                    title="所有梗图都已打上标签"
+                    description="真棒！库里所有的梗图都有了分类标识。"
+                />
+            );
+        }
+
+        // 4. Default Empty (Initial Library Empty)
+        return (
+            <EmptyState
+                icon={<ImagePlus size={48} />}
+                title="没有任何梗图"
+                description="快把好玩的图拖拽进来，或者点击下方的按钮导入吧！"
+                action={{
+                    label: "导入第一张梗图",
+                    onClick: () => { /* Logic for import */ },
+                    icon: <ImagePlus size={16} />
+                }}
+            />
+        );
+    };
 
     return (
         <main className="flex-1 h-full bg-bgSurface rounded-tl-2xl border-l border-t border-black/20 dark:border-borderColor shadow-[-8px_0_30px_rgba(0,0,0,0.04)] dark:shadow-[-4px_-4px_15px_rgba(0,0,0,0.2)] flex flex-col relative z-0 overflow-hidden">
@@ -36,19 +96,7 @@ export function Gallery() {
             </div>
 
             <div className="flex-1 overflow-hidden p-6">
-                {memes.length === 0 ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-center opacity-80 select-none">
-                        <div className="w-32 h-32 mb-6 border-2 border-dashed border-textSecondary/30 rounded-2xl flex items-center justify-center bg-black/5 dark:bg-white/5">
-                            <ImagePlus size={48} className="text-textSecondary/50" />
-                        </div>
-                        <h2 className="text-lg font-semibold tracking-wide mb-2">没有任何梗图</h2>
-                        <p className="text-sm text-textSecondary mb-6 max-w-xs">快把好玩的图拖拽进来，或者点击下方的按钮导入吧！</p>
-                        <button className="px-5 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium text-sm transition-all shadow-md active:scale-95 flex items-center">
-                            <ImagePlus size={16} className="mr-2" />
-                            导入第一张梗图
-                        </button>
-                    </div>
-                ) : (
+                {memes.length === 0 ? renderEmptyState() : (
                     <VirtuosoGrid
                         totalCount={memes.length}
                         listClassName="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4"
