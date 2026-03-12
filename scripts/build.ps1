@@ -51,6 +51,7 @@ if ($env:GITHUB_ACTIONS -eq "true") {
     Write-Host "Running inside GitHub Actions. Injecting OpenSSL path..."
     $cmakeArgs += "-DOPENSSL_ROOT_DIR=C:\Program Files\OpenSSL-Win64"
     $cmakeArgs += "-DOPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include"
+    $cmakeArgs += "-DOPENSSL_CRYPTO_LIBRARY=C:\Program Files\OpenSSL-Win64\lib\libcrypto.lib"
 }
 
 & cmake @cmakeArgs
