@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Layout, Monitor, Trash2, Shield, Info, ExternalLink, Globe, Sparkles, Github } from 'lucide-react';
 import { useUiStore } from '../../stores/UiStore';
 import clsx from 'clsx';
 
@@ -140,11 +140,38 @@ export function SettingsModal() {
                 );
             case 'about':
                 return (
-                    <div className="space-y-6 flex flex-col items-center justify-center text-center mt-10">
-                        <img src={resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'} alt="Logo" className="w-20 h-20 mb-4 opacity-80 drop-shadow-lg" draggable={false} />
+                    <div className="flex flex-col items-center justify-center text-center mt-0">
+                        <img src={resolvedTheme === 'dark' ? '/logo-dark.svg' : '/logo.svg'} alt="Logo" className="w-50 h-40 mb-0 opacity-80 drop-shadow-lg" draggable={false} />
                         <h3 className="font-bold text-xl tracking-wider select-none">QuickMemes</h3>
-                        <p className="text-sm opacity-60">Version 1.0.0-alpha</p>
-                        <p className="text-xs opacity-40 mt-8">Copyright © 2026 BoheSama & Contributors</p>
+                        <p className="text-sm opacity-60 mb-2">Version 0.0.1-dev</p>
+
+                        <div className="max-w-md space-y-4 my-0">
+                            <p className="text-xs leading-relaxed opacity-60">
+                                一个跨平台的用于管理和存储Memes的工具，旨在帮助用户高效地组织、查找和分享Memes。
+                            </p>
+
+                            <div className="flex flex-col gap-2 py-4 border-y border-white/5">
+                                <div className="flex items-center justify-center gap-1.5 text-xs font-medium">
+                                    <Shield size={14} className="text-accent" />
+                                    <span>基于 GPL-3.0 开源协议发布</span>
+                                </div>
+                                <p className="text-[10px] opacity-40">你可以自由地分发、修改和在遵循相同协议的前提下使用本程序。</p>
+                            </div>
+
+                            <div className="flex items-center justify-center gap-4 pt-2">
+                                <a href="https://github.com/MintITes/QuickMemes" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all">
+                                    <Github size={14} />
+                                    <span>源代码</span>
+                                </a>
+                                <div className="w-px h-3 bg-white/10"></div>
+                                <a href="https://github.com/MintITes/QuickMemes" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all">
+                                    <Globe size={14} />
+                                    <span>官方网站</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <p className="text-[10px] opacity-30 mt-0">Copyright © 2026 MintITes & Contributors</p>
                     </div>
                 );
         }
