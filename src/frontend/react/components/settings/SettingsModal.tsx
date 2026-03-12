@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Shield, Globe, Github } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { IconButton } from '../common/IconButton';
 import { useUiStore } from '../../stores/UiStore';
 import clsx from 'clsx';
@@ -19,18 +20,6 @@ export function SettingsModal() {
         accentColor, setAccentColor
     } = useUiStore();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-
-    if (!isSettingsOpen) return null;
-
-    const tabs: { id: SettingsTab; label: string; subLabel: string }[] = [
-        { id: 'general', label: '常规', subLabel: 'General' },
-        { id: 'appearance', label: '外观', subLabel: 'Style' },
-        { id: 'storage', label: '存储', subLabel: 'Storage' },
-        { id: 'ocr', label: 'OCR', subLabel: 'Text' },
-        { id: 'ai', label: 'AI 视觉', subLabel: 'Vision' },
-        { id: 'shortcuts', label: '快捷键', subLabel: 'Keys' },
-        { id: 'about', label: '关于', subLabel: 'About' }
-    ];
 
     const renderContent = () => {
         switch (activeTab) {
@@ -287,86 +276,116 @@ export function SettingsModal() {
         }
     };
 
+    const tabs: { id: SettingsTab; label: string; subLabel: string }[] = [
+        { id: 'general', label: '常规', subLabel: 'General' },
+        { id: 'appearance', label: '外观', subLabel: 'Style' },
+        { id: 'storage', label: '存储', subLabel: 'Storage' },
+        { id: 'ocr', label: 'OCR', subLabel: 'Text' },
+        { id: 'ai', label: 'AI 视觉', subLabel: 'Vision' },
+        { id: 'shortcuts', label: '快捷键', subLabel: 'Keys' },
+        { id: 'about', label: '关于', subLabel: 'About' }
+    ];
+
     return (
-        <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
-            style={{ borderRadius: 'var(--corner-radius)' }}
-        >
-            {/* Backdrop */}
-            <div
-                className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-md transition-opacity"
-                onClick={() => toggleSettings(false)}
-                aria-hidden="true"
-            />
-
-            {/* Modal Box */}
-            <div
-                className="relative surface-effect w-[920px] h-[600px] max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-white/10"
-                style={{
-                    WebkitAppRegion: 'no-drag',
-                    borderRadius: 'var(--corner-radius)'
-                } as any}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
-                    <h2 className="text-base font-bold tracking-wide select-none">设置中心</h2>
-                    <IconButton
-                        icon={<X size={16} />}
+        <AnimatePresence>
+            {isSettingsOpen && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
+                    style={{ borderRadius: 'var(--corner-radius)' }}
+                >
+                    {/* Backdrop */}
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-md transition-opacity"
                         onClick={() => toggleSettings(false)}
-                        className="absolute left-4 bg-black/5 dark:bg-white/10"
-                        aria-label="Close settings"
+                        aria-hidden="true"
                     />
-                    {/* A macOS style close button logic might put it top-left, while Windows puts it top-right. Let's put it top-left per convention or standard modal logic */}
-                </div>
 
-                {/* Content Body - Split View */}
-                <div className="flex flex-1 overflow-hidden">
-                    {/* Left Sidebar */}
-                    <div className="w-[180px] shrink-0 border-r border-white/5 bg-black/5 dark:bg-black/20 p-3 flex flex-col gap-1.5 overflow-y-auto select-none">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={clsx(
-                                    "px-4 py-2 text-left text-sm font-medium transition-all flex items-baseline gap-2",
-                                    activeTab === tab.id
-                                        ? "bg-accent text-white shadow-md shadow-accent/20"
-                                        : "opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
-                                )}
-                                style={{ borderRadius: 'calc(var(--corner-radius) * 0.75)' }}
-                            >
-                                <span>{tab.label}</span>
-                                <span className={clsx(
-                                    "text-[10px] font-bold tracking-tight",
-                                    activeTab === tab.id ? "text-white/60" : "opacity-30"
-                                )}>
-                                    {tab.subLabel}
-                                </span>
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Right Content */}
-                    <div className="flex-1 flex min-w-0 overflow-hidden bg-white/40 dark:bg-white/5 shadow-inner select-none relative">
-                        {/* Settings Scroll Area */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-                            <div className="max-w-2xl mx-auto">
-                                {renderContent()}
-                            </div>
+                    {/* Modal Box */}
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                        transition={{
+                            type: "spring",
+                            damping: 25,
+                            stiffness: 300,
+                            opacity: { duration: 0.2 }
+                        }}
+                        className="relative surface-effect w-[920px] h-[600px] max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-white/10"
+                        style={{
+                            WebkitAppRegion: 'no-drag',
+                            borderRadius: 'var(--corner-radius)'
+                        } as any}
+                    >
+                        {/* Header */}
+                        <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
+                            <h2 className="text-base font-bold tracking-wide select-none">设置中心</h2>
+                            <IconButton
+                                icon={<X size={16} />}
+                                onClick={() => toggleSettings(false)}
+                                className="absolute left-4 bg-black/5 dark:bg-white/10"
+                                aria-label="Close settings"
+                            />
                         </div>
 
-                        {/* Dedicated Preview Column */}
-                        {activeTab === 'appearance' && (
-                            <div className="w-[280px] shrink-0 border-l border-white/5 bg-black/5 dark:bg-black/10 p-6 flex flex-col items-center justify-start overflow-y-auto no-drag animate-in fade-in slide-in-from-right-4 duration-500">
-                                <div className="w-full">
-                                    <LivePreview />
-                                </div>
+                        {/* Content Body - Split View */}
+                        <div className="flex flex-1 overflow-hidden">
+                            {/* Left Sidebar */}
+                            <div className="w-[180px] shrink-0 border-r border-white/5 bg-black/5 dark:bg-black/20 p-3 flex flex-col gap-1.5 overflow-y-auto select-none">
+                                {tabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={clsx(
+                                            "px-4 py-2 text-left text-sm font-medium transition-all flex items-baseline gap-2",
+                                            activeTab === tab.id
+                                                ? "bg-accent text-white shadow-md shadow-accent/20"
+                                                : "opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
+                                        )}
+                                        style={{ borderRadius: 'calc(var(--corner-radius) * 0.75)' }}
+                                    >
+                                        <span>{tab.label}</span>
+                                        <span className={clsx(
+                                            "text-[10px] font-bold tracking-tight",
+                                            activeTab === tab.id ? "text-white/60" : "opacity-30"
+                                        )}>
+                                            {tab.subLabel}
+                                        </span>
+                                    </button>
+                                ))}
                             </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
+
+                            {/* Right Content */}
+                            <div className="flex-1 flex min-w-0 overflow-hidden bg-white/40 dark:bg-white/5 shadow-inner select-none relative">
+                                {/* Settings Scroll Area */}
+                                <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                                    <div className="max-w-2xl mx-auto">
+                                        {renderContent()}
+                                    </div>
+                                </div>
+
+                                {/* Dedicated Preview Column */}
+                                {activeTab === 'appearance' && (
+                                    <div className="w-[280px] shrink-0 border-l border-white/5 bg-black/5 dark:bg-black/10 p-6 flex flex-col items-center justify-start overflow-y-auto no-drag animate-in fade-in slide-in-from-right-4 duration-500">
+                                        <div className="w-full">
+                                            <LivePreview />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
     );
 }
+
 
