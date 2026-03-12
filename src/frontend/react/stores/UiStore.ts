@@ -16,6 +16,7 @@ export interface UiState {
     theme: 'light' | 'dark' | 'system';
     resolvedTheme: 'light' | 'dark';
     isSettingsOpen: boolean;
+    isImportModalOpen: boolean;
     glassEffect: boolean;
     activeNav: string;
     platformOverride: 'darwin' | 'win32' | 'linux' | 'auto';
@@ -34,6 +35,7 @@ export interface UiState {
     setTheme: (theme: 'light' | 'dark' | 'system') => void;
     setResolvedTheme: (theme: 'light' | 'dark') => void;
     toggleSettings: (isOpen?: boolean) => void;
+    toggleImportModal: (isOpen?: boolean) => void;
     toggleGlassEffect: (enabled?: boolean) => void;
     setActiveNav: (nav: string) => void;
     setPlatformOverride: (platform: 'darwin' | 'win32' | 'linux' | 'auto') => void;
@@ -53,6 +55,7 @@ export const useUiStore = create<UiState>((set) => ({
     theme: 'system',
     resolvedTheme: 'light',
     isSettingsOpen: false,
+    isImportModalOpen: false,
     glassEffect: false,
     activeNav: 'all',
     platformOverride: 'auto',
@@ -93,6 +96,9 @@ export const useUiStore = create<UiState>((set) => ({
 
     toggleSettings: (isOpen) =>
         set((state) => ({ isSettingsOpen: isOpen !== undefined ? isOpen : !state.isSettingsOpen })),
+
+    toggleImportModal: (isOpen) =>
+        set((state) => ({ isImportModalOpen: isOpen !== undefined ? isOpen : !state.isImportModalOpen })),
 
     toggleGlassEffect: (enabled) =>
         set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),

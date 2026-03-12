@@ -8,8 +8,34 @@ function App() {
     theme, setResolvedTheme,
     glassEffect, glassBlur,
     cornerRadius, galleryGap,
-    accentColor
+    accentColor, toggleImportModal
   } = useUiStore();
+
+  useEffect(() => {
+    const handleGlobalDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      // Optional: visual feedback at window level
+    };
+
+    const handleGlobalDrop = (e: DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Open modal when files are dropped
+      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+        toggleImportModal(true);
+      }
+    };
+
+    window.addEventListener('dragover', handleGlobalDragOver);
+    window.addEventListener('drop', handleGlobalDrop);
+
+    return () => {
+      window.removeEventListener('dragover', handleGlobalDragOver);
+      window.removeEventListener('drop', handleGlobalDrop);
+    };
+  }, [toggleImportModal]);
 
   useEffect(() => {
     const root = document.documentElement;

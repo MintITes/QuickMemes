@@ -4,6 +4,7 @@ import { Gallery } from './Gallery';
 import { Inspector } from './Inspector';
 import { StatusBar } from './StatusBar';
 import { SettingsModal } from '../settings/SettingsModal';
+import { ImportModal } from '../settings/ImportModal';
 
 export function MainShell() {
     return (
@@ -18,6 +19,7 @@ export function MainShell() {
 
             {/* Absolute positioning modals */}
             <SettingsModal />
+            <ImportModal />
         </div>
     );
 }

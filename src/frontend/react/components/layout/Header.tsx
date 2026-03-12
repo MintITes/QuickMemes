@@ -14,7 +14,7 @@ export function Header() {
     const platformOverride = useUiStore(state => state.platformOverride);
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
 
-    const { resolvedTheme, setTheme, toggleSettings } = useUiStore();
+    const { resolvedTheme, setTheme, toggleSettings, toggleImportModal } = useUiStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const plusButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -25,7 +25,9 @@ export function Header() {
 
     const handleAction = (type: string) => {
         console.log('Action selected:', type);
-        // Implement actions here later
+        if (type === 'quick') {
+            toggleImportModal(true);
+        }
     };
 
     return (
