@@ -38,7 +38,7 @@ export function Gallery() {
                             <ImagePlus size={48} className="text-textSecondary/50" />
                         </div>
                         <h2 className="text-lg font-semibold tracking-wide mb-2">没有任何梗图</h2>
-                        <p className="text-sm text-textSecondary mb-6 max-w-xs">快把好玩的图拖拽进来，或者点击右上角的加号导入吧！</p>
+                        <p className="text-sm text-textSecondary mb-6 max-w-xs">快把好玩的图拖拽进来，或者点击下方的按钮导入吧！</p>
                         <button className="px-5 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-lg font-medium text-sm transition-all shadow-md active:scale-95 flex items-center">
                             <ImagePlus size={16} className="mr-2" />
                             导入第一张梗图
