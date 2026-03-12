@@ -26,6 +26,11 @@ jobs:
         run: ./scripts/test.sh
         shell: bash
 
+      - name: Install Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: choco install openssl
+        shell: pwsh
+
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: ./scripts/build.ps1

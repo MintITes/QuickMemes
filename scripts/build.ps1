@@ -47,6 +47,11 @@ $cmakeArgs += $BackendDir
 $cmakeArgs += "-B"
 $cmakeArgs += $BuildDir
 
+if ($env:GITHUB_ACTIONS -eq "true") {
+    Write-Host "Running inside GitHub Actions. Injecting OpenSSL path..."
+    $cmakeArgs += "-DOPENSSL_ROOT_DIR=C:\Program Files\OpenSSL-Win64"
+}
+
 & cmake @cmakeArgs
 
 $cpuCount = [Environment]::ProcessorCount
