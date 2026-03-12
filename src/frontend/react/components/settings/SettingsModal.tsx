@@ -1,12 +1,18 @@
 import { useState } from 'react';
 import { X, Shield, Globe, Github } from 'lucide-react';
+import { IconButton } from '../common/IconButton';
 import { useUiStore } from '../../stores/UiStore';
 import clsx from 'clsx';
 
 type SettingsTab = 'general' | 'storage' | 'ocr' | 'ai' | 'shortcuts' | 'about';
 
 export function SettingsModal() {
-    const { isSettingsOpen, toggleSettings, theme, resolvedTheme, setTheme, glassEffect, toggleGlassEffect } = useUiStore();
+    const {
+        isSettingsOpen, toggleSettings,
+        theme, resolvedTheme, setTheme,
+        glassEffect, toggleGlassEffect,
+        platformOverride, setPlatformOverride
+    } = useUiStore();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
     if (!isSettingsOpen) return null;
@@ -71,6 +77,27 @@ export function SettingsModal() {
                                 </div>
                                 <div className="w-10 h-5 bg-black/20 dark:bg-white/20 rounded-full cursor-pointer relative transition-colors">
                                     <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white/50 rounded-full transition-transform"></div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div>
+                                    <div className="font-medium text-sm">窗口控制样式</div>
+                                    <div className="text-xs opacity-60">手动切换控制按钮的视觉风格</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", platformOverride === 'auto' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
+                                        onClick={() => setPlatformOverride('auto')}
+                                    >自动</button>
+                                    <button
+                                        className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", platformOverride === 'darwin' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
+                                        onClick={() => setPlatformOverride('darwin')}
+                                    >macOS</button>
+                                    <button
+                                        className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", platformOverride === 'win32' || platformOverride === 'linux' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
+                                        onClick={() => setPlatformOverride(platformOverride === 'win32' ? 'win32' : 'linux')}
+                                    >Windows/Linux</button>
                                 </div>
                             </div>
                         </div>
@@ -194,13 +221,12 @@ export function SettingsModal() {
                 {/* Header */}
                 <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
                     <h2 className="text-base font-bold tracking-wide select-none">设置中心</h2>
-                    <button
+                    <IconButton
+                        icon={<X size={16} />}
                         onClick={() => toggleSettings(false)}
-                        className="absolute left-4 w-8 h-8 rounded-full flex items-center justify-center bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
+                        className="absolute left-4 bg-black/5 dark:bg-white/10"
                         aria-label="Close settings"
-                    >
-                        <X size={16} />
-                    </button>
+                    />
                     {/* A macOS style close button logic might put it top-left, while Windows puts it top-right. Let's put it top-left per convention or standard modal logic */}
                 </div>
 

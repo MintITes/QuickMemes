@@ -1,6 +1,7 @@
 import { useMemeStore } from '../../stores/MemeStore';
 import { VirtuosoGrid } from 'react-virtuoso';
 import { ChevronLeft, ChevronRight, Grid2X2, Tags, ImagePlus, MoreHorizontal, Copy } from 'lucide-react';
+import { IconButton } from '../common/IconButton';
 export function Gallery() {
     const memes = useMemeStore(state => state.memes);
 
@@ -8,12 +9,19 @@ export function Gallery() {
         <main className="flex-1 h-full bg-bgSurface rounded-tl-2xl border-l border-t border-black/20 dark:border-borderColor shadow-[-8px_0_30px_rgba(0,0,0,0.04)] dark:shadow-[-4px_-4px_15px_rgba(0,0,0,0.2)] flex flex-col relative z-0 overflow-hidden">
             <div className="h-12 mx-4 mt-3 mb-2 rounded-xl border border-borderColor flex px-4 items-center justify-between glass-effect z-10 sticky top-3">
                 <div className="flex gap-2">
-                    <button className="w-8 h-8 rounded-md hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center transition-colors" aria-label="Back">
-                        <ChevronLeft size={18} className="opacity-70" />
-                    </button>
-                    <button className="w-8 h-8 rounded-md hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center opacity-50 transition-colors" aria-label="Forward" disabled>
-                        <ChevronRight size={18} />
-                    </button>
+                    <IconButton
+                        icon={<ChevronLeft size={18} className="opacity-70" />}
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Back"
+                    />
+                    <IconButton
+                        icon={<ChevronRight size={18} />}
+                        size="sm"
+                        variant="ghost"
+                        aria-label="Forward"
+                        disabled
+                    />
                 </div>
                 <div className="flex gap-2 bg-black/5 dark:bg-white/5 p-1 rounded-lg border border-black/5 dark:border-white/5">
                     <button className="px-3 py-1.5 rounded-md text-xs font-medium bg-white dark:bg-[#333] shadow-sm flex items-center">
@@ -53,13 +61,21 @@ export function Gallery() {
                                     <div className="absolute inset-0 border-2 border-transparent group-hover:border-accent/40 rounded-xl transition-colors pointer-events-none" />
 
                                     {/* Hover overlay controls */}
-                                    <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-200 no-drag">
-                                        <button className="w-8 h-8 rounded-full bg-white/80 dark:bg-black/60 shadow text-textPrimary flex items-center justify-center hover:bg-accent hover:text-white transition-colors backdrop-blur-md no-drag">
-                                            <Copy size={14} className="no-drag" />
-                                        </button>
-                                        <button className="w-8 h-8 rounded-full bg-white/80 dark:bg-black/60 shadow text-textPrimary flex items-center justify-center hover:bg-accent hover:text-white transition-colors backdrop-blur-md no-drag">
-                                            <MoreHorizontal size={14} className="no-drag" />
-                                        </button>
+                                    <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-200">
+                                        <IconButton
+                                            icon={<Copy size={14} />}
+                                            size="sm"
+                                            className="bg-white/80 dark:bg-black/60 shadow-sm border border-white/20"
+                                            onClick={(e) => { e.stopPropagation(); /* Mock copy */ }}
+                                            title="复制图片"
+                                        />
+                                        <IconButton
+                                            icon={<MoreHorizontal size={14} />}
+                                            size="sm"
+                                            className="bg-white/80 dark:bg-black/60 shadow-sm border border-white/20"
+                                            onClick={(e) => { e.stopPropagation(); /* Mock menu */ }}
+                                            title="更多"
+                                        />
                                     </div>
                                 </div>
                             );

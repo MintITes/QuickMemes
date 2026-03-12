@@ -18,6 +18,7 @@ export interface UiState {
     isSettingsOpen: boolean;
     glassEffect: boolean;
     activeNav: string;
+    platformOverride: 'darwin' | 'win32' | 'linux' | 'auto';
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -31,6 +32,7 @@ export interface UiState {
     toggleSettings: (isOpen?: boolean) => void;
     toggleGlassEffect: (enabled?: boolean) => void;
     setActiveNav: (nav: string) => void;
+    setPlatformOverride: (platform: 'darwin' | 'win32' | 'linux' | 'auto') => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -45,6 +47,7 @@ export const useUiStore = create<UiState>((set) => ({
     isSettingsOpen: false,
     glassEffect: false,
     activeNav: 'all',
+    platformOverride: 'auto',
 
     togglePanel: (isOpen) =>
         set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -84,4 +87,6 @@ export const useUiStore = create<UiState>((set) => ({
         set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),
 
     setActiveNav: (nav: string) => set({ activeNav: nav }),
+
+    setPlatformOverride: (platform) => set({ platformOverride: platform }),
 }));

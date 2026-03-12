@@ -1,10 +1,17 @@
 import { useUiStore } from '../../stores/UiStore';
-import { Search, Plus, LayoutGrid, Sun, Moon, Settings, User, X, Minus, Square } from 'lucide-react';
+import { Search, LayoutGrid, Sun, Moon, Settings, User } from 'lucide-react';
 import clsx from 'clsx';
+
+import { IconButton } from '../common/IconButton';
+import { PlusButton } from '../common/PlusButton';
+import { WindowControlButton } from '../common/WindowControlButton';
 
 export function Header() {
     // @ts-ignore
-    const platform = window.electronAPI?.platform || 'linux';
+    const systemPlatform = window.electronAPI?.platform || 'linux';
+    const platformOverride = useUiStore(state => state.platformOverride);
+    const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
+
     const { resolvedTheme, setTheme, toggleSettings } = useUiStore();
 
     const handleThemeToggle = () => {
@@ -20,8 +27,9 @@ export function Header() {
             data-testid="header"
             style={{ WebkitAppRegion: 'drag' } as any}
         >
-            {/* macOS Window Controls handled natively by hiddenInset titlebar - we just leave space */}
-            <div className={clsx("flex items-center gap-2 justify-self-start", platform === 'darwin' && 'ml-16')}>
+            {/* macOS Window Controls handled by our dynamic component */}
+            <div className={clsx("flex items-center gap-2 justify-self-start h-full", platform === 'darwin' ? 'ml-0' : '')}>
+                {platform === 'darwin' && <WindowControlButton className="mr-2" />}
                 <img
                     src={resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'}
                     alt="QuickMemes Logo"
@@ -39,55 +47,41 @@ export function Header() {
                     placeholder="搜索 Meme..."
                     className="bg-transparent border-none outline-none flex-1 text-sm text-textPrimary placeholder:text-textSecondary h-full no-drag"
                 />
-                <button
-                    className="absolute right-1 top-1 w-7 h-7 rounded-full bg-accent text-white flex items-center justify-center transform hover:scale-105 active:scale-95 transition-transform shadow-md no-drag opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100"
+                <PlusButton
+                    className="absolute right-1 top-1 opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100 transition-all duration-300"
                     data-testid="btn-add"
-                    title="添加新梗图"
-                >
-                    <Plus size={16} className="no-drag" />
-                </button>
+                />
             </div>
 
             {/* Tools Area */}
             <div className="flex items-center gap-1 justify-self-end no-drag">
-                <button aria-label="Layout" className="w-9 h-9 rounded-lg opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center no-drag">
-                    <LayoutGrid size={18} />
-                </button>
-                <button
+                <IconButton
+                    icon={<LayoutGrid size={18} />}
+                    aria-label="Layout"
+                    className="opacity-70 hover:opacity-100"
+                />
+                <IconButton
+                    icon={resolvedTheme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
                     aria-label="Theme"
-                    className="w-9 h-9 rounded-lg opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center no-drag relative"
+                    className="opacity-70 hover:opacity-100"
                     onClick={handleThemeToggle}
                     title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
-                >
-                    {resolvedTheme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
-                </button>
-                <button
+                />
+                <IconButton
+                    icon={<Settings size={18} />}
                     aria-label="Settings"
-                    className="w-9 h-9 rounded-lg opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center no-drag"
+                    className="opacity-70 hover:opacity-100"
                     onClick={() => toggleSettings(true)}
-                >
-                    <Settings size={18} />
-                </button>
+                />
+
                 <div className="w-0.5 h-4 bg-black/10 dark:bg-white/10 mx-2 no-drag"></div>
-                <button aria-label="User" className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center no-drag">
+
+                <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center no-drag">
                     <User size={16} />
-                </button>
+                </div>
 
                 {platform !== 'darwin' && (
-                    <div className="flex items-center gap-1 ml-4 border-l border-white/10 dark:border-black/10 pl-4 h-full no-drag">
-                        {/* @ts-ignore */}
-                        <button onClick={() => window.electronAPI?.windowControls('minimize')} className="w-9 h-9 rounded hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center opacity-70 hover:opacity-100 transition-colors no-drag">
-                            <Minus size={16} />
-                        </button>
-                        {/* @ts-ignore */}
-                        <button onClick={() => window.electronAPI?.windowControls('maximize')} className="w-9 h-9 rounded hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center opacity-70 hover:opacity-100 transition-colors no-drag">
-                            <Square size={14} />
-                        </button>
-                        {/* @ts-ignore */}
-                        <button onClick={() => window.electronAPI?.windowControls('close')} className="w-9 h-9 rounded hover:bg-red-500 hover:text-white flex items-center justify-center opacity-70 hover:opacity-100 transition-colors no-drag">
-                            <X size={18} />
-                        </button>
-                    </div>
+                    <WindowControlButton className="ml-4 border-l border-white/10 dark:border-black/10" />
                 )}
             </div>
         </header>
