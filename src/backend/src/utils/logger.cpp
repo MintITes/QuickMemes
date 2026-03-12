@@ -70,7 +70,11 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
 	auto    ms    = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 	std::tm tm{};
+#ifdef _WIN32
+	localtime_s(&tm, &timeT);
+#else
 	localtime_r(&timeT, &tm);
+#endif
 
 	std::ostringstream timestamp;
 	timestamp << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(3) << ms.count();
