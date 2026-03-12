@@ -30,11 +30,11 @@ protected:
 
 TEST_F(LoggerTest, LogWrite_AboveMinLevel_WritesToFile) {
 	auto &logger = ::quickmemes::Logger::get();
-	logger.initialize(tempDir_->getPath(), ::quickmemes::LogLevel::DEBUG, false);
+	logger.initialize(tempDir_->getPath(), ::quickmemes::LogLevel::LL_DEBUG, false);
 
 	const std::string module  = "logtest1"; // unique module to avoid cached streams
 	const std::string message = "hello logger";
-	logger.log(::quickmemes::LogLevel::INFO, module, message);
+	logger.log(::quickmemes::LogLevel::LL_INFO, module, message);
 
 	// build expected log file path: <logDir>/<module>-<YYYY-MM-DD>.log
 	auto    now   = std::chrono::system_clock::now();
@@ -55,11 +55,11 @@ TEST_F(LoggerTest, LogWrite_AboveMinLevel_WritesToFile) {
 
 TEST_F(LoggerTest, LogWrite_BelowMinLevel_IgnoresLog) {
 	auto &logger = ::quickmemes::Logger::get();
-	logger.initialize(tempDir_->getPath(), ::quickmemes::LogLevel::WARN, false);
+	logger.initialize(tempDir_->getPath(), ::quickmemes::LogLevel::LL_WARN, false);
 
 	const std::string module  = "logtest2";
 	const std::string message = "should be filtered";
-	logger.log(::quickmemes::LogLevel::DEBUG, module, message);
+	logger.log(::quickmemes::LogLevel::LL_DEBUG, module, message);
 
 	auto    now   = std::chrono::system_clock::now();
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
@@ -91,7 +91,7 @@ TEST_F(LoggerTest, CleanOldLogs_RemovesExpiredFiles) {
 	std::filesystem::last_write_time(newLog, nowFileClock - std::chrono::hours(24));     // 1 day ago
 
 	auto &logger = ::quickmemes::Logger::get();
-	logger.initialize(logDir, ::quickmemes::LogLevel::INFO, false);
+	logger.initialize(logDir, ::quickmemes::LogLevel::LL_INFO, false);
 
 	int removed = logger.cleanOldLogs(3);
 	EXPECT_EQ(removed, 1);

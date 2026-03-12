@@ -23,11 +23,11 @@ namespace quickmemes {
  * 数值越大优先级越高，低于 minLevel 的日志不输出。
  */
 enum class LogLevel : int {
-	DEBUG = 0, ///< 调试信息
-	INFO  = 1, ///< 一般信息
-	WARN  = 2, ///< 警告
-	ERROR = 3, ///< 错误
-	FATAL = 4  ///< 致命错误（写入后终止进程）
+	LL_DEBUG = 0, ///< 调试信息
+	LL_INFO  = 1, ///< 一般信息
+	LL_WARN  = 2, ///< 警告
+	LL_ERROR = 3, ///< 错误
+	LL_FATAL = 4  ///< 致命错误（写入后终止进程）
 };
 
 /**
@@ -105,11 +105,11 @@ public:
 private:
 	Logger() = default;
 
-	std::string                                                     logDir_;                    ///< 日志文件输出目录
-	LogLevel                                                        minLevel_ = LogLevel::INFO; ///< 最低输出等级
-	bool                                                            retentionEnabled_ = true;   ///< 是否启用日志清理
-	int                                                             retentionDays_    = 30;     ///< 日志保留天数
-	bool                                                            initialized_      = false;  ///< 是否已初始化
+	std::string                                                     logDir_;                       ///< 日志文件输出目录
+	LogLevel                                                        minLevel_ = LogLevel::LL_INFO; ///< 最低输出等级
+	bool                                                            retentionEnabled_ = true;      ///< 是否启用日志清理
+	int                                                             retentionDays_    = 30;        ///< 日志保留天数
+	bool                                                            initialized_      = false;     ///< 是否已初始化
 	std::mutex                                                      mutex_;          ///< 保护并发写入的互斥锁
 	std::unordered_map<std::string, std::unique_ptr<std::ofstream>> fileStreams_;    ///< 模块对应的文件流
 	std::string                                                     currentLogDate_; ///< 当前记录的日期，用于日志轮转
@@ -129,24 +129,24 @@ private:
 /// @brief 输出 DEBUG 级日志
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_DEBUG(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::DEBUG, module, msg)
+#define LOG_DEBUG(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::LL_DEBUG, module, msg)
 
 /// @brief 输出 INFO 级日志
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_INFO(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::INFO, module, msg)
+#define LOG_INFO(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::LL_INFO, module, msg)
 
 /// @brief 输出 WARN 级日志
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_WARN(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::WARN, module, msg)
+#define LOG_WARN(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::LL_WARN, module, msg)
 
 /// @brief 输出 ERROR 级日志
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_ERROR(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::ERROR, module, msg)
+#define LOG_ERROR(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::LL_ERROR, module, msg)
 
 /// @brief 输出 FATAL 级日志（写入后终止进程）
 /// @param module 模块名字符串
 /// @param msg 日志内容字符串
-#define LOG_FATAL(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::FATAL, module, msg)
+#define LOG_FATAL(module, msg) ::quickmemes::Logger::get().log(::quickmemes::LogLevel::LL_FATAL, module, msg)

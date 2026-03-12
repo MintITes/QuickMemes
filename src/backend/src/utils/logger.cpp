@@ -17,21 +17,21 @@ namespace quickmemes {
 
 std::string logLevelToString(LogLevel level) {
 	switch (level) {
-	case LogLevel::DEBUG: return "DEBUG";
-	case LogLevel::INFO: return "INFO ";
-	case LogLevel::WARN: return "WARN ";
-	case LogLevel::ERROR: return "ERROR";
-	case LogLevel::FATAL: return "FATAL";
+	case LogLevel::LL_DEBUG: return "DEBUG";
+	case LogLevel::LL_INFO: return "INFO ";
+	case LogLevel::LL_WARN: return "WARN ";
+	case LogLevel::LL_ERROR: return "ERROR";
+	case LogLevel::LL_FATAL: return "FATAL";
 	}
 	return "?????";
 }
 
 LogLevel logLevelFromString(const std::string &str) {
-	if (str == "DEBUG") return LogLevel::DEBUG;
-	if (str == "WARN") return LogLevel::WARN;
-	if (str == "ERROR") return LogLevel::ERROR;
-	if (str == "FATAL") return LogLevel::FATAL;
-	return LogLevel::INFO;
+	if (str == "DEBUG") return LogLevel::LL_DEBUG;
+	if (str == "WARN") return LogLevel::LL_WARN;
+	if (str == "ERROR") return LogLevel::LL_ERROR;
+	if (str == "FATAL") return LogLevel::LL_FATAL;
+	return LogLevel::LL_INFO;
 }
 
 Logger &Logger::get() {
@@ -123,7 +123,7 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 	}
 
 	// FATAL 级别写入后终止进程
-	if (level == LogLevel::FATAL) { std::abort(); }
+	if (level == LogLevel::LL_FATAL) { std::abort(); }
 }
 
 void Logger::setMinLevel(LogLevel level) {

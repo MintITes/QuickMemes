@@ -902,7 +902,12 @@ std::string Database::backupDatabase() {
 	try {
 		auto    now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
 		std::tm tm{};
+#ifdef _WIN32
+		localtime_s(&tm, &now);
+#else
 		localtime_r(&now, &tm);
+#endif
+
 		char buf[32];
 		std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", &tm);
 
