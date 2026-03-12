@@ -61,5 +61,14 @@ target_link_libraries(quickmemes_tests PRIVATE
 set(PCH_HEADER ${CMAKE_CURRENT_LIST_DIR}/../src/pch.hpp)
 target_precompile_headers(quickmemes_tests PRIVATE ${PCH_HEADER})
 
+if(WIN32)
+    add_custom_command(TARGET quickmemes_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_RUNTIME_DLLS:quickmemes_tests>
+        $<TARGET_FILE_DIR:quickmemes_tests>
+        COMMAND_EXPAND_LISTS
+    )
+endif()
+
 # 注册测试以供 CTest 运行
 gtest_discover_tests(quickmemes_tests)
