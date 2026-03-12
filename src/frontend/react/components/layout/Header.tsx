@@ -37,12 +37,25 @@ export function Header() {
             {/* macOS Window Controls handled by our dynamic component */}
             <div className={clsx("flex items-center gap-2 justify-self-start h-full", platform === 'darwin' ? 'ml-0' : '')}>
                 {platform === 'darwin' && <WindowControlButton className="mr-2" />}
-                <img
-                    src={resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'}
-                    alt="QuickMemes Logo"
-                    className="h-8 w-auto drop-shadow-sm"
-                    draggable={false}
-                />
+                <div
+                    className="h-8 w-8 relative flex-shrink-0 transition-all duration-500"
+                    style={{
+                        filter: 'drop-shadow(0 0 2px var(--accent-color))',
+                        WebkitFilter: 'drop-shadow(0 0 2px var(--accent-color))'
+                    } as any}
+                >
+                    <div
+                        className="absolute inset-0 bg-accent transition-colors duration-500"
+                        style={{
+                            WebkitMaskImage: `url(${resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'})`,
+                            maskImage: `url(${resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'})`,
+                            WebkitMaskRepeat: 'no-repeat',
+                            maskRepeat: 'no-repeat',
+                            WebkitMaskSize: 'contain',
+                            maskSize: 'contain'
+                        }}
+                    />
+                </div>
                 <span className="font-bold opacity-80 text-[15px] tracking-wide cursor-default ml-1 select-none">QuickMemes</span>
             </div>
 

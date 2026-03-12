@@ -19,6 +19,10 @@ export interface UiState {
     glassEffect: boolean;
     activeNav: string;
     platformOverride: 'darwin' | 'win32' | 'linux' | 'auto';
+    glassBlur: number;
+    cornerRadius: number;
+    galleryGap: number;
+    accentColor: string;
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -33,6 +37,10 @@ export interface UiState {
     toggleGlassEffect: (enabled?: boolean) => void;
     setActiveNav: (nav: string) => void;
     setPlatformOverride: (platform: 'darwin' | 'win32' | 'linux' | 'auto') => void;
+    setGlassBlur: (value: number) => void;
+    setCornerRadius: (value: number) => void;
+    setGalleryGap: (value: number) => void;
+    setAccentColor: (color: string) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -48,6 +56,10 @@ export const useUiStore = create<UiState>((set) => ({
     glassEffect: false,
     activeNav: 'all',
     platformOverride: 'auto',
+    glassBlur: 20,
+    cornerRadius: 12,
+    galleryGap: 16,
+    accentColor: '#0066cc',
 
     togglePanel: (isOpen) =>
         set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -57,7 +69,6 @@ export const useUiStore = create<UiState>((set) => ({
 
     selectMeme: (id, multi = false) =>
         set((state) => {
-            // Basic selection logic for now. Real range selection needs index tracking.
             if (multi) {
                 const isSelected = state.selectedMemeIds.includes(id);
                 return {
@@ -89,4 +100,12 @@ export const useUiStore = create<UiState>((set) => ({
     setActiveNav: (nav: string) => set({ activeNav: nav }),
 
     setPlatformOverride: (platform) => set({ platformOverride: platform }),
+
+    setGlassBlur: (value) => set({ glassBlur: value }),
+
+    setCornerRadius: (value) => set({ cornerRadius: value }),
+
+    setGalleryGap: (value) => set({ galleryGap: value }),
+
+    setAccentColor: (color) => set({ accentColor: color }),
 }));

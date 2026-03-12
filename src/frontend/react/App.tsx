@@ -4,9 +4,12 @@ import { useUiStore } from './stores/UiStore';
 import './index.css';
 
 function App() {
-  const theme = useUiStore((state) => state.theme);
-  const setResolvedTheme = useUiStore((state) => state.setResolvedTheme);
-  const glassEffect = useUiStore((state) => state.glassEffect);
+  const {
+    theme, setResolvedTheme,
+    glassEffect, glassBlur,
+    cornerRadius, galleryGap,
+    accentColor
+  } = useUiStore();
 
   useEffect(() => {
     const root = document.documentElement;
@@ -34,12 +37,21 @@ function App() {
 
   useEffect(() => {
     const root = document.documentElement;
+
+    // Toggle glass-mode class
     if (glassEffect) {
       root.classList.add('glass-mode');
     } else {
       root.classList.remove('glass-mode');
     }
-  }, [glassEffect]);
+
+    // Apply CSS Variables
+    root.style.setProperty('--glass-blur', `${glassBlur}px`);
+    root.style.setProperty('--corner-radius', `${cornerRadius}px`);
+    root.style.setProperty('--gallery-gap', `${galleryGap}px`);
+    root.style.setProperty('--accent-color', accentColor);
+
+  }, [glassEffect, glassBlur, cornerRadius, galleryGap, accentColor]);
 
   return <MainShell />;
 }
