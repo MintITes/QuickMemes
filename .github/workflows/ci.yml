@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/build.sh
+        shell: bash
+
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/test.sh
+        shell: bash
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: ./scripts/build.ps1
+        shell: pwsh
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: ./scripts/test.ps1
+        shell: pwsh
+
+  frontend:
+    name: Frontend (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/frontend-install.sh
+        shell: bash
+
+      - name: Lint (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/frontend-lint.sh
+        shell: bash
+
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/frontend-test.sh
+        shell: bash
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: ./scripts/frontend-build.sh
+        shell: bash
+
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        run: ./scripts/frontend-install.ps1
+        shell: pwsh
+
+      - name: Lint (Windows)
+        if: runner.os == 'Windows'
+        run: ./scripts/frontend-lint.ps1
+        shell: pwsh
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: ./scripts/frontend-test.ps1
+        shell: pwsh
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: ./scripts/frontend-build.ps1
+        shell: pwsh
