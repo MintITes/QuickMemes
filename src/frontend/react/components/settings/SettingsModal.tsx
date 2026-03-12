@@ -158,7 +158,7 @@ export function SettingsModal() {
                                 <p className="text-[10px] opacity-40">你可以自由地使用、修改和分发本程序，但前提是任何衍生作品都必须公开源代码，并继续沿用相同的 GPLv3 协议。</p>
                             </div>
 
-                            <div className="flex items-center justify-center gap-4 pt-2">
+                            <div className="flex items-center justify-center gap-4 pt-0">
                                 <a href="https://github.com/MintITes/QuickMemes" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all">
                                     <Github size={14} />
                                     <span>源代码</span>
@@ -171,7 +171,7 @@ export function SettingsModal() {
                             </div>
                         </div>
 
-                        <p className="text-[10px] opacity-30 mt-0">Copyright © 2026 MintITes & Contributors</p>
+                        <p className="text-[10px] opacity-30 mt-3">Copyright © 2026 MintITes & Contributors</p>
                     </div>
                 );
         }
