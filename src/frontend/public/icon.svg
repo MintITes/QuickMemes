@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   version="1.1"
+   id="svg1"
+   width="2048"
+   height="2048"
+   viewBox="0 0 2048 2048"
+   sodipodi:docname="QuickMemes_logo_pure.svg"
+   inkscape:version="1.4.3 (0d15f75042, 2025-12-25)"
+   inkscape:export-filename="QuickMemes_logo.png"
+   inkscape:export-xdpi="96"
+   inkscape:export-ydpi="96"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1" />
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.35355339"
+     inkscape:cx="982.87842"
+     inkscape:cy="1053.5891"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g2" />
+  <g
+     id="g2"
+     inkscape:groupmode="layer"
+     inkscape:label="Logo">
+    <g
+       id="g8"
+       inkscape:label="Logo"
+       transform="matrix(2.5846288,0,0,2.5846288,-872.67939,-901.54846)">
+      <path
+         d="M 681.5,760 A 26.5,26.5 0 0 0 655,786.5 26.5,26.5 0 0 0 681.5,813 26.5,26.5 0 0 0 708,786.5 26.5,26.5 0 0 0 681.5,760 Z m 127,0 A 26.5,26.5 0 0 0 782,786.5 26.5,26.5 0 0 0 808.5,813 26.5,26.5 0 0 0 835,786.5 26.5,26.5 0 0 0 808.5,760 Z m -131.76758,88.32617 -29.19531,15.69922 c 39.78581,80.91586 160.02615,75.09189 193.07617,0 l -28.36914,-15.69922 c -37.2101,62.27495 -108.33765,47.06687 -135.51172,0 z"
+         style="display:inline;fill:#082244;fill-opacity:1;stroke:none;stroke-width:6.014;stroke-linecap:round;stroke-linejoin:round;paint-order:stroke fill markers"
+         id="path3"
+         inkscape:label="face" />
+      <path
+         id="path4"
+         style="opacity:1;fill:#082244;fill-opacity:1;stroke:none;stroke-width:6.01147;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1;paint-order:stroke fill markers"
+         inkscape:label="floder_full"
+         d="M 1090.9941,491.00586 927.73242,588.3125 H 712.16406 l -50.87695,-50.89258 -234.28125,0.31446 V 998.99414 H 944.5918 Z M 460.01953,569.2793 h 187.74805 l 50.4414,52.19531 H 873.49219 L 744.17383,699.96289 596.54492,588.95117 h -49.17578 l -86.95898,295.93555 z m 537.93359,15.9414 -83.11132,97.98438 -81.80274,282.89453 H 561.78125 L 634.71875,713.5957 601.53906,634.5918 742.9043,740.35742 Z m 26.47658,19.79688 -104.19532,360.69336 h -52.19532 l 77.32032,-266.91602 z m -456.83595,34.73828 32.5,76.36328 -72.57617,250.22852 h -56.32422 z" />
+    </g>
+  </g>
+</svg>
