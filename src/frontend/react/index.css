@@ -48,10 +48,14 @@
     --glass-blur: 24px;
   }
 
+  * {
+    -webkit-user-drag: none;
+  }
+
   html,
   body {
     background-color: transparent !important;
-    @apply overflow-hidden;
+    @apply overflow-hidden select-none;
   }
 
   body {

@@ -57,12 +57,12 @@ export function Gallery() {
                                     <div className="absolute inset-0 border-2 border-transparent group-hover:border-accent/40 rounded-xl transition-colors pointer-events-none" />
 
                                     {/* Hover overlay controls */}
-                                    <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-200">
-                                        <button className="w-8 h-8 rounded-full bg-white/80 dark:bg-black/60 shadow text-textPrimary flex items-center justify-center hover:bg-accent hover:text-white transition-colors backdrop-blur-md">
-                                            <Copy size={14} />
+                                    <div className="absolute bottom-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity translate-y-2 group-hover:translate-y-0 duration-200 no-drag">
+                                        <button className="w-8 h-8 rounded-full bg-white/80 dark:bg-black/60 shadow text-textPrimary flex items-center justify-center hover:bg-accent hover:text-white transition-colors backdrop-blur-md no-drag">
+                                            <Copy size={14} className="no-drag" />
                                         </button>
-                                        <button className="w-8 h-8 rounded-full bg-white/80 dark:bg-black/60 shadow text-textPrimary flex items-center justify-center hover:bg-accent hover:text-white transition-colors backdrop-blur-md">
-                                            <MoreHorizontal size={14} />
+                                        <button className="w-8 h-8 rounded-full bg-white/80 dark:bg-black/60 shadow text-textPrimary flex items-center justify-center hover:bg-accent hover:text-white transition-colors backdrop-blur-md no-drag">
+                                            <MoreHorizontal size={14} className="no-drag" />
                                         </button>
                                     </div>
                                 </div>
