@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Clipboard, FileUp, Link as LinkIcon } from 'lucide-react';
+import { Portal } from './Portal';
 
 interface DropdownMenuProps {
     isOpen: boolean;
@@ -72,40 +73,42 @@ export function DropdownMenu({ isOpen, onClose, anchorRect, onAction }: Dropdown
     return (
         <AnimatePresence>
             {isOpen && (
-                <motion.div
-                    ref={menuRef}
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-                    className="fixed z-[100] w-64 glass-effect rounded-2xl overflow-hidden no-drag"
-                    style={style}
-                >
-                    <div className="p-1.5 flex flex-col gap-0.5">
-                        {menuItems.map((item) => (
-                            <button
-                                key={item.id}
-                                onClick={() => {
-                                    onAction(item.id as any);
-                                    onClose();
-                                }}
-                                className="w-full group flex items-start gap-3 p-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-200 text-left"
-                            >
-                                <div className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/5 flex items-center justify-center text-textSecondary group-hover:text-accent group-hover:bg-accent/10 transition-colors">
-                                    {item.icon}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="text-[13px] font-medium text-textPrimary group-hover:text-accent transition-colors">
-                                        {item.label}
-                                    </span>
-                                    <span className="text-[11px] text-textSecondary">
-                                        {item.description}
-                                    </span>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </motion.div>
+                <Portal>
+                    <motion.div
+                        ref={menuRef}
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                        transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                        className="fixed z-[100] w-64 glass-effect rounded-2xl overflow-hidden no-drag"
+                        style={style}
+                    >
+                        <div className="p-1.5 flex flex-col gap-0.5">
+                            {menuItems.map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        onAction(item.id as any);
+                                        onClose();
+                                    }}
+                                    className="w-full group flex items-start gap-3 p-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-200 text-left"
+                                >
+                                    <div className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/5 flex items-center justify-center text-textSecondary group-hover:text-accent group-hover:bg-accent/10 transition-colors">
+                                        {item.icon}
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[13px] font-medium text-textPrimary group-hover:text-accent transition-colors">
+                                            {item.label}
+                                        </span>
+                                        <span className="text-[11px] text-textSecondary">
+                                            {item.description}
+                                        </span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </motion.div>
+                </Portal>
             )}
         </AnimatePresence>
     );
