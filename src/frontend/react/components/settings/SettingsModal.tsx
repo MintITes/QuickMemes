@@ -85,7 +85,7 @@ export function SettingsModal() {
                                 <div className="font-medium text-sm mb-1">主存储路径</div>
                                 <div className="text-xs opacity-60 mb-3">当前所有梗图保存的根目录</div>
                                 <div className="flex gap-2">
-                                    <input type="text" readOnly value="C:\Users\NekoType\Pictures\QuickMemes" className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text" />
+                                    <input type="text" readOnly value="C:\Users\BoheSama\Pictures\QuickMemes" className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text" />
                                     <button className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm">更改</button>
                                 </div>
                             </div>
@@ -144,7 +144,7 @@ export function SettingsModal() {
                         <img src={resolvedTheme === 'dark' ? '/icon-dark.svg' : '/icon.svg'} alt="Logo" className="w-20 h-20 mb-4 opacity-80 drop-shadow-lg" draggable={false} />
                         <h3 className="font-bold text-xl tracking-wider select-none">QuickMemes</h3>
                         <p className="text-sm opacity-60">Version 1.0.0-alpha</p>
-                        <p className="text-xs opacity-40 mt-8">Copyright © 2026 NekoType & Contributors</p>
+                        <p className="text-xs opacity-40 mt-8">Copyright © 2026 BoheSama & Contributors</p>
                     </div>
                 );
         }
