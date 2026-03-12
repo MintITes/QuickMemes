@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Dependencies (Windows)
         if: runner.os == 'Windows'
-        run: choco install openssl
+        run: choco install openssl -y
         shell: pwsh
 
       - name: Build (Windows)
