@@ -264,7 +264,7 @@ export function SettingsModal() {
 
                         <div className="mt-4 space-y-1">
                             <p className="text-[10px] opacity-30">Copyright © 2026 MintITes & Contributors</p>
-                            <p className="text-[10px] opacity-30 italic">QuickMemes Logo/Icon © 2026 by BoheSama is licensed under CC BY-NC-ND 4.0.</p>
+                            <p className="text-[10px] opacity-30">QuickMemes Logo/Icon © 2026 by BoheSama is licensed under CC BY-NC-ND 4.0.</p>
                         </div>
                     </div>
                 );
