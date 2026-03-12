@@ -71,4 +71,7 @@ if(WIN32)
 endif()
 
 # 注册测试以供 CTest 运行
-gtest_discover_tests(quickmemes_tests)
+gtest_discover_tests(
+    quickmemes_tests
+    DISCOVERY_MODE PRE_TEST
+)
