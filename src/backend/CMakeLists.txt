@@ -112,6 +112,9 @@ target_include_directories(sqlite_vec_ext PRIVATE
 target_compile_definitions(sqlite_vec_ext PRIVATE
     SQLITE_CORE
 )
+target_link_libraries(sqlite_vec_ext PRIVATE
+    SQLiteCpp
+)
 set_target_properties(sqlite_vec_ext PROPERTIES
     PREFIX ""  # 不加 lib 前缀，便于 load_extension
     OUTPUT_NAME "vec0"
