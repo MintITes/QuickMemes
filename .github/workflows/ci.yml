@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Dependencies (Windows)
         if: runner.os == 'Windows'
-        run: choco install openssl -y
+        run: vcpkg install openssl:x64-windows
         shell: pwsh
 
       - name: Build (Windows)
