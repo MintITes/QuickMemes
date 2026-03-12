@@ -40,7 +40,11 @@ TEST_F(LoggerTest, LogWrite_AboveMinLevel_WritesToFile) {
 	auto    now   = std::chrono::system_clock::now();
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
 	std::tm tm{};
-	localtime_r(&timeT, &tm);
+	#ifdef _WIN32
+    localtime_s(&tm, &timeT);
+#else
+    localtime_r(&timeT, &tm);
+#endif
 	std::ostringstream date;
 	date << std::put_time(&tm, "%Y-%m-%d");
 	const std::string logPath = tempDir_->getPath() + "/" + module + "-" + date.str() + ".log";
@@ -64,7 +68,11 @@ TEST_F(LoggerTest, LogWrite_BelowMinLevel_IgnoresLog) {
 	auto    now   = std::chrono::system_clock::now();
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
 	std::tm tm{};
-	localtime_r(&timeT, &tm);
+#ifdef _WIN32
+    localtime_s(&tm, &timeT);
+#else
+    localtime_r(&timeT, &tm);
+#endif
 	std::ostringstream date;
 	date << std::put_time(&tm, "%Y-%m-%d");
 	const std::string logPath = tempDir_->getPath() + "/" + module + "-" + date.str() + ".log";
