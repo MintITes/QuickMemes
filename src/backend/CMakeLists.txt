@@ -192,6 +192,13 @@ target_link_libraries(quickmemes_core PUBLIC
     quickmemes_vision
     quickmemes_utils
 )
+if(WIN32)
+    target_link_libraries(quickmemes_core PUBLIC
+        ws2_32
+        mswsock
+    )
+endif()
+
 target_precompile_headers(quickmemes_core PRIVATE ${PCH_HEADER})
 
 # ── 可执行文件 ──
