@@ -155,7 +155,7 @@ export function SettingsModal() {
                                     <Shield size={14} className="text-accent" />
                                     <span>基于 GPL-3.0 开源协议发布</span>
                                 </div>
-                                <p className="text-[10px] opacity-40">你可以自由地分发、修改和在遵循相同协议的前提下使用本程序。</p>
+                                <p className="text-[10px] opacity-40">你可以自由地使用、修改和分发本程序，但前提是任何衍生作品都必须公开源代码，并继续沿用相同的 GPLv3 协议。</p>
                             </div>
 
                             <div className="flex items-center justify-center gap-4 pt-2">
