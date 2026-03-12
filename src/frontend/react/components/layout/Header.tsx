@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { Search, LayoutGrid, Sun, Moon, Settings, User } from 'lucide-react';
 import clsx from 'clsx';
@@ -5,6 +6,7 @@ import clsx from 'clsx';
 import { IconButton } from '../common/IconButton';
 import { PlusButton } from '../common/PlusButton';
 import { WindowControlButton } from '../common/WindowControlButton';
+import { DropdownMenu } from '../common/DropdownMenu';
 
 export function Header() {
     // @ts-ignore
@@ -13,12 +15,17 @@ export function Header() {
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
 
     const { resolvedTheme, setTheme, toggleSettings } = useUiStore();
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const plusButtonRef = useRef<HTMLButtonElement>(null);
 
     const handleThemeToggle = () => {
-        // Toggle logic: if system, switch to the opposite of current resolved.
-        // If fixed, toggle between light/dark.
         const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
         setTheme(nextTheme);
+    };
+
+    const handleAction = (type: string) => {
+        console.log('Action selected:', type);
+        // Implement actions here later
     };
 
     return (
@@ -48,8 +55,17 @@ export function Header() {
                     className="bg-transparent border-none outline-none flex-1 text-sm text-textPrimary placeholder:text-textSecondary h-full no-drag"
                 />
                 <PlusButton
+                    ref={plusButtonRef}
+                    active={isMenuOpen}
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
                     className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100 transition-all duration-300"
                     data-testid="btn-add"
+                />
+                <DropdownMenu
+                    isOpen={isMenuOpen}
+                    onClose={() => setIsMenuOpen(false)}
+                    anchorRect={plusButtonRef.current?.getBoundingClientRect()}
+                    onAction={handleAction}
                 />
             </div>
 
