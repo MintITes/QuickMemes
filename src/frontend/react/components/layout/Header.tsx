@@ -48,7 +48,7 @@ export function Header() {
                     className="bg-transparent border-none outline-none flex-1 text-sm text-textPrimary placeholder:text-textSecondary h-full no-drag"
                 />
                 <PlusButton
-                    className="absolute right-1 top-1 opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100 transition-all duration-300"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100 transition-all duration-300"
                     data-testid="btn-add"
                 />
             </div>
