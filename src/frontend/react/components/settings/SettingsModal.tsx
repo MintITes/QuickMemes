@@ -250,12 +250,28 @@ export function SettingsModal() {
                             </div>
 
                             <div className="flex items-center justify-center gap-4 pt-0">
-                                <a href="https://github.com/MintITes/QuickMemes" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all">
+                                <a
+                                    href="https://github.com/MintITes/QuickMemes"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        // @ts-ignore
+                                        window.electronAPI?.openExternal("https://github.com/MintITes/QuickMemes");
+                                    }}
+                                    className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
+                                >
                                     <Github size={14} />
                                     <span>源代码</span>
                                 </a>
                                 <div className="w-px h-3 bg-white/10"></div>
-                                <a href="https://github.com/MintITes/QuickMemes" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all">
+                                <a
+                                    href="https://github.com/MintITes/QuickMemes"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        // @ts-ignore
+                                        window.electronAPI?.openExternal("https://github.com/MintITes/QuickMemes");
+                                    }}
+                                    className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
+                                >
                                     <Globe size={14} />
                                     <span>官方网站</span>
                                 </a>

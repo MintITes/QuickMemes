@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -135,6 +135,10 @@ app.whenReady().then(() => {
             if (win.isMaximized()) win.unmaximize();
             else win.maximize();
         }
+    });
+
+    ipcMain.on('open-external', (_event, url) => {
+        shell.openExternal(url);
     });
 
     createWindow();
