@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, Shield, Globe, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconButton } from '../common/IconButton';
+import { Switch } from '../common/Switch';
 import { useUiStore } from '../../stores/UiStore';
 import clsx from 'clsx';
 import { LivePreview } from './LivePreview';
@@ -75,9 +76,11 @@ export function SettingsModal() {
                                     <div className="font-medium text-sm">开机自启</div>
                                     <div className="text-xs opacity-60">随系统启动并在后台静默运行</div>
                                 </div>
-                                <div className="w-10 h-5 bg-black/20 dark:bg-white/20 rounded-full cursor-pointer relative transition-colors">
-                                    <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white/50 rounded-full transition-transform"></div>
-                                </div>
+                                <Switch
+                                    checked={false}
+                                    onChange={() => { }}
+                                    aria-label="Toggle auto start"
+                                />
                             </div>
                         </div>
                     </div>
@@ -95,12 +98,11 @@ export function SettingsModal() {
                                     </div>
                                     <div className="text-xs opacity-60 mt-0.5">关闭以提升性能并解决部分渲染拖影问题</div>
                                 </div>
-                                <div
-                                    className={clsx("w-10 h-5 rounded-full cursor-pointer relative transition-colors shadow-inner", glassEffect ? "bg-accent" : "bg-black/20 dark:bg-white/20")}
-                                    onClick={() => toggleGlassEffect()}
-                                >
-                                    <div className={clsx("absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform", glassEffect ? "right-0.5" : "left-0.5")}></div>
-                                </div>
+                                <Switch
+                                    checked={glassEffect}
+                                    onChange={() => toggleGlassEffect()}
+                                    aria-label="Toggle glass effect"
+                                />
                             </div>
 
                             <div className="space-y-2">
@@ -182,9 +184,11 @@ export function SettingsModal() {
                                     <div className="font-medium text-sm">后台自动 OCR</div>
                                     <div className="text-xs opacity-60">导入图片后自动在后台提取文字索引</div>
                                 </div>
-                                <div className="w-10 h-5 bg-accent rounded-full cursor-pointer relative shadow-inner">
-                                    <div className="absolute right-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm"></div>
-                                </div>
+                                <Switch
+                                    checked={true}
+                                    onChange={() => { }}
+                                    aria-label="Toggle OCR"
+                                />
                             </div>
                         </div>
                     </div>
