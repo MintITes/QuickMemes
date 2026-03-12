@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 project(QuickMemes-backend LANGUAGES CXX C)
 
+if(POLICY CMP0174)
+  cmake_policy(SET CMP0174 NEW)
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)

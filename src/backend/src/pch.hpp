@@ -32,6 +32,3 @@
 // nlohmann/json (linked by all targets)
 #include <nlohmann/json.hpp>
 
-// GTest / GMock
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>

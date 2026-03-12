@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
 project(QuickMemes-tests LANGUAGES CXX)
 
+if(POLICY CMP0174)
+  cmake_policy(SET CMP0174 NEW)
+endif()
+
 # 拉取 Googletest
 include(FetchContent)
 FetchContent_Declare(
