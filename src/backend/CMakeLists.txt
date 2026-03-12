@@ -5,6 +5,11 @@ if(POLICY CMP0174)
   cmake_policy(SET CMP0174 NEW)
 endif()
 
+if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "Enable bigobj for MinGW")
+    add_compile_options(-Wa,-mbig-obj)
+endif()
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
