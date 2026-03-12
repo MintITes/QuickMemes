@@ -3,7 +3,7 @@ name: CI
 on:
   push:
   pull_request:
-    
+
 jobs:
   backend:
     name: Backend (${{ matrix.os }})
@@ -61,7 +61,7 @@ jobs:
 
       - name: Lint (Linux)
         if: runner.os == 'Linux'
-        run: #./scripts/frontend-lint.sh
+        run: echo "Skip linting"
         shell: bash
 
       - name: Test (Linux)
@@ -81,7 +81,7 @@ jobs:
 
       - name: Lint (Windows)
         if: runner.os == 'Windows'
-        run: #./scripts/frontend-lint.ps1
+        run: echo "Skip linting"
         shell: pwsh
 
       - name: Test (Windows)

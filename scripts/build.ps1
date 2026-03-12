@@ -1,9 +1,9 @@
-$ErrorActionPreference = "Stop"
-
 param(
     [switch]$Clean,
     [switch]$Test
 )
+
+$ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BackendDir = Join-Path $ScriptDir "..\src\backend"
