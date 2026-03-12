@@ -1,12 +1,8 @@
 import { useMemeStore } from '../../stores/MemeStore';
-import { useUiStore } from '../../stores/UiStore';
 import { VirtuosoGrid } from 'react-virtuoso';
 import { ChevronLeft, ChevronRight, Grid2X2, Tags, ImagePlus, MoreHorizontal, Copy } from 'lucide-react';
-import clsx from 'clsx';
-
 export function Gallery() {
     const memes = useMemeStore(state => state.memes);
-    const viewMode = useUiStore(state => state.viewMode);
 
     return (
         <main className="flex-1 h-full bg-bgSurface rounded-tl-2xl border-l border-t border-black/20 dark:border-borderColor shadow-[-8px_0_30px_rgba(0,0,0,0.04)] dark:shadow-[-4px_-4px_15px_rgba(0,0,0,0.2)] flex flex-col relative z-0 overflow-hidden">

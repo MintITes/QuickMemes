@@ -5,7 +5,7 @@ import clsx from 'clsx';
 export function Header() {
     // @ts-ignore
     const platform = window.electronAPI?.platform || 'linux';
-    const { theme, resolvedTheme, setTheme, toggleSettings } = useUiStore();
+    const { resolvedTheme, setTheme, toggleSettings } = useUiStore();
 
     const handleThemeToggle = () => {
         // Toggle logic: if system, switch to the opposite of current resolved.

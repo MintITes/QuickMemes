@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Meme } from '../types';
+import type { Meme } from '../types';
 
 export interface MemeState {
     memes: Meme[];

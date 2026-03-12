@@ -33,7 +33,7 @@ export interface UiState {
     setActiveNav: (nav: string) => void;
 }
 
-export const useUiStore = create<UiState>((set, get) => ({
+export const useUiStore = create<UiState>((set) => ({
     isPanelOpen: false,
     isImporting: false,
     activeTaskId: null,
@@ -52,7 +52,7 @@ export const useUiStore = create<UiState>((set, get) => ({
     setImporting: (isImporting, taskId = null) =>
         set({ isImporting, activeTaskId: taskId }),
 
-    selectMeme: (id, multi = false, range = false) =>
+    selectMeme: (id, multi = false) =>
         set((state) => {
             // Basic selection logic for now. Real range selection needs index tracking.
             if (multi) {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Tag } from '../types';
+import type { Tag } from '../types';
 
 export interface TagState {
     tags: Tag[];

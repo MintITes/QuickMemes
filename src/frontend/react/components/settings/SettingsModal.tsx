@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Layout, Monitor, Trash2, Shield, Info, ExternalLink, Globe, Sparkles, Github } from 'lucide-react';
+import { X, Shield, Globe, Github } from 'lucide-react';
 import { useUiStore } from '../../stores/UiStore';
 import clsx from 'clsx';
 

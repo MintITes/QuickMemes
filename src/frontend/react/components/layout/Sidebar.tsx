@@ -4,7 +4,6 @@ import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore } from 'lu
 import clsx from 'clsx';
 
 export function Sidebar() {
-    const isPanelOpen = useUiStore(state => state.isPanelOpen);
     const activeNav = useUiStore(state => state.activeNav);
     const setActiveNav = useUiStore(state => state.setActiveNav);
     const categories = useCategoryStore(state => state.categories);

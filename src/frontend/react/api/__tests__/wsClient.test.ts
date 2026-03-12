@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { connectWebSocket, disconnectWebSocket, onEvent } from '../wsClient';
 
 class MockWebSocket {

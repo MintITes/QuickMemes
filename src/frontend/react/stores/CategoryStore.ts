@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Category } from '../types';
+import type { Category } from '../types';
 
 export interface CategoryState {
     categories: Category[];

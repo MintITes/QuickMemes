@@ -8,7 +8,7 @@
     "dev:vite": "vite",
     "dev:electron": "tsc -p electron/tsconfig.json && concurrently \"tsc -p electron/tsconfig.json -w\" \"cross-env NODE_ENV=development electron .\"",
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
-    "build:react": "tsc -b react/tsconfig.app.json && vite build",
+    "build:react": "tsc -b tsconfig.app.json && vite build",
     "build:electron": "tsc -p electron/tsconfig.json",
     "build": "npm run build:react && npm run build:electron",
     "test": "vitest",
