@@ -11,13 +11,13 @@ export function SettingsModal() {
 
     if (!isSettingsOpen) return null;
 
-    const tabs: { id: SettingsTab; label: string }[] = [
-        { id: 'general', label: '常规 (General)' },
-        { id: 'storage', label: '存储 (Storage)' },
-        { id: 'ocr', label: 'OCR (Text)' },
-        { id: 'ai', label: 'AI 视觉 (Vision)' },
-        { id: 'shortcuts', label: '快捷键 (Keys)' },
-        { id: 'about', label: '关于 (About)' }
+    const tabs: { id: SettingsTab; label: string; subLabel: string }[] = [
+        { id: 'general', label: '常规', subLabel: 'General' },
+        { id: 'storage', label: '存储', subLabel: 'Storage' },
+        { id: 'ocr', label: 'OCR', subLabel: 'Text' },
+        { id: 'ai', label: 'AI 视觉', subLabel: 'Vision' },
+        { id: 'shortcuts', label: '快捷键', subLabel: 'Keys' },
+        { id: 'about', label: '关于', subLabel: 'About' }
     ];
 
     const renderContent = () => {
@@ -186,13 +186,19 @@ export function SettingsModal() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={clsx(
-                                    "px-4 py-2 text-left rounded-xl text-sm font-medium transition-all",
+                                    "px-4 py-2 text-left rounded-xl text-sm font-medium transition-all flex items-baseline gap-2",
                                     activeTab === tab.id
                                         ? "bg-accent text-white shadow-md shadow-accent/20"
                                         : "opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"
                                 )}
                             >
-                                {tab.label}
+                                <span>{tab.label}</span>
+                                <span className={clsx(
+                                    "text-[10px] font-bold tracking-tight",
+                                    activeTab === tab.id ? "text-white/60" : "opacity-30"
+                                )}>
+                                    {tab.subLabel}
+                                </span>
                             </button>
                         ))}
                     </div>
