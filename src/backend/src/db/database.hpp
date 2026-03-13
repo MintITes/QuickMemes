@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 #include <string>
 
@@ -352,7 +353,11 @@ private:
 
 	std::unique_ptr<SQLite::Database> db_;      ///< SQLiteCpp 数据库实例
 	std::string                       dbPath_;  ///< 数据库文件路径
-	mutable std::shared_mutex         dbMutex_; ///< 保护并发读写，特别是 rebuildVecTable
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	mutable std::mutex dbMutex_; ///< MinGW shared_mutex 实现不稳定，回退到互斥锁
+#else
+	mutable std::shared_mutex dbMutex_;
+#endif
 };
 
 } // namespace quickmemes

@@ -125,7 +125,11 @@ void Database::shutdown() {
 }
 
 int64_t Database::insertMeme(const MemeEntry &meme) {
+#if defined(__MINGW32__) || defined(__MINGW64__)
 	std::unique_lock lock(dbMutex_);
+#else
+	std::shared_lock lock(dbMutex_);
+#endif
 	try {
 		SQLite::Transaction txn(*db_);
 
@@ -228,7 +232,11 @@ MemeEntry Database::getMeme(int64_t id) {
 }
 
 PagedMemeResults Database::searchMemes(const SearchQuery &query) {
+#if defined(__MINGW32__) || defined(__MINGW64__)
+	std::unique_lock lock(dbMutex_);
+#else
 	std::shared_lock lock(dbMutex_);
+#endif
 	try {
 		SearchSql searchSql = buildSearchSql(query);
 
@@ -342,7 +350,7 @@ int32_t Database::countMemes(const SearchQuery &query) {
 }
 
 std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embedding, int limit) {
-	std::shared_lock lock(dbMutex_);
+	std::unique_lock lock(dbMutex_);
 	if (embedding.empty()) { throw ApiException(ERR_INVALID_PARAMS, "Empty embedding provided for vector search"); }
 
 	try {
