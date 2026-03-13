@@ -1,13 +1,16 @@
 import { useNotificationStore, type NotificationType } from '../../stores/NotificationStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Info, AlertTriangle, AlertCircle, Trash2 } from 'lucide-react';
+import { X, Info, AlertTriangle, AlertCircle, Trash2, Terminal, CheckCircle2, Bomb } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { useEffect } from 'react';
 
 const severityOrder: Record<NotificationType, number> = {
-    'error': 0,
-    'warn': 1,
-    'info': 2
+    'fatal': 0,
+    'error': 1,
+    'warn': 2,
+    'info': 3,
+    'success': 4,
+    'debug': 5
 };
 
 export function NotificationPanel() {
@@ -19,7 +22,7 @@ export function NotificationPanel() {
         clearAll
     } = useNotificationStore();
 
-    // Sort notifications: Severity first (Error > Warn > Info), then Newest first
+    // Sort notifications: Severity first (Fatal > Error > Warn > Info > Success > Debug), then Newest first
     const sortedNotifications = [...notifications].sort((a, b) => {
         if (a.type !== b.type) {
             return severityOrder[a.type] - severityOrder[b.type];
@@ -42,6 +45,9 @@ export function NotificationPanel() {
             case 'info': return <Info size={16} className="text-blue-500" />;
             case 'warn': return <AlertTriangle size={16} className="text-yellow-500" />;
             case 'error': return <AlertCircle size={16} className="text-red-500" />;
+            case 'debug': return <Terminal size={16} className="text-gray-500" />;
+            case 'success': return <CheckCircle2 size={16} className="text-green-500" />;
+            case 'fatal': return <Bomb size={16} className="text-red-600" />;
         }
     };
 
@@ -54,7 +60,7 @@ export function NotificationPanel() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] bg-transparent"
+                        className="fixed inset-0 z-[10000] bg-transparent"
                         onClick={() => togglePanel(false)}
                     />
 
@@ -62,7 +68,7 @@ export function NotificationPanel() {
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="fixed bottom-12 right-4 w-80 max-h-[500px] surface-effect z-[101] flex flex-col overflow-hidden shadow-2xl ring-1 ring-white/10"
+                        className="fixed bottom-12 right-4 w-80 max-h-[500px] surface-effect z-[10001] flex flex-col overflow-hidden shadow-2xl ring-1 ring-white/10"
                         style={{ borderRadius: 'var(--corner-radius)' }}
                     >
                         {/* Header */}

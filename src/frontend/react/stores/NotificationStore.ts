@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type NotificationType = 'info' | 'warn' | 'error';
+export type NotificationType = 'info' | 'warn' | 'error' | 'debug' | 'success' | 'fatal';
 
 export interface AppNotification {
     id: string;
@@ -23,6 +23,7 @@ interface NotificationState {
     clearAll: () => void;
     togglePanel: (isOpen?: boolean) => void;
     dismissToast: (id: string) => void;
+    markAllAsRead: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
@@ -61,7 +62,20 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 
     clearAll: () => set({ notifications: [], activeToasts: [] }),
 
-    togglePanel: (isOpen) => set((state) => ({
-        isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen
+    togglePanel: (isOpen) => set((state) => {
+        const nextOpen = isOpen !== undefined ? isOpen : !state.isPanelOpen;
+        // Mark all as read when opening the panel
+        const notifications = nextOpen
+            ? state.notifications.map(n => ({ ...n, read: true }))
+            : state.notifications;
+
+        return {
+            isPanelOpen: nextOpen,
+            notifications
+        };
+    }),
+
+    markAllAsRead: () => set((state) => ({
+        notifications: state.notifications.map((n) => ({ ...n, read: true }))
     })),
 }));
