@@ -74,6 +74,18 @@ function createWindow() {
     });
 }
 
+function showWindow() {
+    if (mainWindow) {
+        if (mainWindow.isMinimized()) {
+            mainWindow.restore();
+        }
+        mainWindow.show();
+        mainWindow.focus();
+    } else {
+        createWindow();
+    }
+}
+
 function createTray() {
     const iconPath = getIconPath();
     if (!iconPath) {
@@ -90,12 +102,7 @@ function createTray() {
         {
             label: '显示首页',
             click: () => {
-                if (mainWindow) {
-                    mainWindow.show();
-                    mainWindow.focus();
-                } else {
-                    createWindow();
-                }
+                showWindow();
             }
         },
         {
@@ -110,14 +117,11 @@ function createTray() {
     tray.setContextMenu(contextMenu);
 
     tray.on('click', () => {
-        if (mainWindow) {
-            if (mainWindow.isVisible()) {
-                mainWindow.hide();
-            } else {
-                mainWindow.show();
-                mainWindow.focus();
-            }
-        }
+        showWindow();
+    });
+
+    tray.on('double-click', () => {
+        showWindow();
     });
 }
 
@@ -126,8 +130,7 @@ app.whenReady().then(() => {
         const win = BrowserWindow.fromWebContents(event.sender);
         if (!win) return;
         if (action === 'close') {
-            // Instead of closing, we might want to hide it to tray on close if user wants.
-            // For now, let's just close as requested but keep logic ready.
+            // Standard close - we'll let it close but tray stays.
             win.close();
         }
         if (action === 'minimize') win.minimize();
@@ -145,15 +148,14 @@ app.whenReady().then(() => {
     createTray();
 
     app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
-        }
+        showWindow();
     });
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        // app.quit(); // We don't quit here anymore if we want tray to keep it alive
+    // Keep app alive in tray
+    if (process.platform === 'darwin') {
+        // Standard macOS behavior
     }
 });
 

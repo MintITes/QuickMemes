@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface SearchQuery {
     keyword: string;
@@ -45,73 +46,93 @@ export interface UiState {
     setAccentColor: (color: string) => void;
 }
 
-export const useUiStore = create<UiState>((set) => ({
-    isPanelOpen: false,
-    isImporting: false,
-    activeTaskId: null,
-    selectedMemeIds: [],
-    searchQuery: { keyword: '', tagIds: [] },
-    viewMode: 'grid',
-    theme: 'system',
-    resolvedTheme: 'light',
-    isSettingsOpen: false,
-    isImportModalOpen: false,
-    glassEffect: false,
-    activeNav: 'all',
-    platformOverride: 'auto',
-    glassBlur: 20,
-    cornerRadius: 12,
-    galleryGap: 16,
-    accentColor: '#0066cc',
+export const useUiStore = create<UiState>()(
+    persist(
+        (set) => ({
+            isPanelOpen: false,
+            isImporting: false,
+            activeTaskId: null,
+            selectedMemeIds: [],
+            searchQuery: { keyword: '', tagIds: [] },
+            viewMode: 'grid',
+            theme: 'system',
+            resolvedTheme: 'light',
+            isSettingsOpen: false,
+            isImportModalOpen: false,
+            glassEffect: false,
+            activeNav: 'all',
+            platformOverride: 'auto',
+            glassBlur: 20,
+            cornerRadius: 12,
+            galleryGap: 16,
+            accentColor: '#0066cc',
 
-    togglePanel: (isOpen) =>
-        set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
+            togglePanel: (isOpen) =>
+                set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
 
-    setImporting: (isImporting, taskId = null) =>
-        set({ isImporting, activeTaskId: taskId }),
+            setImporting: (isImporting, taskId = null) =>
+                set({ isImporting, activeTaskId: taskId }),
 
-    selectMeme: (id, multi = false) =>
-        set((state) => {
-            if (multi) {
-                const isSelected = state.selectedMemeIds.includes(id);
-                return {
-                    selectedMemeIds: isSelected
-                        ? state.selectedMemeIds.filter((m) => m !== id)
-                        : [...state.selectedMemeIds, id],
-                };
-            }
-            return { selectedMemeIds: [id] };
+            selectMeme: (id, multi = false) =>
+                set((state) => {
+                    if (multi) {
+                        const isSelected = state.selectedMemeIds.includes(id);
+                        return {
+                            selectedMemeIds: isSelected
+                                ? state.selectedMemeIds.filter((m) => m !== id)
+                                : [...state.selectedMemeIds, id],
+                        };
+                    }
+                    return { selectedMemeIds: [id] };
+                }),
+
+            clearSelection: () => set({ selectedMemeIds: [] }),
+
+            setSearchQuery: (query) =>
+                set((state) => ({ searchQuery: { ...state.searchQuery, ...query } })),
+
+            setViewMode: (mode) => set({ viewMode: mode }),
+
+            setTheme: (theme) => set({ theme }),
+
+            setResolvedTheme: (theme) => set({ resolvedTheme: theme }),
+
+            toggleSettings: (isOpen) =>
+                set((state) => ({ isSettingsOpen: isOpen !== undefined ? isOpen : !state.isSettingsOpen })),
+
+            toggleImportModal: (isOpen) =>
+                set((state) => ({ isImportModalOpen: isOpen !== undefined ? isOpen : !state.isImportModalOpen })),
+
+            toggleGlassEffect: (enabled) =>
+                set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),
+
+            setActiveNav: (nav: string) => set({ activeNav: nav }),
+
+            setPlatformOverride: (platform) => set({ platformOverride: platform }),
+
+            setGlassBlur: (value) => set({ glassBlur: value }),
+
+            setCornerRadius: (value) => set({ cornerRadius: value }),
+
+            setGalleryGap: (value) => set({ galleryGap: value }),
+
+            setAccentColor: (color) => set({ accentColor: color }),
         }),
-
-    clearSelection: () => set({ selectedMemeIds: [] }),
-
-    setSearchQuery: (query) =>
-        set((state) => ({ searchQuery: { ...state.searchQuery, ...query } })),
-
-    setViewMode: (mode) => set({ viewMode: mode }),
-
-    setTheme: (theme) => set({ theme }),
-
-    setResolvedTheme: (theme) => set({ resolvedTheme: theme }),
-
-    toggleSettings: (isOpen) =>
-        set((state) => ({ isSettingsOpen: isOpen !== undefined ? isOpen : !state.isSettingsOpen })),
-
-    toggleImportModal: (isOpen) =>
-        set((state) => ({ isImportModalOpen: isOpen !== undefined ? isOpen : !state.isImportModalOpen })),
-
-    toggleGlassEffect: (enabled) =>
-        set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),
-
-    setActiveNav: (nav: string) => set({ activeNav: nav }),
-
-    setPlatformOverride: (platform) => set({ platformOverride: platform }),
-
-    setGlassBlur: (value) => set({ glassBlur: value }),
-
-    setCornerRadius: (value) => set({ cornerRadius: value }),
-
-    setGalleryGap: (value) => set({ galleryGap: value }),
-
-    setAccentColor: (color) => set({ accentColor: color }),
-}));
+        {
+            name: 'quick-memes-ui-storage',
+            storage: createJSONStorage(() => localStorage),
+            // Only persist actual user settings, ignore transient UI state
+            partialize: (state) => ({
+                viewMode: state.viewMode,
+                theme: state.theme,
+                resolvedTheme: state.resolvedTheme,
+                glassEffect: state.glassEffect,
+                platformOverride: state.platformOverride,
+                glassBlur: state.glassBlur,
+                cornerRadius: state.cornerRadius,
+                galleryGap: state.galleryGap,
+                accentColor: state.accentColor,
+            }),
+        }
+    )
+);
