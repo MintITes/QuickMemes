@@ -27,9 +27,9 @@ export function Sidebar() {
     };
 
     return (
-        <aside className="w-64 flex-shrink-0 h-full bg-transparent flex flex-col p-3 space-y-6 overflow-y-auto select-none">
+        <aside className="w-64 flex-shrink-0 h-full surface-effect flex flex-col p-4 space-y-6 overflow-y-auto select-none no-drag">
             <div className="flex flex-col space-y-1">
-                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-1">System</span>
+                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-2">System</span>
                 <button
                     onClick={() => setActiveNav('all')}
                     className={getNavClass('all')}
@@ -54,7 +54,7 @@ export function Sidebar() {
             </div>
 
             <div className="flex flex-col space-y-1">
-                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-1">Shortcuts</span>
+                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-2">Shortcuts</span>
                 <button
                     onClick={() => setActiveNav('recent')}
                     className={getNavClass('recent')}
@@ -72,29 +72,31 @@ export function Sidebar() {
             </div>
 
             <div className="flex flex-col space-y-1 flex-1">
-                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-1">Categories</span>
-                {categories.length === 0 ? (
-                    <div className="px-3 py-2 text-sm text-textSecondary italic">No categories yet</div>
-                ) : (
-                    categories.map(cat => {
-                        const navId = `category-${cat.id}`;
-                        return (
-                            <button
-                                key={cat.id}
-                                onClick={() => setActiveNav(navId)}
-                                className={getNavClass(navId)}
-                            >
-                                <Folder size={16} className={getIconClass(navId)} />
-                                <span>{cat.name}</span>
-                            </button>
-                        );
-                    })
-                )}
+                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-2">Categories</span>
+                <div className="space-y-1">
+                    {categories.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-textSecondary italic">No categories yet</div>
+                    ) : (
+                        categories.map(cat => {
+                            const navId = `category-${cat.id}`;
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => setActiveNav(navId)}
+                                    className={getNavClass(navId)}
+                                >
+                                    <Folder size={16} className={getIconClass(navId)} />
+                                    <span>{cat.name}</span>
+                                </button>
+                            );
+                        })
+                    )}
+                </div>
             </div>
 
-            <div className="mt-auto flex flex-col space-y-2 pt-4 border-t border-black/5 dark:border-white/5">
-                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3">Magic Bucket</span>
-                <button className="flex items-center justify-between text-left px-4 py-3 mx-1 rounded-xl border border-dashed border-gray-400 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/10 hover:border-accent/50 hover:text-accent transition-[background-color,border-color,color] duration-200 glass-effect group no-drag">
+            <div className="mt-auto pt-4 border-t border-black/5 dark:border-white/5">
+                <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-3 block">Magic Bucket</span>
+                <button className="w-full flex items-center justify-between text-left px-4 py-3 rounded-xl border border-dashed border-gray-400 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/10 hover:border-accent/50 hover:text-accent transition-all duration-200 group no-drag">
                     <div className="flex items-center no-drag">
                         <ArchiveRestore size={18} className="mr-3 opacity-70 group-hover:opacity-100 no-drag" />
                         <span className="font-medium text-sm no-drag">Bucket</span>

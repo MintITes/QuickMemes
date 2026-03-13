@@ -66,7 +66,7 @@ export function Gallery() {
     };
 
     return (
-        <main className="flex-1 h-full bg-bgSurface rounded-tl-2xl border-l border-t border-black/20 dark:border-borderColor shadow-[-8px_0_30px_rgba(0,0,0,0.04)] dark:shadow-[-4px_-4px_15px_rgba(0,0,0,0.2)] flex flex-col relative z-0 overflow-hidden">
+        <main className="flex-1 h-full surface-effect flex flex-col relative z-0 overflow-hidden shadow-none box-border">
             <div className="h-12 mx-4 mt-3 mb-2 rounded-xl border border-borderColor flex px-4 items-center justify-between glass-effect z-10 sticky top-3">
                 <div className="flex gap-2">
                     <IconButton

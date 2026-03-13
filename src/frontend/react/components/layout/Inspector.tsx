@@ -11,7 +11,7 @@ export function Inspector() {
     }
 
     return (
-        <aside className="w-72 flex-shrink-0 h-full bg-transparent flex flex-col overflow-y-auto z-10 pt-4">
+        <aside className="w-72 flex-shrink-0 h-full surface-effect flex flex-col overflow-y-auto z-10 box-border">
             {/* Preview Image Area */}
             <div className="h-56 bg-black/5 dark:bg-black/20 flex flex-col items-center justify-center p-4 relative">
                 <div className="w-full h-full rounded-lg shadow-sm bg-black/10 dark:bg-white/5 flex items-center justify-center border border-white/10">
@@ -22,10 +22,10 @@ export function Inspector() {
             <div className="p-5 flex flex-col gap-6">
                 {/* Information Section */}
                 <section>
-                    <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-wider mb-3 flex items-center">
+                    <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-wider mb-3 flex items-center px-1">
                         <Info size={14} className="mr-1.5" /> Information
                     </h3>
-                    <div className="bg-bgPrimary/60 rounded-xl p-3 border border-white/10 dark:border-white/5 shadow-sm">
+                    <div className="inner-container-effect p-3 shadow-sm">
                         <div className="text-xs grid grid-cols-[70px_1fr] gap-y-2 gap-x-2">
                             <span className="opacity-60 text-right">Name</span>
                             <span className="truncate font-medium" title="example_meme_v2.png">example_meme_v2.png</span>

@@ -10,7 +10,7 @@ export function MainShell() {
     return (
         <div className="w-screen h-screen flex flex-col bg-bgPrimary text-textPrimary overflow-hidden font-sans">
             <Header />
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 overflow-hidden p-2 gap-2 bg-gradient-to-br from-black/[0.02] to-transparent dark:from-white/[0.02] dark:to-transparent">
                 <Sidebar />
                 <Gallery />
                 <Inspector />
