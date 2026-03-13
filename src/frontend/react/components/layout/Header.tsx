@@ -107,9 +107,14 @@ export function Header() {
 
                 <div className="w-0.5 h-4 bg-black/10 dark:bg-white/10 mx-2 no-drag"></div>
 
-                <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center no-drag">
-                    <User size={16} />
-                </div>
+                <button
+                    className="w-9 h-9 rounded-full bg-accent/10 dark:bg-accent/20 text-accent flex items-center justify-center no-drag border border-accent/20 hover:border-accent/50 hover:bg-accent/30 hover:scale-105 active:scale-95 transition-all duration-300 glass-effect group relative overflow-hidden"
+                    title="User Profile"
+                >
+                    {/* Subtle inner glow */}
+                    <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <User size={18} className="relative z-10 transition-transform duration-300 group-hover:scale-110" />
+                </button>
 
                 {platform !== 'darwin' && (
                     <WindowControlButton className="ml-4 border-l border-white/10 dark:border-black/10" />
