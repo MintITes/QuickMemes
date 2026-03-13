@@ -3,6 +3,7 @@ import { X, Shield, Globe, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconButton } from '../common/IconButton';
 import { Switch } from '../common/Switch';
+import { Slider } from '../common/Slider';
 import { useUiStore } from '../../stores/UiStore';
 import clsx from 'clsx';
 import { LivePreview } from './LivePreview';
@@ -105,42 +106,34 @@ export function SettingsModal() {
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-xs font-medium opacity-60 px-1">
-                                    <span>磨砂玻璃模糊级别 ({glassBlur}px)</span>
-                                    {!glassEffect && <span className="text-orange-500 font-bold text-[10px]">需要开启玻璃特效</span>}
-                                </div>
-                                <input
-                                    type="range" min="0" max="40" step="1"
-                                    disabled={!glassEffect}
-                                    value={glassBlur} onChange={(e) => setGlassBlur(Number(e.target.value))}
-                                    className={clsx("w-full h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-accent", !glassEffect && "opacity-50 cursor-not-allowed")}
-                                />
-                                <p className="text-[10px] opacity-40 px-1 mt-1 font-medium italic">注：模糊效果仅在“全局磨砂玻璃特效”开启时有效。</p>
-                            </div>
+                            <Slider
+                                label="磨砂玻璃模糊级别"
+                                value={glassBlur}
+                                min={0}
+                                max={40}
+                                onChange={setGlassBlur}
+                                disabled={!glassEffect}
+                                unit="px"
+                                warning={!glassEffect ? "需要开启玻璃特效" : undefined}
+                            />
 
-                            <div className="space-y-2 pt-2">
-                                <div className="flex justify-between text-xs font-medium opacity-60 px-1">
-                                    <span>全局圆角半径 ({cornerRadius}px)</span>
-                                </div>
-                                <input
-                                    type="range" min="0" max="24" step="1"
-                                    value={cornerRadius} onChange={(e) => setCornerRadius(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-accent"
-                                />
-                                <p className="text-[10px] opacity-40 px-1 mt-1 font-medium italic">控制窗口、卡片及弹出层的圆角程度。</p>
-                            </div>
+                            <Slider
+                                label="全局圆角半径"
+                                value={cornerRadius}
+                                min={0}
+                                max={24}
+                                onChange={setCornerRadius}
+                                unit="px"
+                            />
 
-                            <div className="space-y-2 pt-2">
-                                <div className="flex justify-between text-xs font-medium opacity-60 px-1">
-                                    <span>内容间距级别 ({galleryGap}px)</span>
-                                </div>
-                                <input
-                                    type="range" min="4" max="32" step="1"
-                                    value={galleryGap} onChange={(e) => setGalleryGap(Number(e.target.value))}
-                                    className="w-full h-1.5 bg-black/10 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-accent"
-                                />
-                            </div>
+                            <Slider
+                                label="内容间距级别"
+                                value={galleryGap}
+                                min={4}
+                                max={32}
+                                onChange={setGalleryGap}
+                                unit="px"
+                            />
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div className="font-medium text-sm">强调色 (Accent Color)</div>
@@ -348,7 +341,7 @@ export function SettingsModal() {
                                         key={tab.id}
                                         onClick={() => setActiveTab(tab.id)}
                                         className={clsx(
-                                            "px-4 py-2 text-left text-sm font-medium transition-all flex items-baseline gap-2",
+                                            "px-4 py-2 text-left text-sm font-medium transition-colors duration-200 flex items-baseline gap-2",
                                             activeTab === tab.id
                                                 ? "bg-accent text-white shadow-md shadow-accent/20"
                                                 : "opacity-70 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10"

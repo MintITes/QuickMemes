@@ -11,7 +11,7 @@ export function Sidebar() {
     const getNavClass = (id: string) => {
         const isActive = activeNav === id;
         return clsx(
-            "flex items-center text-left px-3 py-2 rounded-xl text-sm transition-all group relative no-drag",
+            "flex items-center text-left px-3 py-2 rounded-xl text-sm transition-colors duration-200 group relative no-drag",
             isActive
                 ? "bg-black/5 dark:bg-white/10 font-semibold text-textPrimary shadow-sm border border-black/5 dark:border-white/10"
                 : "hover:bg-black/5 dark:hover:bg-white/10 text-textPrimary border border-transparent"
@@ -94,7 +94,7 @@ export function Sidebar() {
 
             <div className="mt-auto flex flex-col space-y-2 pt-4 border-t border-black/5 dark:border-white/5">
                 <span className="text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3">Magic Bucket</span>
-                <button className="flex items-center justify-between text-left px-4 py-3 mx-1 rounded-xl border border-dashed border-gray-400 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/10 hover:border-accent/50 hover:text-accent transition-all glass-effect group no-drag">
+                <button className="flex items-center justify-between text-left px-4 py-3 mx-1 rounded-xl border border-dashed border-gray-400 dark:border-gray-600 hover:bg-black/5 dark:hover:bg-white/10 hover:border-accent/50 hover:text-accent transition-[background-color,border-color,color] duration-200 glass-effect group no-drag">
                     <div className="flex items-center no-drag">
                         <ArchiveRestore size={18} className="mr-3 opacity-70 group-hover:opacity-100 no-drag" />
                         <span className="font-medium text-sm no-drag">Bucket</span>
