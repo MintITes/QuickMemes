@@ -5,6 +5,7 @@ import { Inspector } from './Inspector';
 import { StatusBar } from './StatusBar';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ImportModal } from '../settings/ImportModal';
+import { NotificationPanel } from './NotificationPanel';
 
 export function MainShell() {
     return (
@@ -20,6 +21,7 @@ export function MainShell() {
             {/* Absolute positioning modals */}
             <SettingsModal />
             <ImportModal />
+            <NotificationPanel />
         </div>
     );
 }
