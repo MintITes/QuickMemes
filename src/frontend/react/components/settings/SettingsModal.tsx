@@ -202,15 +202,15 @@ export function SettingsModal() {
                         <div className="space-y-2">
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
                                 <span className="text-sm">全局唤出</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono">Alt + Space</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">未设置</span>
                             </div>
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
                                 <span className="text-sm">快速截图导入</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono">Alt + Shift + A</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">未设置</span>
                             </div>
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
                                 <span className="text-sm">开启设置</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono">Ctrl + ,</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">未设置</span>
                             </div>
                         </div>
                     </div>
