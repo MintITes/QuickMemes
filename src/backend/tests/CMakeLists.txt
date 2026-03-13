@@ -61,7 +61,7 @@ target_link_libraries(quickmemes_tests PRIVATE
 set(PCH_HEADER ${CMAKE_CURRENT_LIST_DIR}/../src/pch.hpp)
 target_precompile_headers(quickmemes_tests PRIVATE ${PCH_HEADER})
 
-if(WIN32)
+if(MSVC)
     add_custom_command(TARGET quickmemes_tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_RUNTIME_DLLS:quickmemes_tests>
