@@ -103,9 +103,12 @@ add_library(stb_impl STATIC ${STB_IMPL_FILE})
 target_include_directories(stb_impl PUBLIC ${stb_SOURCE_DIR})
 
 # ─────────────────────────────────────────────────────────────
-# sqlite-vec 扩展编译为共享库
+# sqlite-vec 扩展编译为静态库
+# 说明：Windows 下若编译为 DLL（SHARED）并同时静态链接 SQLiteCpp，
+# 会导致 sqlite3 在不同模块中出现多个实例，进而在调用 sqlite3_vec_init()
+# 时产生未定义行为（常见为 SEGFAULT）。使用静态库可保证同一 sqlite3 实例。
 # ─────────────────────────────────────────────────────────────
-add_library(sqlite_vec_ext SHARED ${sqlite_vec_SOURCE_DIR}/sqlite-vec.c)
+add_library(sqlite_vec_ext STATIC ${sqlite_vec_SOURCE_DIR}/sqlite-vec.c)
 target_include_directories(sqlite_vec_ext PRIVATE
     ${sqlite_vec_SOURCE_DIR}
     ${SQLiteCpp_SOURCE_DIR}/sqlite3  # SQLite3 头文件来自 SQLiteCpp 捆绑的 sqlite3
@@ -121,7 +124,6 @@ target_link_libraries(sqlite_vec_ext PRIVATE
     SQLiteCpp
 )
 set_target_properties(sqlite_vec_ext PROPERTIES
-    PREFIX ""  # 不加 lib 前缀，便于 load_extension
     OUTPUT_NAME "vec0"
 )
 
