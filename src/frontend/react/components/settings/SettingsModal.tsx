@@ -27,7 +27,7 @@ export function SettingsModal() {
     const handleLogoClick = () => {
         const newCount = debugClickCount + 1;
         if (newCount >= 5) {
-            // @ts-ignore
+            // @ts-expect-error - electronAPI is injected by preload script
             window.electronAPI?.openDevTools();
             setDebugClickCount(0);
         } else {
@@ -261,7 +261,7 @@ export function SettingsModal() {
                                     href="https://github.com/MintITes/QuickMemes"
                                     onClick={(e) => {
                                         e.preventDefault();
-                                        // @ts-ignore
+                                        // @ts-expect-error - electronAPI is injected by preload script
                                         window.electronAPI?.openExternal("https://github.com/MintITes/QuickMemes");
                                     }}
                                     className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
@@ -274,7 +274,7 @@ export function SettingsModal() {
                                     href="https://github.com/MintITes/QuickMemes"
                                     onClick={(e) => {
                                         e.preventDefault();
-                                        // @ts-ignore
+                                        // @ts-expect-error - electronAPI is injected by preload script
                                         window.electronAPI?.openExternal("https://github.com/MintITes/QuickMemes");
                                     }}
                                     className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
@@ -340,7 +340,7 @@ export function SettingsModal() {
                         style={{
                             WebkitAppRegion: 'no-drag',
                             borderRadius: 'var(--corner-radius)'
-                        } as any}
+                        } as React.CSSProperties}
                     >
                         {/* Header */}
                         <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">

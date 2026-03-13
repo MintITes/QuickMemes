@@ -1,7 +1,7 @@
-type EventHandler = (payload: any) => void;
+type EventHandler = (payload: unknown) => void;
 
 let ws: WebSocket | null = null;
-let reconnectTimer: any = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentRetries = 0;
 let isForcedDisconnect = false;
 

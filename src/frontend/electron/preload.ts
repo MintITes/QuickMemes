@@ -1,12 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
     readClipboardImage: () => Promise.resolve(null),
-    writeClipboardImage: (filePath: string) => Promise.resolve(),
-    openFileDialog: (options: any) => Promise.resolve([]),
-    saveFileDialog: (options: any) => Promise.resolve(null),
-    registerGlobalShortcut: (key: string, callback: () => void) => { },
-    unregisterGlobalShortcut: (key: string) => { },
+    writeClipboardImage: (_filePath: string) => Promise.resolve(),
+    openFileDialog: (_options: unknown) => Promise.resolve([]),
+    saveFileDialog: (_options: unknown) => Promise.resolve(null),
+    registerGlobalShortcut: (_key: string, _callback: () => void) => { },
+    unregisterGlobalShortcut: (_key: string) => { },
     showMemePanel: () => { },
     hideMemePanel: () => { },
     windowControls: (action: 'close' | 'minimize' | 'maximize') => ipcRenderer.send('window-controls', action),

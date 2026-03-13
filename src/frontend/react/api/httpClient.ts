@@ -44,7 +44,7 @@ export async function sendHttpRequest<T>(method: string, path: string, body?: ob
             if (errorJson && errorJson.error) {
                 errorMsg = errorJson.error;
             }
-        } catch (e) {
+        } catch {
             // Ignored if response is not JSON
         }
         throw new HttpError(response.status, errorMsg);

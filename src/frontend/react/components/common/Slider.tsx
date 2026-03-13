@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
@@ -33,21 +33,14 @@ export function Slider({
     // High-precision local value for smooth visual tracking
     const [localValue, setLocalValue] = useState(value);
 
-    // Sync local value when external value changes (unless dragging)
-    useEffect(() => {
-        if (!isDragging) {
-            setLocalValue(value);
-        }
-    }, [value, isDragging]);
-
-    const calculateValueFromEvent = (clientX: number) => {
+    const calculateValueFromEvent = useCallback((clientX: number) => {
         if (!containerRef.current) return localValue;
         const rect = containerRef.current.getBoundingClientRect();
         const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
         return min + (x / rect.width) * (max - min);
-    };
+    }, [localValue, min, max]);
 
-    const handleInteraction = (clientX: number) => {
+    const handleInteraction = useCallback((clientX: number) => {
         const newValue = calculateValueFromEvent(clientX);
         setLocalValue(newValue);
 
@@ -56,7 +49,7 @@ export function Slider({
         if (steppedValue !== value) {
             onChange(Number(steppedValue.toFixed(2)));
         }
-    };
+    }, [calculateValueFromEvent, step, value, onChange]);
 
     useEffect(() => {
         if (!isDragging) return;
@@ -76,9 +69,10 @@ export function Slider({
             window.removeEventListener('mouseup', handleEnd);
             window.removeEventListener('touchend', handleEnd);
         };
-    }, [isDragging, localValue, value]);
+    }, [isDragging, handleInteraction]);
 
-    const percentage = ((localValue - min) / (max - min)) * 100;
+    const displayedValue = isDragging ? localValue : value;
+    const percentage = ((displayedValue - min) / (max - min)) * 100;
 
     return (
         <div className={clsx("space-y-2 select-none", className, disabled && "opacity-50 pointer-events-none")}>

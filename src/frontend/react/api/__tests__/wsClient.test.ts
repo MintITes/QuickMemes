@@ -4,9 +4,9 @@ import { connectWebSocket, disconnectWebSocket, onEvent } from '../wsClient';
 class MockWebSocket {
     url: string;
     onopen: (() => void) | null = null;
-    onclose: ((event: any) => void) | null = null;
-    onmessage: ((event: any) => void) | null = null;
-    onerror: ((event: any) => void) | null = null;
+    onclose: ((event: { code: number }) => void) | null = null;
+    onmessage: ((event: { data: string }) => void) | null = null;
+    onerror: ((event: unknown) => void) | null = null;
     readyState = 0;
 
     constructor(url: string) {

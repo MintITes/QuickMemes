@@ -9,7 +9,7 @@ import { WindowControlButton } from '../common/WindowControlButton';
 import { DropdownMenu } from '../common/DropdownMenu';
 
 export function Header() {
-    // @ts-ignore
+    // @ts-expect-error - electronAPI is injected by preload script
     const systemPlatform = window.electronAPI?.platform || 'linux';
     const platformOverride = useUiStore(state => state.platformOverride);
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
@@ -23,7 +23,7 @@ export function Header() {
         setTheme(nextTheme);
     };
 
-    const handleAction = (type: string) => {
+    const handleAction = (type: 'quick' | 'clipboard' | 'file' | 'url') => {
         console.log('Action selected:', type);
         if (type === 'quick') {
             toggleImportModal(true);
@@ -34,7 +34,7 @@ export function Header() {
         <header
             className="h-14 flex-shrink-0 grid grid-cols-[1fr_auto_1fr] items-center px-4 border-b border-white/10 dark:border-black/10 z-50 glass-effect no-drag"
             data-testid="header"
-            style={{ WebkitAppRegion: 'drag' } as any}
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
             {/* macOS Window Controls handled by our dynamic component */}
             <div className={clsx("flex items-center gap-2 justify-self-start h-full", platform === 'darwin' ? 'ml-0' : '')}>
@@ -44,7 +44,7 @@ export function Header() {
                     style={{
                         filter: 'drop-shadow(0 0 2px var(--accent-color))',
                         WebkitFilter: 'drop-shadow(0 0 2px var(--accent-color))'
-                    } as any}
+                    } as React.CSSProperties}
                 >
                     <div
                         className="absolute inset-0 bg-accent transition-colors duration-500"
@@ -55,7 +55,7 @@ export function Header() {
                             maskRepeat: 'no-repeat',
                             WebkitMaskSize: 'contain',
                             maskSize: 'contain'
-                        }}
+                        } as React.CSSProperties}
                     />
                 </div>
                 <span className="font-bold opacity-80 text-[15px] tracking-wide cursor-default ml-1 select-none">QuickMemes</span>
@@ -79,7 +79,7 @@ export function Header() {
                 <DropdownMenu
                     isOpen={isMenuOpen}
                     onClose={() => setIsMenuOpen(false)}
-                    anchorRect={plusButtonRef.current?.getBoundingClientRect()}
+                    anchorRef={plusButtonRef}
                     onAction={handleAction}
                 />
             </div>

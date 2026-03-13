@@ -6,7 +6,7 @@ import { Portal } from './Portal';
 interface DropdownMenuProps {
     isOpen: boolean;
     onClose: () => void;
-    anchorRect?: DOMRect;
+    anchorRef?: React.RefObject<HTMLElement | null>;
     onAction: (type: 'quick' | 'clipboard' | 'file' | 'url') => void;
 }
 
@@ -17,15 +17,15 @@ const menuItems = [
     { id: 'url', label: '从 URL 导入', icon: <LinkIcon size={16} />, description: '输入网络图片链接' },
 ];
 
-export function DropdownMenu({ isOpen, onClose, anchorRect, onAction }: DropdownMenuProps) {
+export function DropdownMenu({ isOpen, onClose, anchorRef, onAction }: DropdownMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
+    const [style, setStyle] = React.useState<React.CSSProperties>({});
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as Node;
             const isClickOnMenu = menuRef.current?.contains(target);
 
-            // @ts-ignore - Find the button that opened this menu to avoid immediate re-opening
             const isClickOnAnchor = (event.target as HTMLElement).closest('[data-testid="btn-add"]');
 
             if (isOpen && !isClickOnMenu && !isClickOnAnchor) {
@@ -43,6 +43,25 @@ export function DropdownMenu({ isOpen, onClose, anchorRect, onAction }: Dropdown
             document.addEventListener('mousedown', handleClickOutside);
             document.addEventListener('keydown', handleEsc);
             window.addEventListener('blur', onClose);
+
+            // Calculate position when opening
+            if (anchorRef?.current) {
+                const rect = anchorRef.current.getBoundingClientRect();
+                const menuWidth = 256;
+                const anchorCenter = rect.left + rect.width / 2;
+                let leftPos = anchorCenter - menuWidth / 2;
+
+                // Boundaries check
+                if (leftPos < 12) leftPos = 12;
+                if (leftPos + menuWidth > window.innerWidth - 12) {
+                    leftPos = window.innerWidth - menuWidth - 12;
+                }
+
+                setStyle({
+                    top: `${rect.bottom + 8}px`,
+                    left: `${leftPos}px`
+                });
+            }
         }
 
         return () => {
@@ -50,25 +69,7 @@ export function DropdownMenu({ isOpen, onClose, anchorRect, onAction }: Dropdown
             document.removeEventListener('keydown', handleEsc);
             window.removeEventListener('blur', onClose);
         };
-    }, [isOpen, onClose]);
-
-    // Position calculation
-    const style: React.CSSProperties = {};
-    if (anchorRect) {
-        style.top = `${anchorRect.bottom + 8}px`;
-        // Center-align the menu (w-64 is 256px)
-        const menuWidth = 256;
-        const anchorCenter = anchorRect.left + anchorRect.width / 2;
-        let leftPos = anchorCenter - menuWidth / 2;
-
-        // Boundaries check
-        if (leftPos < 12) leftPos = 12;
-        if (leftPos + menuWidth > window.innerWidth - 12) {
-            leftPos = window.innerWidth - menuWidth - 12;
-        }
-
-        style.left = `${leftPos}px`;
-    }
+    }, [isOpen, onClose, anchorRef]);
 
     return (
         <AnimatePresence>
@@ -88,7 +89,7 @@ export function DropdownMenu({ isOpen, onClose, anchorRect, onAction }: Dropdown
                                 <button
                                     key={item.id}
                                     onClick={() => {
-                                        onAction(item.id as any);
+                                        onAction(item.id as 'quick' | 'clipboard' | 'file' | 'url');
                                         onClose();
                                     }}
                                     className="w-full group flex items-start gap-3 p-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-200 text-left"

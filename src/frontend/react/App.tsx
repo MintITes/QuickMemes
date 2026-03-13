@@ -18,6 +18,7 @@ function App() {
 
   useEffect(() => {
     // Expose debug commands to global window object
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).debug = {
       notify: (type: NotificationType, title: string, description?: string) => {
         addNotification({ type, title, description });
@@ -58,6 +59,7 @@ function App() {
     console.log("- debug.task.complete()");
 
     return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (window as any).debug;
     };
   }, [addNotification, clearNotifications, startTask, updateProgress, completeTask, clearTask]);
