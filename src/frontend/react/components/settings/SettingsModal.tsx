@@ -22,6 +22,21 @@ export function SettingsModal() {
         accentColor, setAccentColor
     } = useUiStore();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+    const [debugClickCount, setDebugClickCount] = useState(0);
+
+    const handleLogoClick = () => {
+        const newCount = debugClickCount + 1;
+        if (newCount >= 5) {
+            // @ts-ignore
+            window.electronAPI?.openDevTools();
+            setDebugClickCount(0);
+        } else {
+            setDebugClickCount(newCount);
+            // Reset counter after 2 seconds of inactivity
+            const timer = setTimeout(() => setDebugClickCount(0), 2000);
+            return () => clearTimeout(timer);
+        }
+    };
 
     const renderContent = () => {
         switch (activeTab) {
@@ -218,7 +233,13 @@ export function SettingsModal() {
             case 'about':
                 return (
                     <div className="flex flex-col items-center justify-center text-center mt-0">
-                        <img src={resolvedTheme === 'dark' ? '/logo-dark.svg' : '/logo.svg'} alt="Logo" className="w-50 h-40 mb-0 opacity-80 drop-shadow-lg" draggable={false} />
+                        <motion.img
+                            src={resolvedTheme === 'dark' ? '/logo-dark.svg' : '/logo.svg'}
+                            alt="Logo"
+                            className="w-50 h-40 mb-0 opacity-80 drop-shadow-lg cursor-pointer active:scale-95 transition-transform"
+                            draggable={false}
+                            onClick={handleLogoClick}
+                        />
                         <h3 className="font-bold text-xl tracking-wider select-none">QuickMemes</h3>
                         <p className="text-sm opacity-60 mb-2">Version 0.0.1-dev</p>
 

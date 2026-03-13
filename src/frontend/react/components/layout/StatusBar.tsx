@@ -4,6 +4,8 @@ import { useNotificationStore } from '../../stores/NotificationStore';
 import { CheckCircle2, Inbox, AlertTriangle, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
+import { ProgressBar } from './ProgressBar';
+
 export function StatusBar() {
     const totalCount = useMemeStore(state => state.totalCount);
     const selectedMemeIds = useUiStore(state => state.selectedMemeIds);
@@ -24,8 +26,8 @@ export function StatusBar() {
                 )}
             </div>
 
-            <div className="flex items-center justify-center flex-1">
-                {/* Placeholder for task progress */}
+            <div className="flex-1 flex items-center justify-center overflow-visible">
+                <ProgressBar />
             </div>
 
             <div

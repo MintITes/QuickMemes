@@ -11,5 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     hideMemePanel: () => { },
     windowControls: (action: 'close' | 'minimize' | 'maximize') => ipcRenderer.send('window-controls', action),
     openExternal: (url: string) => ipcRenderer.send('open-external', url),
+    openDevTools: () => ipcRenderer.send('open-dev-tools'),
     platform: process.platform,
 });

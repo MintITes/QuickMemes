@@ -144,6 +144,11 @@ app.whenReady().then(() => {
         shell.openExternal(url);
     });
 
+    ipcMain.on('open-dev-tools', (event) => {
+        const win = BrowserWindow.fromWebContents(event.sender);
+        win?.webContents.openDevTools();
+    });
+
     createWindow();
     createTray();
 

@@ -6,6 +6,7 @@ import { StatusBar } from './StatusBar';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ImportModal } from '../settings/ImportModal';
 import { NotificationPanel } from './NotificationPanel';
+import { ToastContainer } from './ToastContainer';
 
 export function MainShell() {
     return (
@@ -22,6 +23,7 @@ export function MainShell() {
             <SettingsModal />
             <ImportModal />
             <NotificationPanel />
+            <ToastContainer />
         </div>
     );
 }

@@ -2,45 +2,55 @@ import { create } from 'zustand';
 
 export type NotificationType = 'info' | 'warn' | 'error';
 
-export interface Notification {
+export interface AppNotification {
     id: string;
     type: NotificationType;
     title: string;
     description?: string;
-    timestamp: Date;
+    timestamp: number;
     read: boolean;
 }
 
 interface NotificationState {
-    notifications: Notification[];
+    notifications: AppNotification[];
+    activeToasts: AppNotification[];
     isPanelOpen: boolean;
 
     // Actions
-    addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
+    addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
     removeNotification: (id: string) => void;
     markAsRead: (id: string) => void;
     clearAll: () => void;
     togglePanel: (isOpen?: boolean) => void;
+    dismissToast: (id: string) => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set) => ({
     notifications: [],
+    activeToasts: [],
     isPanelOpen: false,
 
-    addNotification: (noti) => set((state) => ({
-        notifications: [
-            ...state.notifications,
-            {
-                ...noti,
-                id: Math.random().toString(36).substring(7),
-                timestamp: new Date(),
-                read: false,
-            }
-        ]
-    })),
+    addNotification: (noti) => {
+        const id = Math.random().toString(36).substring(7);
+        const newNotification: AppNotification = {
+            ...noti,
+            id,
+            timestamp: Date.now(),
+            read: false,
+        };
+        set((state) => ({
+            notifications: [newNotification, ...state.notifications],
+            activeToasts: state.isPanelOpen ? state.activeToasts : [newNotification, ...state.activeToasts]
+        }));
+    },
 
     removeNotification: (id) => set((state) => ({
-        notifications: state.notifications.filter((n) => n.id !== id)
+        notifications: state.notifications.filter((n) => n.id !== id),
+        activeToasts: state.activeToasts.filter((n) => n.id !== id)
+    })),
+
+    dismissToast: (id) => set((state) => ({
+        activeToasts: state.activeToasts.filter((n) => n.id !== id),
     })),
 
     markAsRead: (id) => set((state) => ({
@@ -49,7 +59,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         )
     })),
 
-    clearAll: () => set({ notifications: [] }),
+    clearAll: () => set({ notifications: [], activeToasts: [] }),
 
     togglePanel: (isOpen) => set((state) => ({
         isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen

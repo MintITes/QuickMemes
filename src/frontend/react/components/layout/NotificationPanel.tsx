@@ -19,11 +19,12 @@ export function NotificationPanel() {
         clearAll
     } = useNotificationStore();
 
-    // Sort notifications: Errors at the bottom (index 0 in displayed list, but we reverse it for display order)
-    // The requirement says "Error always at the bottom". 
-    // In a flex-col-reverse or bottom-up layout, Error should be the last ones in the array if we map them.
+    // Sort notifications: Severity first (Error > Warn > Info), then Newest first
     const sortedNotifications = [...notifications].sort((a, b) => {
-        return severityOrder[b.type] - severityOrder[a.type];
+        if (a.type !== b.type) {
+            return severityOrder[a.type] - severityOrder[b.type];
+        }
+        return b.timestamp - a.timestamp;
     });
 
     useEffect(() => {
@@ -83,7 +84,7 @@ export function NotificationPanel() {
                                     <span>没有任何通知</span>
                                 </div>
                             ) : (
-                                <div className="flex flex-col-reverse gap-2">
+                                <div className="flex flex-col gap-2">
                                     {sortedNotifications.map((noti) => (
                                         <motion.div
                                             key={noti.id}
@@ -101,7 +102,7 @@ export function NotificationPanel() {
                                                     <div className="text-xs opacity-60 mt-1 line-clamp-2">{noti.description}</div>
                                                 )}
                                                 <div className="text-[10px] opacity-40 mt-1.5">
-                                                    {noti.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(noti.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </div>
                                             </div>
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
