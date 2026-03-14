@@ -381,7 +381,7 @@ export function Inspector() {
             {/* Header / Close Switch */}
             <div className="flex items-center justify-between p-4 border-b border-borderColor bg-bgPrimary/30 shrink-0">
                 <h2 className="text-sm font-bold truncate">
-                    {isSingleSelect ? "Meme Details" : `Batch Actions (${selectedMemeIds.length})`}
+                    {selectedMemeIds.length > 1 ? `Details (${selectedMemeIds.length})` : "Meme Details"}
                 </h2>
                 <button
                     onClick={() => togglePanel(false)}
