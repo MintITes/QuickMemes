@@ -25,6 +25,9 @@ export interface UiState {
     cornerRadius: number;
     galleryGap: number;
     accentColor: string;
+    imageFit: 'contain' | 'cover';
+    showTags: boolean;
+    inspectorWidth: number;
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -44,6 +47,9 @@ export interface UiState {
     setCornerRadius: (value: number) => void;
     setGalleryGap: (value: number) => void;
     setAccentColor: (color: string) => void;
+    setImageFit: (fit: 'contain' | 'cover') => void;
+    setShowTags: (show: boolean) => void;
+    setInspectorWidth: (width: number) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -66,6 +72,9 @@ export const useUiStore = create<UiState>()(
             cornerRadius: 12,
             galleryGap: 16,
             accentColor: '#0066cc',
+            imageFit: 'cover',
+            showTags: true,
+            inspectorWidth: 320,
 
             togglePanel: (isOpen) =>
                 set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -116,7 +125,13 @@ export const useUiStore = create<UiState>()(
 
             setGalleryGap: (value) => set({ galleryGap: value }),
 
-            setAccentColor: (color) => set({ accentColor: color }),
+            setAccentColor: (color: string) => set({ accentColor: color }),
+
+            setImageFit: (fit) => set({ imageFit: fit }),
+
+            setShowTags: (show) => set({ showTags: show }),
+
+            setInspectorWidth: (width) => set({ inspectorWidth: width }),
         }),
         {
             name: 'quick-memes-ui-storage',
@@ -132,6 +147,9 @@ export const useUiStore = create<UiState>()(
                 cornerRadius: state.cornerRadius,
                 galleryGap: state.galleryGap,
                 accentColor: state.accentColor,
+                imageFit: state.imageFit,
+                showTags: state.showTags,
+                inspectorWidth: state.inspectorWidth,
             }),
         }
     )

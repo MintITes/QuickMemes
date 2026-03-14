@@ -1,88 +1,401 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useUiStore } from '../../stores/UiStore';
-import { Info, Tag as TagIcon, FileText, Image as ImageIcon, X, Copy, Edit2 } from 'lucide-react';
+import { useMemeStore } from '../../stores/MemeStore';
+import { useTagStore } from '../../stores/TagStore';
+import {
+    Info,
+    Tag as TagIcon,
+    FileText,
+    Image as ImageIcon,
+    X,
+    Copy,
+    ExternalLink,
+    Check,
+    Trash2,
+    Download,
+    Hash
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { clsx } from 'clsx';
+import { Meme } from '../../types';
 
-export function Inspector() {
-    const selectedMemeIds = useUiStore(state => state.selectedMemeIds);
-    // Temporary mocked state setup
-    // In actual implementation we would fetch details using `selectedMemeIds[0]`
+// Helper: format bytes
+const formatSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
 
-    if (selectedMemeIds.length === 0) {
-        return null; // Hidden when nothing is selected
-    }
+// Helper: format date
+const formatDate = (ts: number) => {
+    return new Date(ts).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
+
+function MemeDetails({ meme }: { meme: Meme }) {
+    const { updateMeme } = useMemeStore();
+    const { tags: allTags } = useTagStore();
+
+    const [editingOcr, setEditingOcr] = useState<string | null>(null);
+    const [editingSource, setEditingSource] = useState<string>(meme.sourceUrl || '');
+    const [tagInput, setTagInput] = useState('');
+    const [copySuccess, setCopySuccess] = useState(false);
+
+    const handleCopyOcr = () => {
+        if (meme.ocrText) {
+            navigator.clipboard.writeText(meme.ocrText);
+            setCopySuccess(true);
+            setTimeout(() => setCopySuccess(false), 2000);
+        }
+    };
+
+    const handleUpdateOcr = () => {
+        if (editingOcr !== null) {
+            updateMeme(meme.id, { ocrText: editingOcr });
+            setEditingOcr(null);
+        }
+    };
+
+    const handleUpdateSource = () => {
+        updateMeme(meme.id, { sourceUrl: editingSource });
+    };
+
+    const handleRemoveTag = (tagId: number) => {
+        updateMeme(meme.id, {
+            tagIds: meme.tagIds.filter(id => id !== tagId)
+        });
+    };
+
+    const handleAddTag = (tagName: string) => {
+        if (!tagName.trim()) return;
+        const existingTag = allTags.find(t => t.name.toLowerCase() === tagName.toLowerCase());
+        if (existingTag && !meme.tagIds.includes(existingTag.id)) {
+            updateMeme(meme.id, {
+                tagIds: [...meme.tagIds, existingTag.id]
+            });
+        }
+        setTagInput('');
+    };
 
     return (
-        <aside className="w-72 flex-shrink-0 h-full surface-effect flex flex-col overflow-y-auto z-10 box-border">
+        <div className="p-4 flex flex-col gap-6">
             {/* Preview Image Area */}
-            <div className="h-56 bg-black/5 dark:bg-black/20 flex flex-col items-center justify-center p-4 relative">
-                <div className="w-full h-full rounded-lg shadow-sm bg-black/10 dark:bg-white/5 flex items-center justify-center border border-white/10">
+            <div className="aspect-square bg-black/5 dark:bg-black/20 flex items-center justify-center p-2 rounded-xl border border-borderColor overflow-hidden group relative">
+                <img
+                    src={`file://${meme.filePath}`}
+                    alt={meme.name}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                    onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const nextElement = (e.target as HTMLImageElement).nextElementSibling;
+                        if (nextElement) (nextElement as HTMLElement).style.display = 'flex';
+                    }}
+                />
+                <div className="hidden absolute inset-0 items-center justify-center bg-black/5 dark:bg-white/5">
                     <ImageIcon className="text-textSecondary/30" size={48} />
                 </div>
             </div>
 
-            <div className="p-5 flex flex-col gap-6">
-                {/* Information Section */}
-                <section>
-                    <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-wider mb-3 flex items-center px-1">
-                        <Info size={14} className="mr-1.5" /> Information
-                    </h3>
-                    <div className="inner-container-effect p-3 shadow-sm">
-                        <div className="text-xs grid grid-cols-[70px_1fr] gap-y-2 gap-x-2">
-                            <span className="opacity-60 text-right">Name</span>
-                            <span className="truncate font-medium" title="example_meme_v2.png">example_meme_v2.png</span>
-                            <span className="opacity-60 text-right">Size</span>
-                            <span className="font-medium">2.4 MB</span>
-                            <span className="opacity-60 text-right">Format</span>
-                            <span className="font-medium">PNG</span>
-                            <span className="opacity-60 text-right">Added</span>
-                            <span className="font-medium opacity-80">2024-03-12</span>
+            {/* A. Basic Information */}
+            <section>
+                <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
+                    <Info size={14} className="mr-2" /> Basic Info
+                </h3>
+                <div className="inner-container-effect p-3 space-y-2.5">
+                    {[
+                        { label: 'Name', value: meme.name, truncate: true },
+                        { label: 'Format', value: meme.format.toUpperCase() },
+                        { label: 'Size', value: formatSize(meme.size) },
+                        { label: 'Resolution', value: `${meme.width}×${meme.height}` },
+                        { label: 'Added', value: formatDate(meme.createdAt) },
+                        { label: 'Modified', value: formatDate(meme.updatedAt) },
+                    ].map((item) => (
+                        <div key={item.label} className="grid grid-cols-[80px_1fr] items-baseline text-xs">
+                            <span className="text-textSecondary text-[10px] font-medium">{item.label}</span>
+                            <span className={clsx("font-medium break-all", item.truncate && "truncate")} title={item.value}>
+                                {item.value}
+                            </span>
                         </div>
-                    </div>
-                </section>
+                    ))}
+                </div>
+            </section>
 
-                {/* Tags Section */}
-                <section>
-                    <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-wider mb-3 flex items-center">
-                        <TagIcon size={14} className="mr-1.5" /> Tags
-                    </h3>
-                    <div className="bg-bgPrimary/60 rounded-xl p-3 border border-white/10 dark:border-white/5 shadow-sm">
-                        <div className="flex gap-2 flex-wrap mb-3">
-                            <span className="px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-medium flex items-center group cursor-pointer hover:bg-accent/25 transition-colors">
-                                funny
-                                <X size={12} className="ml-1 opacity-50 group-hover:opacity-100" />
-                            </span>
-                            <span className="px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-medium flex items-center group cursor-pointer hover:bg-accent/25 transition-colors">
-                                reaction
-                                <X size={12} className="ml-1 opacity-50 group-hover:opacity-100" />
-                            </span>
-                        </div>
+            {/* B. Tag Management */}
+            <section>
+                <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
+                    <TagIcon size={14} className="mr-2" /> Tags
+                </h3>
+                <div className="inner-container-effect p-3">
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                        {meme.tagIds.map(tid => {
+                            const tag = allTags.find(t => t.id === tid);
+                            return tag ? (
+                                <span
+                                    key={tid}
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-accent/10 border border-accent/20 text-accent text-[11px] font-medium group transition-all"
+                                >
+                                    {tag.name}
+                                    <button
+                                        onClick={() => handleRemoveTag(tid)}
+                                        className="ml-1 hover:text-red-500 opacity-40 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X size={10} strokeWidth={3} />
+                                    </button>
+                                </span>
+                            ) : null;
+                        })}
+                        {meme.tagIds.length === 0 && (
+                            <span className="text-[10px] text-textSecondary italic py-1 px-1">No tags yet.</span>
+                        )}
+                    </div>
+                    <div className="relative">
                         <input
                             type="text"
-                            placeholder="Add new tag..."
-                            className="w-full px-3 py-1.5 rounded-lg border border-borderColor bg-white/50 dark:bg-black/20 text-xs focus:outline-none focus:ring-1 focus:ring-accent/50 transition-all placeholder:text-textSecondary/60"
+                            placeholder="Add tag and press Enter..."
+                            className="w-full text-xs bg-bgPrimary/50 border border-borderColor rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddTag(tagInput)}
+                        />
+                        <Hash size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-textSecondary opacity-40" />
+                    </div>
+                </div>
+            </section>
+
+            {/* C. OCR Text Content */}
+            <section>
+                <div className="flex items-center justify-between mb-3 px-1">
+                    <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest flex items-center">
+                        <FileText size={14} className="mr-2" /> OCR Text
+                    </h3>
+                    <div className="flex gap-1.5">
+                        <button
+                            onClick={handleCopyOcr}
+                            disabled={!meme.ocrText}
+                            className="p-1 px-1.5 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors disabled:opacity-30"
+                            title="Copy text"
+                        >
+                            {copySuccess ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                        </button>
+                    </div>
+                </div>
+                <div className="relative">
+                    <textarea
+                        className="w-full min-h-[100px] text-xs bg-bgPrimary/50 border border-borderColor rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-accent/30 resize-none transition-shadow custom-scrollbar leading-relaxed"
+                        placeholder="No text detected or extracted..."
+                        value={editingOcr ?? meme.ocrText ?? ''}
+                        onChange={(e) => setEditingOcr(e.target.value)}
+                        onBlur={handleUpdateOcr}
+                    />
+                    {(editingOcr !== null && editingOcr !== meme.ocrText) && (
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5 animate-in fade-in zoom-in duration-200">
+                            <span className="bg-accent px-1.5 py-0.5 rounded text-[9px] text-white font-bold shadow-lg">UNSAVED</span>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* D. Source Information */}
+            <section>
+                <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
+                    <ExternalLink size={14} className="mr-2" /> Source
+                </h3>
+                <div className="inner-container-effect p-3">
+                    <div className="relative flex items-center">
+                        <input
+                            type="text"
+                            placeholder="Add source URL..."
+                            className="w-full text-xs bg-bgPrimary/50 border border-borderColor rounded-lg pl-3 pr-9 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                            value={editingSource}
+                            onChange={(e) => setEditingSource(e.target.value)}
+                            onBlur={handleUpdateSource}
+                        />
+                        {meme.sourceUrl && (
+                            <a
+                                href={meme.sourceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute right-2.5 p-1 text-accent hover:bg-accent/10 rounded-md transition-colors"
+                                title="Open link"
+                            >
+                                <ExternalLink size={14} />
+                            </a>
+                        )}
+                    </div>
+                </div>
+            </section>
+        </div>
+    );
+}
+
+function BatchActions({ selectedIds }: { selectedIds: number[] }) {
+    const { removeMemes } = useMemeStore();
+
+    const handleBatchDelete = () => {
+        if (confirm(`Are you sure you want to delete ${selectedIds.length} items?`)) {
+            removeMemes(selectedIds);
+        }
+    };
+
+    return (
+        <div className="p-4 flex flex-col gap-6">
+            <div className="bg-accent/5 border border-accent/20 rounded-2xl p-6 flex flex-col items-center justify-center text-center gap-3">
+                <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center relative overflow-hidden">
+                    <ImageIcon size={32} className="text-accent/60" />
+                    <div className="absolute top-0 right-0 w-6 h-6 bg-accent text-white text-[10px] font-bold flex items-center justify-center rounded-bl-xl border-l border-b border-accent">
+                        {selectedIds.length}
+                    </div>
+                </div>
+                <div>
+                    <h4 className="font-bold text-base leading-tight">Batch Editing</h4>
+                    <p className="text-[11px] text-textSecondary mt-1">You have selected {selectedIds.length} memes</p>
+                </div>
+            </div>
+
+            {/* Batch Tag Input */}
+            <section>
+                <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
+                    <TagIcon size={14} className="mr-2" /> Batch Tagging
+                </h3>
+                <div className="inner-container-effect p-4 gap-3 flex flex-col">
+                    <p className="text-[10px] text-textSecondary leading-relaxed italic">Input a tag name and Enter to add it to all selected items.</p>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Tag name..."
+                            className="w-full text-xs bg-bgPrimary/50 border border-borderColor rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent/30 transition-shadow"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    const val = (e.target as HTMLInputElement).value;
+                                    // Batch tag logic (currently placeholder)
+                                    console.log("Batch add tag:", val);
+                                    (e.target as HTMLInputElement).value = '';
+                                }
+                            }}
                         />
                     </div>
-                </section>
+                </div>
+            </section>
 
-                {/* OCR Text Section */}
-                <section>
-                    <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-wider flex items-center">
-                            <FileText size={14} className="mr-1.5" /> OCR Text
-                        </h3>
-                        <div className="flex gap-1">
-                            <button className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-textSecondary transition-colors" title="Edit OCR">
-                                <Edit2 size={12} />
-                            </button>
-                            <button className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-textSecondary transition-colors" title="Copy Text">
-                                <Copy size={12} />
-                            </button>
-                        </div>
-                    </div>
-                    <div className="w-full min-h-[80px] p-3 rounded-xl border border-white/10 dark:border-white/5 bg-bgPrimary/60 text-xs opacity-80 leading-relaxed shadow-sm">
-                        <span className="italic opacity-60">No text detected in this image.</span>
-                    </div>
-                </section>
+            {/* Batch Operations */}
+            <section>
+                <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
+                    <Check size={14} className="mr-2" /> Operations
+                </h3>
+                <div className="grid grid-cols-1 gap-2">
+                    <button className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-bgPrimary hover:bg-black/5 dark:hover:bg-white/5 border border-borderColor text-xs font-semibold transition-all">
+                        <Download size={14} /> Batch Export
+                    </button>
+                    <button
+                        onClick={handleBatchDelete}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold transition-all"
+                    >
+                        <Trash2 size={14} /> Move to Recycle Bin
+                    </button>
+                </div>
+            </section>
+        </div>
+    );
+}
+
+export function Inspector() {
+    const {
+        selectedMemeIds,
+        isPanelOpen,
+        togglePanel,
+        inspectorWidth,
+        setInspectorWidth
+    } = useUiStore();
+
+    const { memes } = useMemeStore();
+    const [isResizing, setIsResizing] = useState(false);
+
+    // Derived data
+    const selectedMemes = useMemo(() =>
+        memes.filter(m => selectedMemeIds.includes(m.id)),
+        [memes, selectedMemeIds]
+    );
+
+    const isSingleSelect = selectedMemes.length === 1;
+    const isMultiSelect = selectedMemes.length > 1;
+    const currentMeme = isSingleSelect ? selectedMemes[0] : null;
+
+    // Resizing implementation
+    const stopResizing = useCallback(() => setIsResizing(false), []);
+
+    const resize = useCallback((e: MouseEvent) => {
+        if (isResizing) {
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth > 240 && newWidth < 600) {
+                setInspectorWidth(newWidth);
+            }
+        }
+    }, [isResizing, setInspectorWidth]);
+
+    const startResizing = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    useEffect(() => {
+        window.addEventListener('mousemove', resize);
+        window.addEventListener('mouseup', stopResizing);
+        return () => {
+            window.removeEventListener('mousemove', resize);
+            window.removeEventListener('mouseup', stopResizing);
+        };
+    }, [resize, stopResizing]);
+
+    if (!isPanelOpen || selectedMemeIds.length === 0) {
+        return null;
+    }
+
+    return (
+        <motion.aside
+            initial={{ width: 0, opacity: 0 }}
+            animate={{ width: inspectorWidth, opacity: 1 }}
+            exit={{ width: 0, opacity: 0 }}
+            transition={isResizing ? { duration: 0 } : { type: 'spring', damping: 20, stiffness: 100 }}
+            className="flex-shrink-0 h-full surface-effect flex flex-col overflow-hidden relative border-l border-borderColor shadow-2xl z-20"
+        >
+            {/* Splitter Handle */}
+            <div
+                className={clsx(
+                    "absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-30 transition-colors",
+                    isResizing ? "bg-accent" : "hover:bg-accent/40"
+                )}
+                onMouseDown={startResizing}
+            />
+
+            {/* Header / Close Switch */}
+            <div className="flex items-center justify-between p-4 border-b border-borderColor bg-bgPrimary/30 shrink-0">
+                <h2 className="text-sm font-bold truncate">
+                    {isSingleSelect ? "Meme Details" : `Batch Actions (${selectedMemeIds.length})`}
+                </h2>
+                <button
+                    onClick={() => togglePanel(false)}
+                    className="p-1.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                >
+                    <X size={16} />
+                </button>
             </div>
-        </aside>
+
+            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
+                {isSingleSelect && currentMeme && (
+                    <MemeDetails key={currentMeme.id} meme={currentMeme} />
+                )}
+
+                {isMultiSelect && (
+                    <BatchActions selectedIds={selectedMemeIds} />
+                )}
+            </div>
+        </motion.aside>
     );
 }
