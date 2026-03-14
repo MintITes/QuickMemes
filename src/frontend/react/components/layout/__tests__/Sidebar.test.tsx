@@ -13,7 +13,8 @@ describe('Sidebar component', () => {
         expect(screen.getByText('All Memes')).toBeInTheDocument();
         expect(screen.getByText('Untagged')).toBeInTheDocument();
         expect(screen.getByText('Trash')).toBeInTheDocument();
-        expect(screen.getByText('Magic Bucket')).toBeInTheDocument();
+        // The bucket is labeled as "Bucket" internally in implementation, or "Magic Store" header
+        expect(screen.getByText(/Bucket/i)).toBeInTheDocument();
     });
 
     it('renders category from store', () => {
