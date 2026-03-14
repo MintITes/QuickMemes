@@ -87,14 +87,21 @@ export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherPro
 
                                         {/* Left Side (Sidebar) - THE FOCUS */}
                                         <div className={clsx(
-                                            "rounded-sm transition-all duration-500 h-full flex flex-col gap-1 p-1 border border-white/5",
+                                            "rounded-sm transition-all duration-500 h-full flex flex-col gap-1 p-1 border border-white/5 relative",
                                             layout.expanded
                                                 ? "w-[30%] bg-accent opacity-100 shadow-[2px_0_10px_rgba(0,0,0,0.1)]"
-                                                : "w-[12%] bg-accent/30 opacity-60"
+                                                : "w-[12%] bg-accent opacity-100 items-center justify-start pt-1.5"
                                         )}>
-                                            <div className={clsx("h-1 w-full rounded-full", layout.expanded ? "bg-white/40" : "bg-accent/40")} />
-                                            <div className={clsx("h-0.5 w-[70%] rounded-full", layout.expanded ? "bg-white/20" : "bg-accent/20")} />
-                                            <div className={clsx("h-0.5 w-[50%] rounded-full", layout.expanded ? "bg-white/20" : "bg-accent/20")} />
+                                            {layout.expanded ? (
+                                                <>
+                                                    <div className="h-1 w-full bg-white/40 rounded-full mb-0.5" />
+                                                    <div className="h-0.5 w-[70%] bg-white/20 rounded-full" />
+                                                    <div className="h-0.5 w-[50%] bg-white/20 rounded-full" />
+                                                </>
+                                            ) : (
+                                                /* Tiny Logo Mark for folded state */
+                                                <div className="w-1.5 h-1.5 bg-white rounded-[1px] shadow-sm animate-pulse" />
+                                            )}
                                         </div>
 
                                         {/* Main Content (Gallery) - NEUTRAL BACKGROUND */}

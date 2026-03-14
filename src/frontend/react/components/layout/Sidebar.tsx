@@ -1,21 +1,23 @@
 import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
-import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore } from 'lucide-react';
+import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore, PanelLeft, PanelLeftClose } from 'lucide-react';
+import { IconButton } from '../common/IconButton';
 import clsx from 'clsx';
 
 export function Sidebar() {
     const activeNav = useUiStore(state => state.activeNav);
     const setActiveNav = useUiStore(state => state.setActiveNav);
     const sidebarExpanded = useUiStore(state => state.sidebarExpanded);
+    const setSidebarExpanded = useUiStore(state => state.setSidebarExpanded);
     const categories = useCategoryStore(state => state.categories);
 
     const getNavClass = (id: string) => {
         const isActive = activeNav === id;
         return clsx(
-            "flex items-center text-left px-3 py-2 rounded-xl text-sm transition-colors duration-200 group relative no-drag",
+            "flex items-center text-left px-3 py-2 rounded-xl text-sm transition-all duration-200 group relative no-drag mb-0.5",
             isActive
                 ? "font-semibold text-textPrimary shadow-sm"
-                : "hover:bg-black/5 dark:hover:bg-white/5 text-textPrimary/70 hover:text-textPrimary border border-transparent"
+                : "hover:bg-black/5 dark:hover:bg-white/5 text-textPrimary/60 hover:text-textPrimary border border-transparent"
         );
     };
 
@@ -23,7 +25,7 @@ export function Sidebar() {
     const getIconClass = (id: string) => {
         const isActive = activeNav === id;
         return clsx(
-            "mr-3 transition-opacity",
+            "transition-opacity flex-shrink-0",
             isActive ? "opacity-100 text-accent" : "opacity-60 group-hover:opacity-100 group-hover:text-textPrimary"
         );
     };
@@ -31,17 +33,29 @@ export function Sidebar() {
     return (
         <aside
             className={clsx(
-                "flex-shrink-0 h-full surface-effect flex flex-col p-4 transition-[width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden select-none no-drag",
-                sidebarExpanded ? "w-64" : "w-20"
+                "flex-shrink-0 h-full surface-effect flex flex-col p-3 transition-[width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden select-none no-drag",
+                sidebarExpanded ? "w-64" : "w-[68px]"
             )}
         >
-            <div className="flex flex-col space-y-1 overflow-x-hidden">
-                <span className={clsx(
-                    "text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-2 transition-opacity duration-200",
-                    !sidebarExpanded && "opacity-0 h-0 my-0 mb-0 px-0 pointer-events-none"
-                )}>
-                    System
-                </span>
+            {/* Sidebar Toggle Header */}
+            <div className={clsx("flex items-center mb-4 px-1", sidebarExpanded ? "justify-between" : "justify-center")}>
+                {sidebarExpanded && <span className="text-xs font-bold text-textPrimary/50 px-2 tracking-widest uppercase">Library</span>}
+                <IconButton
+                    icon={sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSidebarExpanded(!sidebarExpanded)}
+                    className="opacity-50 hover:opacity-100"
+                    title={sidebarExpanded ? "折叠侧边栏" : "展开侧边栏"}
+                />
+            </div>
+
+            <div className="flex flex-col overflow-x-hidden">
+                {sidebarExpanded && (
+                    <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 opacity-60">
+                        System
+                    </span>
+                )}
                 <button
                     onClick={() => setActiveNav('all')}
                     className={clsx(getNavClass('all'), !sidebarExpanded && "justify-center px-0 h-10")}
@@ -52,7 +66,7 @@ export function Sidebar() {
                     } : {}}
                     title={!sidebarExpanded ? "All Memes" : undefined}
                 >
-                    <LayoutList size={16} className={clsx(getIconClass('all'), !sidebarExpanded && "mr-0")} />
+                    <LayoutList size={18} className={clsx(getIconClass('all'), sidebarExpanded && "mr-3")} />
                     {sidebarExpanded && <span className="truncate">All Memes</span>}
                 </button>
                 <button
@@ -65,7 +79,7 @@ export function Sidebar() {
                     } : {}}
                     title={!sidebarExpanded ? "Untagged" : undefined}
                 >
-                    <Tag size={16} className={clsx(getIconClass('untagged'), !sidebarExpanded && "mr-0")} />
+                    <Tag size={18} className={clsx(getIconClass('untagged'), sidebarExpanded && "mr-3")} />
                     {sidebarExpanded && <span className="truncate">Untagged</span>}
                 </button>
                 <button
@@ -78,18 +92,17 @@ export function Sidebar() {
                     } : {}}
                     title={!sidebarExpanded ? "Trash" : undefined}
                 >
-                    <Trash2 size={16} className={clsx(getIconClass('trash'), !sidebarExpanded && "mr-0")} />
+                    <Trash2 size={18} className={clsx(getIconClass('trash'), sidebarExpanded && "mr-3")} />
                     {sidebarExpanded && <span className="truncate">Trash</span>}
                 </button>
             </div>
 
-            <div className="flex flex-col space-y-1 overflow-x-hidden mt-6">
-                <span className={clsx(
-                    "text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-2 transition-opacity duration-200",
-                    !sidebarExpanded && "opacity-0 h-0 my-0 mb-0 px-0 pointer-events-none"
-                )}>
-                    Shortcuts
-                </span>
+            <div className="flex flex-col overflow-x-hidden mt-8">
+                {sidebarExpanded && (
+                    <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 opacity-60">
+                        Shortcuts
+                    </span>
+                )}
                 <button
                     onClick={() => setActiveNav('recent')}
                     className={clsx(getNavClass('recent'), !sidebarExpanded && "justify-center px-0 h-10")}
@@ -100,7 +113,7 @@ export function Sidebar() {
                     } : {}}
                     title={!sidebarExpanded ? "Recent" : undefined}
                 >
-                    <Clock size={16} className={clsx(getIconClass('recent'), !sidebarExpanded && "mr-0")} />
+                    <Clock size={18} className={clsx(getIconClass('recent'), sidebarExpanded && "mr-3")} />
                     {sidebarExpanded && <span className="truncate">Recent</span>}
                 </button>
                 <button
@@ -113,18 +126,17 @@ export function Sidebar() {
                     } : {}}
                     title={!sidebarExpanded ? "Starred" : undefined}
                 >
-                    <Star size={16} className={clsx(getIconClass('starred'), !sidebarExpanded && "mr-0")} />
+                    <Star size={18} className={clsx(getIconClass('starred'), sidebarExpanded && "mr-3")} />
                     {sidebarExpanded && <span className="truncate">Starred</span>}
                 </button>
             </div>
 
-            <div className="flex flex-col space-y-1 flex-1 overflow-x-hidden mt-6">
-                <span className={clsx(
-                    "text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-2 transition-opacity duration-200",
-                    !sidebarExpanded && "opacity-0 h-0 my-0 mb-0 px-0 pointer-events-none"
-                )}>
-                    Categories
-                </span>
+            <div className="flex flex-col flex-1 overflow-x-hidden mt-8">
+                {sidebarExpanded && (
+                    <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 opacity-60">
+                        Categories
+                    </span>
+                )}
                 <div className="space-y-1">
                     {categories.length === 0 ? (
                         sidebarExpanded && <div className="px-3 py-2 text-sm text-textSecondary italic">No categories yet</div>
@@ -144,7 +156,7 @@ export function Sidebar() {
                                     } : {}}
                                     title={!sidebarExpanded ? cat.name : undefined}
                                 >
-                                    <Folder size={16} className={clsx(getIconClass(navId), !sidebarExpanded && "mr-0")} />
+                                    <Folder size={18} className={clsx(getIconClass(navId), sidebarExpanded && "mr-3")} />
                                     {sidebarExpanded && <span className="truncate">{cat.name}</span>}
                                 </button>
                             );
@@ -154,18 +166,17 @@ export function Sidebar() {
             </div>
 
             <div className="mt-auto pt-4 border-t border-borderColor/20 dark:border-white/5 overflow-x-hidden">
-                <span className={clsx(
-                    "text-[11px] font-bold text-textSecondary uppercase tracking-wider px-3 mb-3 block transition-opacity duration-200",
-                    !sidebarExpanded && "opacity-0 h-0 my-0 mb-0 pointer-events-none"
-                )}>
-                    Magic Bucket
-                </span>
+                {sidebarExpanded && (
+                    <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 block opacity-50">
+                        Magic Store
+                    </span>
+                )}
                 <button className={clsx(
                     "w-full flex items-center justify-between text-left rounded-xl border border-dashed border-borderColor hover:bg-bgNested hover:border-accent/50 hover:text-accent transition-colors duration-200 group no-drag",
                     sidebarExpanded ? "px-4 py-3" : "px-0 h-10 justify-center"
                 )}>
                     <div className="flex items-center no-drag">
-                        <ArchiveRestore size={18} className={clsx("opacity-70 group-hover:opacity-100 no-drag", sidebarExpanded ? "mr-3" : "mr-0")} />
+                        <ArchiveRestore size={20} className={clsx("opacity-70 group-hover:opacity-100 no-drag", sidebarExpanded && "mr-3")} />
                         {sidebarExpanded && <span className="font-medium text-sm no-drag">Bucket</span>}
                     </div>
                     {sidebarExpanded && <span className="w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center text-[10px] font-bold shadow-sm no-drag">0</span>}
