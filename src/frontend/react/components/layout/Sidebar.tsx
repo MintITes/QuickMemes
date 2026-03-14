@@ -172,8 +172,8 @@ export function Sidebar() {
                     </span>
                 )}
                 <button className={clsx(
-                    "w-full flex items-center justify-between text-left rounded-xl border border-dashed border-borderColor hover:bg-bgNested hover:border-accent/50 hover:text-accent transition-colors duration-200 group no-drag",
-                    sidebarExpanded ? "px-4 py-3" : "px-0 h-10 justify-center"
+                    "w-full flex items-center rounded-xl border border-dashed border-borderColor hover:bg-bgNested hover:border-accent/50 hover:text-accent transition-colors duration-200 group no-drag",
+                    sidebarExpanded ? "px-4 py-3 justify-between text-left" : "px-0 h-10 justify-center"
                 )}>
                     <div className="flex items-center no-drag">
                         <ArchiveRestore size={20} className={clsx("opacity-70 group-hover:opacity-100 no-drag", sidebarExpanded && "mr-3")} />
