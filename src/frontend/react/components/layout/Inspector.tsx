@@ -13,11 +13,13 @@ import {
     Check,
     Trash2,
     Download,
-    Hash
+    Hash,
+    MousePointer2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
-import { Meme } from '../../types';
+import type { Meme } from '../../types';
+import { EmptyState } from '../common/EmptyState';
 
 // Helper: format bytes
 const formatSize = (bytes: number) => {
@@ -353,9 +355,11 @@ export function Inspector() {
         };
     }, [resize, stopResizing]);
 
-    if (!isPanelOpen || selectedMemeIds.length === 0) {
+    if (!isPanelOpen) {
         return null;
     }
+
+    const hasSelection = selectedMemeIds.length > 0;
 
     return (
         <motion.aside
@@ -388,12 +392,25 @@ export function Inspector() {
             </div>
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-                {isSingleSelect && currentMeme && (
-                    <MemeDetails key={currentMeme.id} meme={currentMeme} />
-                )}
+                {hasSelection ? (
+                    <>
+                        {isSingleSelect && currentMeme && (
+                            <MemeDetails key={currentMeme.id} meme={currentMeme} />
+                        )}
 
-                {isMultiSelect && (
-                    <BatchActions selectedIds={selectedMemeIds} />
+                        {isMultiSelect && (
+                            <BatchActions selectedIds={selectedMemeIds} />
+                        )}
+                    </>
+                ) : (
+                    <div className="h-full flex items-center justify-center p-8">
+                        <EmptyState
+                            icon={<MousePointer2 size={40} className="opacity-20" />}
+                            title="No selection"
+                            description="Select one or more memes to see details and actions."
+                            className="scale-90"
+                        />
+                    </div>
                 )}
             </div>
         </motion.aside>

@@ -28,6 +28,7 @@ export interface UiState {
     imageFit: 'contain' | 'cover';
     showTags: boolean;
     inspectorWidth: number;
+    sidebarExpanded: boolean;
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -50,6 +51,7 @@ export interface UiState {
     setImageFit: (fit: 'contain' | 'cover') => void;
     setShowTags: (show: boolean) => void;
     setInspectorWidth: (width: number) => void;
+    setSidebarExpanded: (expanded: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -75,6 +77,7 @@ export const useUiStore = create<UiState>()(
             imageFit: 'cover',
             showTags: true,
             inspectorWidth: 320,
+            sidebarExpanded: true,
 
             togglePanel: (isOpen) =>
                 set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -132,6 +135,8 @@ export const useUiStore = create<UiState>()(
             setShowTags: (show) => set({ showTags: show }),
 
             setInspectorWidth: (width) => set({ inspectorWidth: width }),
+
+            setSidebarExpanded: (expanded) => set({ sidebarExpanded: expanded }),
         }),
         {
             name: 'quick-memes-ui-storage',
@@ -150,6 +155,7 @@ export const useUiStore = create<UiState>()(
                 imageFit: state.imageFit,
                 showTags: state.showTags,
                 inspectorWidth: state.inspectorWidth,
+                sidebarExpanded: state.sidebarExpanded,
             }),
         }
     )

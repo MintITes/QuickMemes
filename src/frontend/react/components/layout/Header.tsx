@@ -7,6 +7,7 @@ import { IconButton } from '../common/IconButton';
 import { PlusButton } from '../common/PlusButton';
 import { WindowControlButton } from '../common/WindowControlButton';
 import { DropdownMenu } from '../common/DropdownMenu';
+import { LayoutSwitcher } from './LayoutSwitcher';
 
 export function Header() {
     // @ts-expect-error - electronAPI is injected by preload script
@@ -16,7 +17,10 @@ export function Header() {
 
     const { resolvedTheme, setTheme, toggleSettings, toggleImportModal } = useUiStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isLayoutOpen, setIsLayoutOpen] = useState(false);
+
     const plusButtonRef = useRef<HTMLButtonElement>(null);
+    const layoutButtonRef = useRef<HTMLButtonElement>(null);
 
     const handleThemeToggle = () => {
         const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
@@ -40,7 +44,7 @@ export function Header() {
             <div className={clsx("flex items-center gap-2 justify-self-start h-full", platform === 'darwin' ? 'ml-0' : '')}>
                 {platform === 'darwin' && <WindowControlButton className="mr-2" />}
                 <div
-                    className="h-8 w-8 relative flex-shrink-0 transition-all duration-500"
+                    className="h-8 w-8 relative flex-shrink-0 transition-[filter] duration-500"
                     style={{
                         filter: 'drop-shadow(0 0 2px var(--accent-color))',
                         WebkitFilter: 'drop-shadow(0 0 2px var(--accent-color))'
@@ -62,7 +66,7 @@ export function Header() {
             </div>
 
             {/* Global Search Bar (Centered safely by Grid) */}
-            <div className="justify-self-center w-[240px] focus-within:w-[400px] h-9 rounded-xl bg-black/5 dark:bg-black/20 flex items-center px-3 shadow-inner overflow-hidden border border-black/10 dark:border-white/10 no-drag transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:bg-white dark:focus-within:bg-black/40 focus-within:ring-2 focus-within:ring-accent/50 focus-within:shadow-md outline-none relative group">
+            <div className="justify-self-center w-[240px] focus-within:w-[400px] h-9 rounded-xl bg-black/5 dark:bg-black/20 flex items-center px-3 shadow-inner overflow-hidden border border-black/10 dark:border-white/10 no-drag transition-[width,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:bg-white dark:focus-within:bg-black/40 focus-within:ring-2 focus-within:ring-accent/50 focus-within:shadow-md outline-none relative group">
                 <Search size={16} className="text-textSecondary mr-2 no-drag transition-colors group-focus-within:text-accent" />
                 <input
                     type="text"
@@ -87,9 +91,16 @@ export function Header() {
             {/* Tools Area */}
             <div className="flex items-center gap-1 justify-self-end no-drag">
                 <IconButton
+                    ref={layoutButtonRef}
                     icon={<LayoutGrid size={18} />}
                     aria-label="Layout"
-                    className="opacity-70 hover:opacity-100"
+                    className={clsx("opacity-70 hover:opacity-100", isLayoutOpen && "opacity-100 bg-black/5 dark:bg-white/10")}
+                    onClick={() => setIsLayoutOpen(!isLayoutOpen)}
+                />
+                <LayoutSwitcher
+                    isOpen={isLayoutOpen}
+                    onClose={() => setIsLayoutOpen(false)}
+                    anchorRef={layoutButtonRef}
                 />
                 <IconButton
                     icon={resolvedTheme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
@@ -108,7 +119,7 @@ export function Header() {
                 <div className="w-0.5 h-4 bg-black/10 dark:bg-white/10 mx-2 no-drag"></div>
 
                 <button
-                    className="w-9 h-9 rounded-full bg-accent/10 dark:bg-accent/20 text-accent flex items-center justify-center no-drag border border-accent/20 hover:border-accent/50 hover:bg-accent/30 hover:scale-105 active:scale-95 transition-all duration-300 glass-effect group relative overflow-hidden"
+                    className="w-9 h-9 rounded-full bg-accent/10 dark:bg-accent/20 text-accent flex items-center justify-center no-drag border border-accent/20 hover:border-accent/50 hover:bg-accent/30 hover:scale-105 active:scale-95 transition-[transform,box-shadow] duration-300 glass-effect group relative overflow-hidden"
                     title="User Profile"
                 >
                     {/* Subtle inner glow */}

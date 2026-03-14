@@ -188,7 +188,7 @@ export function Gallery() {
                                     onClick={(e) => selectMeme(meme.id, e.metaKey || e.ctrlKey)}
                                 >
                                     <div className={clsx(
-                                        "w-full bg-white dark:bg-white/5 rounded-xl border flex items-center justify-center relative group overflow-hidden transition-all duration-300",
+                                        "w-full bg-white dark:bg-white/5 rounded-xl border flex items-center justify-center relative group overflow-hidden transition-[box-shadow,transform] duration-300",
                                         isSelected ? "border-accent ring-2 ring-accent/30 shadow-lg" : "border-borderColor hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-1",
                                         viewMode === 'grid' ? "aspect-square" : "min-h-[150px]"
                                     )}>

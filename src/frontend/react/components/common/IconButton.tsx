@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { forwardRef } from 'react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -9,7 +9,7 @@ interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
     active?: boolean;
 }
 
-export function IconButton({
+export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(({
     icon,
     size = 'md',
     variant = 'glass',
@@ -17,7 +17,7 @@ export function IconButton({
     className,
     disabled,
     ...props
-}: IconButtonProps) {
+}, ref) => {
     const sizeClasses = {
         sm: 'w-7 h-7 rounded-lg',
         md: 'w-9 h-9 rounded-xl',
@@ -33,6 +33,7 @@ export function IconButton({
 
     return (
         <button
+            ref={ref}
             className={twMerge(
                 clsx(
                     "flex items-center justify-center transition-all duration-200 ease-out outline-none no-drag select-none group",
@@ -54,4 +55,6 @@ export function IconButton({
             </span>
         </button>
     );
-}
+});
+
+IconButton.displayName = 'IconButton';
