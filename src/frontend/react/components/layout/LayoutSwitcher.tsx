@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Portal } from '../common/Portal';
 
@@ -13,6 +13,7 @@ interface LayoutSwitcherProps {
 export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherProps) {
     const { sidebarExpanded, setSidebarExpanded, isPanelOpen, togglePanel } = useUiStore();
     const panelRef = useRef<HTMLDivElement>(null);
+    const [coords, setCoords] = useState({ top: 0, right: 0 });
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -29,6 +30,25 @@ export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherPro
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
             document.addEventListener('keydown', handleEsc);
+
+            // Calculate position when opening
+            const updatePosition = () => {
+                const rect = anchorRef.current?.getBoundingClientRect();
+                if (rect) {
+                    setCoords({
+                        top: rect.bottom + 8,
+                        right: window.innerWidth - rect.right,
+                    });
+                }
+            };
+
+            updatePosition();
+            window.addEventListener('resize', updatePosition);
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+                document.removeEventListener('keydown', handleEsc);
+                window.removeEventListener('resize', updatePosition);
+            };
         }
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
@@ -43,13 +63,6 @@ export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherPro
         { id: 'simple', label: '左折+右隐', expanded: false, panel: false },
     ];
 
-    // Calculate position
-    const rect = anchorRef.current?.getBoundingClientRect();
-    const position = rect ? {
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-    } : { top: 0, right: 0 };
-
     return (
         <AnimatePresence>
             {isOpen && (
@@ -61,8 +74,8 @@ export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherPro
                         exit={{ opacity: 0, y: -10, scale: 0.95 }}
                         className="fixed w-64 surface-effect border border-borderColor rounded-2xl shadow-2xl p-4 z-[100] grid grid-cols-2 gap-3 no-drag"
                         style={{
-                            top: position.top,
-                            right: position.right,
+                            top: coords.top,
+                            right: coords.right,
                         }}
                     >
                         {layouts.map((layout) => {

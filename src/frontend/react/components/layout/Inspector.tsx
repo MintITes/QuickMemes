@@ -310,7 +310,6 @@ function BatchActions({ selectedIds }: { selectedIds: number[] }) {
 export function Inspector() {
     const {
         selectedMemeIds,
-        isPanelOpen,
         togglePanel,
         inspectorWidth,
         setInspectorWidth
@@ -355,9 +354,6 @@ export function Inspector() {
         };
     }, [resize, stopResizing]);
 
-    if (!isPanelOpen) {
-        return null;
-    }
 
     const hasSelection = selectedMemeIds.length > 0;
 
@@ -366,7 +362,7 @@ export function Inspector() {
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: inspectorWidth, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
-            transition={isResizing ? { duration: 0 } : { type: 'spring', damping: 20, stiffness: 100 }}
+            transition={isResizing ? { duration: 0 } : { duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
             className="flex-shrink-0 h-full surface-effect flex flex-col overflow-hidden relative border-l border-borderColor shadow-2xl z-20"
         >
             {/* Splitter Handle */}

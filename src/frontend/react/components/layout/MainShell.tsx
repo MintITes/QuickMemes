@@ -7,15 +7,21 @@ import { SettingsModal } from '../settings/SettingsModal';
 import { ImportModal } from '../settings/ImportModal';
 import { NotificationPanel } from './NotificationPanel';
 import { ToastContainer } from './ToastContainer';
+import { AnimatePresence } from 'framer-motion';
+import { useUiStore } from '../../stores/UiStore';
 
 export function MainShell() {
+    const isPanelOpen = useUiStore(state => state.isPanelOpen);
+
     return (
         <div className="w-screen h-screen flex flex-col bg-bgPrimary text-textPrimary overflow-hidden font-sans">
             <Header />
             <div className="flex flex-1 overflow-hidden p-2 gap-2 bg-gradient-to-br from-black/[0.02] to-transparent dark:from-white/[0.02] dark:to-transparent">
                 <Sidebar />
                 <Gallery />
-                <Inspector />
+                <AnimatePresence>
+                    {isPanelOpen && <Inspector key="inspector" />}
+                </AnimatePresence>
             </div>
             <StatusBar />
 

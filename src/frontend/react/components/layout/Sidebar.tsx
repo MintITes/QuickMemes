@@ -2,6 +2,7 @@ import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
 import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
+import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 export function Sidebar() {
@@ -31,11 +32,10 @@ export function Sidebar() {
     };
 
     return (
-        <aside
-            className={clsx(
-                "flex-shrink-0 h-full surface-effect flex flex-col p-3 transition-[width] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] overflow-hidden select-none no-drag",
-                sidebarExpanded ? "w-64" : "w-[68px]"
-            )}
+        <motion.aside
+            animate={{ width: sidebarExpanded ? 256 : 68 }}
+            transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+            className="flex-shrink-0 h-full surface-effect flex flex-col p-3 overflow-hidden select-none no-drag"
         >
             {/* Sidebar Toggle Header */}
             <div className={clsx("flex items-center mb-4 px-1", sidebarExpanded ? "justify-between" : "justify-center")}>
@@ -182,6 +182,6 @@ export function Sidebar() {
                     {sidebarExpanded && <span className="w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center text-[10px] font-bold shadow-sm no-drag">0</span>}
                 </button>
             </div>
-        </aside>
+        </motion.aside>
     );
 }
