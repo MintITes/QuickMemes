@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 import type { Meme } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 
@@ -42,6 +43,7 @@ const formatDate = (ts: number) => {
 };
 
 function MemeDetails({ meme }: { meme: Meme }) {
+    const { t } = useTranslation();
     const { updateMeme } = useMemeStore();
     const { tags: allTags } = useTagStore();
 
@@ -108,16 +110,16 @@ function MemeDetails({ meme }: { meme: Meme }) {
             {/* A. Basic Information */}
             <section>
                 <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
-                    <Info size={14} className="mr-2" /> Basic Info
+                    <Info size={14} className="mr-2" /> {t('inspector.basic_info')}
                 </h3>
                 <div className="inner-container-effect p-3 space-y-2.5">
                     {[
-                        { label: 'Name', value: meme.name, truncate: true },
-                        { label: 'Format', value: meme.format.toUpperCase() },
-                        { label: 'Size', value: formatSize(meme.size) },
-                        { label: 'Resolution', value: `${meme.width}×${meme.height}` },
-                        { label: 'Added', value: formatDate(meme.createdAt) },
-                        { label: 'Modified', value: formatDate(meme.updatedAt) },
+                        { label: t('inspector.labels.name'), value: meme.name, truncate: true },
+                        { label: t('inspector.labels.format'), value: meme.format.toUpperCase() },
+                        { label: t('inspector.labels.size'), value: formatSize(meme.size) },
+                        { label: t('inspector.labels.resolution'), value: `${meme.width}×${meme.height}` },
+                        { label: t('inspector.labels.added'), value: formatDate(meme.createdAt) },
+                        { label: t('inspector.labels.modified'), value: formatDate(meme.updatedAt) },
                     ].map((item) => (
                         <div key={item.label} className="grid grid-cols-[80px_1fr] items-baseline text-xs">
                             <span className="text-textSecondary text-[10px] font-medium">{item.label}</span>
@@ -132,7 +134,7 @@ function MemeDetails({ meme }: { meme: Meme }) {
             {/* B. Tag Management */}
             <section>
                 <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
-                    <TagIcon size={14} className="mr-2" /> Tags
+                    <TagIcon size={14} className="mr-2" /> {t('inspector.tags')}
                 </h3>
                 <div className="inner-container-effect p-3">
                     <div className="flex flex-wrap gap-1.5 mb-3">
@@ -175,7 +177,7 @@ function MemeDetails({ meme }: { meme: Meme }) {
             <section>
                 <div className="flex items-center justify-between mb-3 px-1">
                     <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest flex items-center">
-                        <FileText size={14} className="mr-2" /> OCR Text
+                        <FileText size={14} className="mr-2" /> {t('inspector.ocr_text')}
                     </h3>
                     <div className="flex gap-1.5">
                         <button
@@ -207,7 +209,7 @@ function MemeDetails({ meme }: { meme: Meme }) {
             {/* D. Source Information */}
             <section>
                 <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
-                    <ExternalLink size={14} className="mr-2" /> Source
+                    <ExternalLink size={14} className="mr-2" /> {t('inspector.source')}
                 </h3>
                 <div className="inner-container-effect p-3">
                     <div className="relative flex items-center">
@@ -238,6 +240,7 @@ function MemeDetails({ meme }: { meme: Meme }) {
 }
 
 function BatchActions({ selectedIds }: { selectedIds: number[] }) {
+    const { t } = useTranslation();
     const { removeMemes } = useMemeStore();
 
     const handleBatchDelete = () => {
@@ -256,18 +259,18 @@ function BatchActions({ selectedIds }: { selectedIds: number[] }) {
                     </div>
                 </div>
                 <div>
-                    <h4 className="font-bold text-base leading-tight">Batch Editing</h4>
-                    <p className="text-[11px] text-textSecondary mt-1">You have selected {selectedIds.length} memes</p>
+                    <h4 className="font-bold text-base leading-tight">{t('inspector.batch.editing')}</h4>
+                    <p className="text-[11px] text-textSecondary mt-1">{t('inspector.batch.selected_desc', { count: selectedIds.length })}</p>
                 </div>
             </div>
 
             {/* Batch Tag Input */}
             <section>
                 <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
-                    <TagIcon size={14} className="mr-2" /> Batch Tagging
+                    <TagIcon size={14} className="mr-2" /> {t('inspector.batch.tagging')}
                 </h3>
                 <div className="inner-container-effect p-4 gap-3 flex flex-col">
-                    <p className="text-[10px] text-textSecondary leading-relaxed italic">Input a tag name and Enter to add it to all selected items.</p>
+                    <p className="text-[10px] text-textSecondary leading-relaxed italic">{t('inspector.batch.tag_input_tip')}</p>
                     <div className="relative">
                         <input
                             type="text"
@@ -289,17 +292,17 @@ function BatchActions({ selectedIds }: { selectedIds: number[] }) {
             {/* Batch Operations */}
             <section>
                 <h3 className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mb-3 flex items-center px-1">
-                    <Check size={14} className="mr-2" /> Operations
+                    <Check size={14} className="mr-2" /> {t('inspector.batch.operations')}
                 </h3>
                 <div className="grid grid-cols-1 gap-2">
                     <button className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-bgPrimary hover:bg-black/5 dark:hover:bg-white/5 border border-borderColor text-xs font-semibold transition-all">
-                        <Download size={14} /> Batch Export
+                        <Download size={14} /> {t('inspector.batch.export')}
                     </button>
                     <button
                         onClick={handleBatchDelete}
                         className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-600 dark:text-red-400 text-xs font-semibold transition-all"
                     >
-                        <Trash2 size={14} /> Move to Recycle Bin
+                        <Trash2 size={14} /> {t('inspector.batch.delete')}
                     </button>
                 </div>
             </section>
@@ -308,6 +311,7 @@ function BatchActions({ selectedIds }: { selectedIds: number[] }) {
 }
 
 export function Inspector() {
+    const { t } = useTranslation();
     const {
         selectedMemeIds,
         togglePanel,
@@ -377,7 +381,7 @@ export function Inspector() {
             {/* Header / Close Switch */}
             <div className="flex items-center justify-between p-4 border-b border-borderColor bg-bgPrimary/30 shrink-0">
                 <h2 className="text-sm font-bold truncate">
-                    {selectedMemeIds.length > 1 ? `Details (${selectedMemeIds.length})` : "Meme Details"}
+                    {selectedMemeIds.length > 1 ? t('inspector.batch_title', { count: selectedMemeIds.length }) : t('inspector.title')}
                 </h2>
                 <button
                     onClick={() => togglePanel(false)}
@@ -402,8 +406,8 @@ export function Inspector() {
                     <div className="h-full flex items-center justify-center p-8">
                         <EmptyState
                             icon={<MousePointer2 size={40} className="opacity-20" />}
-                            title="No selection"
-                            description="Select one or more memes to see details and actions."
+                            title={t('inspector.no_selection')}
+                            description={t('inspector.no_selection_desc')}
                             className="scale-90"
                         />
                     </div>

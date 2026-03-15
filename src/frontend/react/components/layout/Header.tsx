@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { Search, LayoutGrid, Sun, Moon, Settings, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 import { IconButton } from '../common/IconButton';
@@ -15,6 +16,7 @@ export function Header() {
     const platformOverride = useUiStore(state => state.platformOverride);
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
 
+    const { t } = useTranslation();
     const { resolvedTheme, setTheme, toggleSettings, toggleImportModal } = useUiStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLayoutOpen, setIsLayoutOpen] = useState(false);
@@ -70,7 +72,7 @@ export function Header() {
                 <Search size={16} className="text-textSecondary mr-2 no-drag transition-colors group-focus-within:text-accent" />
                 <input
                     type="text"
-                    placeholder="搜索 Meme..."
+                    placeholder={t('common.search_placeholder')}
                     className="bg-transparent border-none outline-none flex-1 text-sm text-textPrimary placeholder:text-textSecondary h-full no-drag"
                 />
                 <PlusButton
@@ -104,14 +106,14 @@ export function Header() {
                 />
                 <IconButton
                     icon={resolvedTheme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
-                    aria-label="Theme"
+                    aria-label={t('common.theme.system')}
                     className="opacity-70 hover:opacity-100"
                     onClick={handleThemeToggle}
-                    title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+                    title={resolvedTheme === 'dark' ? t('common.theme.light') : t('common.theme.dark')}
                 />
                 <IconButton
                     icon={<Settings size={18} />}
-                    aria-label="Settings"
+                    aria-label={t('common.settings')}
                     className="opacity-70 hover:opacity-100"
                     onClick={() => toggleSettings(true)}
                 />

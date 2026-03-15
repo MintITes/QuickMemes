@@ -1,0 +1,172 @@
+{
+    "common": {
+        "all_memes": "Storage",
+        "categories": "Categories",
+        "search_placeholder": "Search Memes...",
+        "add": "Add",
+        "settings": "Settings",
+        "magic_store": {
+            "title": "Magic Store",
+            "bucket": "Bucket"
+        },
+        "theme": {
+            "light": "Light Mode",
+            "dark": "Dark Mode",
+            "system": "System Default"
+        }
+    },
+    "sidebar": {
+        "repository_title": "Library",
+        "all_memes_nav": "All Memes",
+        "untagged": "Untagged",
+        "trash": "Trash",
+        "recent": "Recent",
+        "starred": "Starred",
+        "shortcuts": "Shortcuts",
+        "categories": "Categories"
+    },
+    "gallery": {
+        "empty": {
+            "no_memes": "No memes found",
+            "no_memes_desc": "Drag in some fun pictures or click the button below to import!",
+            "import_first": "Import your first meme",
+            "search_no_results": "No matching memes found",
+            "search_no_results_desc": "No memes discovered for \"{{keyword}}\"...",
+            "clear_search": "Clear search",
+            "trash_empty": "Trash is empty",
+            "trash_empty_desc": "Staying organized is a great habit! Trash currently has no content.",
+            "untagged_empty": "All memes are tagged",
+            "untagged_empty_desc": "Great! Every meme in your library has a classification."
+        },
+        "controls": {
+            "back": "Back",
+            "forward": "Forward",
+            "original_ratio": "Original Ratio (Contain)",
+            "fill_crop": "Fill and Crop (Cover)",
+            "hide_tags": "Hide Tags",
+            "show_tags": "Show Main Tag",
+            "grid_view": "Grid View",
+            "masonry_view": "Masonry View"
+        },
+        "item": {
+            "copy_image": "Copy Image",
+            "view_details": "View Details",
+            "more": "More"
+        }
+    },
+    "inspector": {
+        "title": "Meme Details",
+        "batch_title": "Details ({{count}})",
+        "basic_info": "Basic Info",
+        "tags": "Tags",
+        "ocr_text": "OCR Text",
+        "source": "Source",
+        "no_selection": "No selection",
+        "no_selection_desc": "Select one or more memes to see details and actions.",
+        "labels": {
+            "name": "Name",
+            "format": "Format",
+            "size": "Size",
+            "resolution": "Resolution",
+            "added": "Added",
+            "modified": "Modified"
+        },
+        "batch": {
+            "editing": "Batch Editing",
+            "selected_desc": "You have selected {{count}} memes",
+            "tagging": "Batch Tagging",
+            "tag_input_tip": "Input a tag name and Enter to add it to all selected items.",
+            "operations": "Operations",
+            "export": "Batch Export",
+            "delete": "Move to Recycle Bin"
+        }
+    },
+    "settings": {
+        "title": "Settings Center",
+        "tabs": {
+            "general": "General",
+            "appearance": "Appearance",
+            "storage": "Storage",
+            "ocr": "OCR",
+            "ai": "AI Vision",
+            "shortcuts": "Shortcuts",
+            "about": "About"
+        },
+        "general": {
+            "title": "General Settings",
+            "theme": {
+                "label": "Appearance Theme",
+                "desc": "Night mode or day mode",
+                "light": "Light",
+                "dark": "Dark",
+                "system": "System"
+            },
+            "platform": {
+                "label": "Window Control Style",
+                "desc": "Manually switch visual style of control buttons",
+                "auto": "Auto",
+                "macos": "macOS",
+                "win_linux": "Windows/Linux"
+            },
+            "auto_start": {
+                "label": "Auto Start",
+                "desc": "Launch with system and run silently in background"
+            },
+            "language": {
+                "label": "App Language",
+                "desc": "Switch the display language of the application",
+                "zh_CN": "简体中文",
+                "en_US": "English",
+                "system": "Follow System"
+            }
+        },
+        "appearance": {
+            "title": "Personalized Appearance",
+            "glass": {
+                "label": "Global Frosted Glass Effect",
+                "experimental": "Experimental",
+                "desc": "Turn off to improve performance and solve drag ghosting issues"
+            },
+            "blur": {
+                "label": "Glass Blur Level",
+                "warning": "Need to enable glass effect"
+            },
+            "radius": "Global Corner Radius",
+            "gap": "Content Gap Level",
+            "accent": "Accent Color"
+        },
+        "storage": {
+            "title": "Storage Library Management",
+            "path": {
+                "label": "Main Storage Path",
+                "desc": "Current root directory where all memes are saved",
+                "change": "Change"
+            }
+        },
+        "ocr": {
+            "title": "OCR Text Recognition",
+            "auto_ocr": {
+                "label": "Background Auto OCR",
+                "desc": "Extract text index in background after importing images"
+            }
+        },
+        "ai": {
+            "title": "AI Vision Analysis",
+            "not_configured": "AI auto-tagging model is not yet configured, please set API Key in future versions"
+        },
+        "shortcuts": {
+            "title": "Shortcut Bindings",
+            "global_call": "Global Call",
+            "quick_import": "Quick Screen Import",
+            "open_settings": "Open Settings",
+            "not_set": "Not Set"
+        },
+        "about": {
+            "desc": "A cross-platform tool for managing and storing memes, designed to help users efficiently organize, find, and share memes.",
+            "license": "Released under GPL-3.0 License",
+            "license_desc": "You are free to use, modify, and distribute this program, provided that any derivative work must have open source and continue to use the same GPLv3 license.",
+            "source_code": "Source Code",
+            "official_website": "Official Website"
+        }
+    }
+}

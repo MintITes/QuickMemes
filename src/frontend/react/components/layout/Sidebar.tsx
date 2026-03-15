@@ -3,9 +3,11 @@ import { useCategoryStore } from '../../stores/CategoryStore';
 import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 export function Sidebar() {
+    const { t } = useTranslation();
     const activeNav = useUiStore(state => state.activeNav);
     const setActiveNav = useUiStore(state => state.setActiveNav);
     const sidebarExpanded = useUiStore(state => state.sidebarExpanded);
@@ -39,7 +41,7 @@ export function Sidebar() {
         >
             {/* Sidebar Toggle Header */}
             <div className={clsx("flex items-center mb-4 px-1", sidebarExpanded ? "justify-between" : "justify-center")}>
-                {sidebarExpanded && <span className="text-xs font-bold text-textPrimary/50 px-2 tracking-widest uppercase">Library</span>}
+                {sidebarExpanded && <span className="text-xs font-bold text-textPrimary/50 px-2 tracking-widest uppercase">{t('common.all_memes')}</span>}
                 <IconButton
                     icon={sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
                     variant="ghost"
@@ -53,7 +55,7 @@ export function Sidebar() {
             <div className="flex flex-col overflow-x-hidden">
                 {sidebarExpanded && (
                     <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 opacity-60">
-                        System
+                        {t('sidebar.repository_title')}
                     </span>
                 )}
                 <button
@@ -64,10 +66,10 @@ export function Sidebar() {
                         borderColor: 'color-mix(in srgb, var(--accent-color), transparent 70%)',
                         borderWidth: '1px'
                     } : {}}
-                    title={!sidebarExpanded ? "All Memes" : undefined}
+                    title={!sidebarExpanded ? t('sidebar.all_memes_nav') : undefined}
                 >
                     <LayoutList size={18} className={clsx(getIconClass('all'), sidebarExpanded && "mr-3")} />
-                    {sidebarExpanded && <span className="truncate">All Memes</span>}
+                    {sidebarExpanded && <span className="truncate">{t('sidebar.all_memes_nav')}</span>}
                 </button>
                 <button
                     onClick={() => setActiveNav('untagged')}
@@ -77,10 +79,10 @@ export function Sidebar() {
                         borderColor: 'color-mix(in srgb, var(--accent-color), transparent 70%)',
                         borderWidth: '1px'
                     } : {}}
-                    title={!sidebarExpanded ? "Untagged" : undefined}
+                    title={!sidebarExpanded ? t('sidebar.untagged') : undefined}
                 >
                     <Tag size={18} className={clsx(getIconClass('untagged'), sidebarExpanded && "mr-3")} />
-                    {sidebarExpanded && <span className="truncate">Untagged</span>}
+                    {sidebarExpanded && <span className="truncate">{t('sidebar.untagged')}</span>}
                 </button>
                 <button
                     onClick={() => setActiveNav('trash')}
@@ -90,17 +92,17 @@ export function Sidebar() {
                         borderColor: 'color-mix(in srgb, var(--accent-color), transparent 70%)',
                         borderWidth: '1px'
                     } : {}}
-                    title={!sidebarExpanded ? "Trash" : undefined}
+                    title={!sidebarExpanded ? t('common.trash') : undefined}
                 >
                     <Trash2 size={18} className={clsx(getIconClass('trash'), sidebarExpanded && "mr-3")} />
-                    {sidebarExpanded && <span className="truncate">Trash</span>}
+                    {sidebarExpanded && <span className="truncate">{t('sidebar.trash')}</span>}
                 </button>
             </div>
 
             <div className="flex flex-col overflow-x-hidden mt-8">
                 {sidebarExpanded && (
                     <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 opacity-60">
-                        Shortcuts
+                        {t('sidebar.shortcuts')}
                     </span>
                 )}
                 <button
@@ -111,10 +113,10 @@ export function Sidebar() {
                         borderColor: 'color-mix(in srgb, var(--accent-color), transparent 70%)',
                         borderWidth: '1px'
                     } : {}}
-                    title={!sidebarExpanded ? "Recent" : undefined}
+                    title={!sidebarExpanded ? t('common.recent') : undefined}
                 >
                     <Clock size={18} className={clsx(getIconClass('recent'), sidebarExpanded && "mr-3")} />
-                    {sidebarExpanded && <span className="truncate">Recent</span>}
+                    {sidebarExpanded && <span className="truncate">{t('sidebar.recent')}</span>}
                 </button>
                 <button
                     onClick={() => setActiveNav('starred')}
@@ -124,22 +126,22 @@ export function Sidebar() {
                         borderColor: 'color-mix(in srgb, var(--accent-color), transparent 70%)',
                         borderWidth: '1px'
                     } : {}}
-                    title={!sidebarExpanded ? "Starred" : undefined}
+                    title={!sidebarExpanded ? t('common.starred') : undefined}
                 >
                     <Star size={18} className={clsx(getIconClass('starred'), sidebarExpanded && "mr-3")} />
-                    {sidebarExpanded && <span className="truncate">Starred</span>}
+                    {sidebarExpanded && <span className="truncate">{t('sidebar.starred')}</span>}
                 </button>
             </div>
 
             <div className="flex flex-col flex-1 overflow-x-hidden mt-8">
                 {sidebarExpanded && (
                     <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 opacity-60">
-                        Categories
+                        {t('sidebar.categories')}
                     </span>
                 )}
                 <div className="space-y-1">
                     {categories.length === 0 ? (
-                        sidebarExpanded && <div className="px-3 py-2 text-sm text-textSecondary italic">No categories yet</div>
+                        sidebarExpanded && <div className="px-3 py-2 text-sm text-textSecondary italic">{t('common.categories')}</div>
                     ) : (
                         categories.map(cat => {
                             const navId = `category-${cat.id}`;
@@ -168,7 +170,7 @@ export function Sidebar() {
             <div className="mt-auto pt-4 border-t border-borderColor/20 dark:border-white/5 overflow-x-hidden">
                 {sidebarExpanded && (
                     <span className="text-[10px] font-bold text-textSecondary uppercase tracking-[0.15em] px-3 mb-3 block opacity-50">
-                        Magic Store
+                        {t('common.magic_store.title')}
                     </span>
                 )}
                 <button className={clsx(
@@ -177,7 +179,7 @@ export function Sidebar() {
                 )}>
                     <div className="flex items-center no-drag">
                         <ArchiveRestore size={20} className={clsx("opacity-70 group-hover:opacity-100 no-drag", sidebarExpanded && "mr-3")} />
-                        {sidebarExpanded && <span className="font-medium text-sm no-drag">Bucket</span>}
+                        {sidebarExpanded && <span className="font-medium text-sm no-drag">{t('common.magic_store.bucket')}</span>}
                     </div>
                     {sidebarExpanded && <span className="w-5 h-5 rounded-full bg-accent text-white flex items-center justify-center text-[10px] font-bold shadow-sm no-drag">0</span>}
                 </button>

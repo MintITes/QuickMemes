@@ -5,6 +5,7 @@ import { IconButton } from '../common/IconButton';
 import { Switch } from '../common/Switch';
 import { Slider } from '../common/Slider';
 import { useUiStore } from '../../stores/UiStore';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { LivePreview } from './LivePreview';
 
@@ -19,8 +20,10 @@ export function SettingsModal() {
         glassBlur, setGlassBlur,
         cornerRadius, setCornerRadius,
         galleryGap, setGalleryGap,
-        accentColor, setAccentColor
+        accentColor, setAccentColor,
+        language, setLanguage
     } = useUiStore();
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
     const [debugClickCount, setDebugClickCount] = useState(0);
 
@@ -43,54 +46,75 @@ export function SettingsModal() {
             case 'general':
                 return (
                     <div className="space-y-6">
-                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">常规设置</h3>
+                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.general.title')}</h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div>
-                                    <div className="font-medium text-sm">外观主题</div>
-                                    <div className="text-xs opacity-60">夜间模式或白昼模式</div>
+                                    <div className="font-medium text-sm">{t('settings.general.theme.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.general.theme.desc')}</div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
                                         className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", theme === 'light' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
                                         onClick={() => setTheme('light')}
-                                    >明亮</button>
+                                    >{t('settings.general.theme.light')}</button>
                                     <button
                                         className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", theme === 'dark' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
                                         onClick={() => setTheme('dark')}
-                                    >暗黑</button>
+                                    >{t('settings.general.theme.dark')}</button>
                                     <button
                                         className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border text-nowrap", theme === 'system' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
                                         onClick={() => setTheme('system')}
-                                    >跟随系统</button>
+                                    >{t('settings.general.theme.system')}</button>
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div>
-                                    <div className="font-medium text-sm">窗口控制样式</div>
-                                    <div className="text-xs opacity-60">手动切换控制按钮的视觉风格</div>
+                                    <div className="font-medium text-sm">{t('settings.general.platform.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.general.platform.desc')}</div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
                                         className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", platformOverride === 'auto' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
                                         onClick={() => setPlatformOverride('auto')}
-                                    >自动</button>
+                                    >{t('settings.general.platform.auto')}</button>
                                     <button
                                         className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", platformOverride === 'darwin' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
                                         onClick={() => setPlatformOverride('darwin')}
-                                    >macOS</button>
+                                    >{t('settings.general.platform.macos')}</button>
                                     <button
                                         className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", platformOverride === 'win32' || platformOverride === 'linux' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
                                         onClick={() => setPlatformOverride(platformOverride === 'win32' ? 'win32' : 'linux')}
-                                    >Windows/Linux</button>
+                                    >{t('settings.general.platform.win_linux')}</button>
                                 </div>
                             </div>
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div>
-                                    <div className="font-medium text-sm">开机自启</div>
-                                    <div className="text-xs opacity-60">随系统启动并在后台静默运行</div>
+                                    <div className="font-medium text-sm">{t('settings.general.language.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.general.language.desc')}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", language === 'zh-CN' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
+                                        onClick={() => setLanguage('zh-CN')}
+                                    >{t('settings.general.language.zh_CN')}</button>
+                                    <button
+                                        className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", language === 'en-US' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
+                                        onClick={() => setLanguage('en-US')}
+                                    >{t('settings.general.language.en_US')}</button>
+                                    <button
+                                        className={clsx("px-3 py-1 text-sm rounded-lg transition-colors border", language === 'system' ? "bg-accent text-white border-accent" : "border-white/10 opacity-70 hover:bg-white/10")}
+                                        onClick={() => setLanguage('system')}
+                                    >{t('settings.general.language.system')}</button>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div>
+                                    <div className="font-medium text-sm">{t('settings.general.auto_start.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.general.auto_start.desc')}</div>
                                 </div>
                                 <Switch
                                     checked={false}
@@ -104,15 +128,15 @@ export function SettingsModal() {
             case 'appearance':
                 return (
                     <div className="space-y-6">
-                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">个性化外观</h3>
+                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.appearance.title')}</h3>
                         <div className="space-y-5">
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div>
                                     <div className="font-medium text-sm flex items-center gap-2">
-                                        全局磨砂玻璃特效
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30">实验性</span>
+                                        {t('settings.appearance.glass.label')}
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30">{t('settings.appearance.glass.experimental')}</span>
                                     </div>
-                                    <div className="text-xs opacity-60 mt-0.5">关闭以提升性能并解决部分渲染拖影问题</div>
+                                    <div className="text-xs opacity-60 mt-0.5">{t('settings.appearance.glass.desc')}</div>
                                 </div>
                                 <Switch
                                     checked={glassEffect}
@@ -122,18 +146,18 @@ export function SettingsModal() {
                             </div>
 
                             <Slider
-                                label="磨砂玻璃模糊级别"
+                                label={t('settings.appearance.blur.label')}
                                 value={glassBlur}
                                 min={0}
                                 max={40}
                                 onChange={setGlassBlur}
                                 disabled={!glassEffect}
                                 unit="px"
-                                warning={!glassEffect ? "需要开启玻璃特效" : undefined}
+                                warning={!glassEffect ? t('settings.appearance.blur.warning') : undefined}
                             />
 
                             <Slider
-                                label="全局圆角半径"
+                                label={t('settings.appearance.radius')}
                                 value={cornerRadius}
                                 min={0}
                                 max={24}
@@ -142,7 +166,7 @@ export function SettingsModal() {
                             />
 
                             <Slider
-                                label="内容间距级别"
+                                label={t('settings.appearance.gap')}
                                 value={galleryGap}
                                 min={4}
                                 max={32}
@@ -151,7 +175,7 @@ export function SettingsModal() {
                             />
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm">强调色 (Accent Color)</div>
+                                <div className="font-medium text-sm">{t('settings.appearance.accent')}</div>
                                 <div className="flex gap-2">
                                     {['#0066cc', '#0a84ff', '#32d74b', '#ff9f0a', '#ff375f', '#64d2ff'].map(color => (
                                         <button
@@ -169,14 +193,14 @@ export function SettingsModal() {
             case 'storage':
                 return (
                     <div className="space-y-6">
-                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">存储库管理</h3>
+                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.storage.title')}</h3>
                         <div className="space-y-4">
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">主存储路径</div>
-                                <div className="text-xs opacity-60 mb-3">当前所有梗图保存的根目录</div>
+                                <div className="font-medium text-sm mb-1">{t('settings.storage.path.label')}</div>
+                                <div className="text-xs opacity-60 mb-3">{t('settings.storage.path.desc')}</div>
                                 <div className="flex gap-2">
                                     <input type="text" readOnly value="C:\Users\BoheSama\Pictures\QuickMemes" className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text" />
-                                    <button className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm">更改</button>
+                                    <button className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm">{t('settings.storage.path.change')}</button>
                                 </div>
                             </div>
                         </div>
@@ -185,12 +209,12 @@ export function SettingsModal() {
             case 'ocr':
                 return (
                     <div className="space-y-6">
-                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">OCR 文本识别</h3>
+                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ocr.title')}</h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div>
-                                    <div className="font-medium text-sm">后台自动 OCR</div>
-                                    <div className="text-xs opacity-60">导入图片后自动在后台提取文字索引</div>
+                                    <div className="font-medium text-sm">{t('settings.ocr.auto_ocr.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.ocr.auto_ocr.desc')}</div>
                                 </div>
                                 <Switch
                                     checked={true}
@@ -204,28 +228,28 @@ export function SettingsModal() {
             case 'ai':
                 return (
                     <div className="space-y-6">
-                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">AI 视觉分析</h3>
+                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ai.title')}</h3>
                         <div className="flex flex-col items-center justify-center h-40 opacity-50">
-                            <p className="text-sm">AI 自动打标模型尚未配置，请在后续版本配置 API Key</p>
+                            <p className="text-sm">{t('settings.ai.not_configured')}</p>
                         </div>
                     </div>
                 );
             case 'shortcuts':
                 return (
                     <div className="space-y-6">
-                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">快捷键绑定</h3>
+                        <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.shortcuts.title')}</h3>
                         <div className="space-y-2">
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
-                                <span className="text-sm">全局唤出</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">未设置</span>
+                                <span className="text-sm">{t('settings.shortcuts.global_call')}</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">{t('settings.shortcuts.not_set')}</span>
                             </div>
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
-                                <span className="text-sm">快速截图导入</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">未设置</span>
+                                <span className="text-sm">{t('settings.shortcuts.quick_import')}</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">{t('settings.shortcuts.not_set')}</span>
                             </div>
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
-                                <span className="text-sm">开启设置</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">未设置</span>
+                                <span className="text-sm">{t('settings.shortcuts.open_settings')}</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">{t('settings.shortcuts.not_set')}</span>
                             </div>
                         </div>
                     </div>
@@ -245,15 +269,15 @@ export function SettingsModal() {
 
                         <div className="max-w-md space-y-4 my-0">
                             <p className="text-xs leading-relaxed opacity-60">
-                                一个跨平台的用于管理和存储Memes的工具，旨在帮助用户高效地组织、查找和分享Memes。
+                                {t('settings.about.desc')}
                             </p>
 
                             <div className="flex flex-col gap-2 py-4 border-y border-white/5">
                                 <div className="flex items-center justify-center gap-1.5 text-xs font-medium">
                                     <Shield size={14} className="text-accent" />
-                                    <span>基于 GPL-3.0 开源协议发布</span>
+                                    <span>{t('settings.about.license')}</span>
                                 </div>
-                                <p className="text-[10px] opacity-40">你可以自由地使用、修改和分发本程序，但前提是任何衍生作品都必须公开源代码，并继续沿用相同的 GPLv3 协议。</p>
+                                <p className="text-[10px] opacity-40">{t('settings.about.license_desc')}</p>
                             </div>
 
                             <div className="flex items-center justify-center gap-4 pt-0">
@@ -267,7 +291,7 @@ export function SettingsModal() {
                                     className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
                                 >
                                     <Github size={14} />
-                                    <span>源代码</span>
+                                    <span>{t('settings.about.source_code')}</span>
                                 </a>
                                 <div className="w-px h-3 bg-white/10"></div>
                                 <a
@@ -280,7 +304,7 @@ export function SettingsModal() {
                                     className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
                                 >
                                     <Globe size={14} />
-                                    <span>官方网站</span>
+                                    <span>{t('settings.about.official_website')}</span>
                                 </a>
                             </div>
                         </div>
@@ -295,13 +319,13 @@ export function SettingsModal() {
     };
 
     const tabs: { id: SettingsTab; label: string; subLabel: string }[] = [
-        { id: 'general', label: '常规', subLabel: 'General' },
-        { id: 'appearance', label: '外观', subLabel: 'Style' },
-        { id: 'storage', label: '存储', subLabel: 'Storage' },
-        { id: 'ocr', label: 'OCR', subLabel: 'Text' },
-        { id: 'ai', label: 'AI 视觉', subLabel: 'Vision' },
-        { id: 'shortcuts', label: '快捷键', subLabel: 'Keys' },
-        { id: 'about', label: '关于', subLabel: 'About' }
+        { id: 'general', label: t('settings.tabs.general'), subLabel: 'General' },
+        { id: 'appearance', label: t('settings.tabs.appearance'), subLabel: 'Style' },
+        { id: 'storage', label: t('settings.tabs.storage'), subLabel: 'Storage' },
+        { id: 'ocr', label: t('settings.tabs.ocr'), subLabel: 'Text' },
+        { id: 'ai', label: t('settings.tabs.ai'), subLabel: 'Vision' },
+        { id: 'shortcuts', label: t('settings.tabs.shortcuts'), subLabel: 'Keys' },
+        { id: 'about', label: t('settings.tabs.about'), subLabel: 'About' }
     ];
 
     return (
@@ -344,7 +368,7 @@ export function SettingsModal() {
                     >
                         {/* Header */}
                         <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
-                            <h2 className="text-base font-bold tracking-wide select-none">设置中心</h2>
+                            <h2 className="text-base font-bold tracking-wide select-none">{t('settings.title')}</h2>
                             <IconButton
                                 icon={<X size={16} />}
                                 onClick={() => toggleSettings(false)}

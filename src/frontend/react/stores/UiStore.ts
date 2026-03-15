@@ -29,6 +29,7 @@ export interface UiState {
     showTags: boolean;
     inspectorWidth: number;
     sidebarExpanded: boolean;
+    language: 'zh-CN' | 'en-US' | 'system';
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -52,6 +53,7 @@ export interface UiState {
     setShowTags: (show: boolean) => void;
     setInspectorWidth: (width: number) => void;
     setSidebarExpanded: (expanded: boolean) => void;
+    setLanguage: (lang: 'zh-CN' | 'en-US' | 'system') => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -78,6 +80,7 @@ export const useUiStore = create<UiState>()(
             showTags: true,
             inspectorWidth: 320,
             sidebarExpanded: true,
+            language: 'system',
 
             togglePanel: (isOpen) =>
                 set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -137,6 +140,13 @@ export const useUiStore = create<UiState>()(
             setInspectorWidth: (width) => set({ inspectorWidth: width }),
 
             setSidebarExpanded: (expanded) => set({ sidebarExpanded: expanded }),
+
+            setLanguage: (lang) => {
+                set({ language: lang });
+                // Note: Actual i18n.changeLanguage is often handled in a side-effect (useEffect) 
+                // in the root component to ensure the store and i18n stay in sync, 
+                // but we can also do it here if we import i18n.
+            },
         }),
         {
             name: 'quick-memes-ui-storage',
@@ -156,6 +166,7 @@ export const useUiStore = create<UiState>()(
                 showTags: state.showTags,
                 inspectorWidth: state.inspectorWidth,
                 sidebarExpanded: state.sidebarExpanded,
+                language: state.language,
             }),
         }
     )

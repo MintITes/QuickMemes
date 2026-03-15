@@ -21,9 +21,11 @@ import { IconButton } from '../common/IconButton';
 import { EmptyState } from '../common/EmptyState';
 import { useUiStore } from '../../stores/UiStore';
 import { useTagStore } from '../../stores/TagStore';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 export function Gallery() {
+    const { t } = useTranslation();
     const memes = useMemeStore(state => state.memes);
     const activeNav = useUiStore(state => state.activeNav);
     const searchQuery = useUiStore(state => state.searchQuery);
@@ -45,10 +47,10 @@ export function Gallery() {
             return (
                 <EmptyState
                     icon={<SearchX size={48} />}
-                    title="没有找到匹配的梗图"
-                    description={`未发现与 "${searchQuery.keyword}" 相关的梗图...`}
+                    title={t('gallery.empty.search_no_results')}
+                    description={t('gallery.empty.search_no_results_desc', { keyword: searchQuery.keyword })}
                     action={{
-                        label: "清除搜索",
+                        label: t('gallery.empty.clear_search'),
                         onClick: () => setSearchQuery({ keyword: '' }),
                         icon: <SearchX size={16} />
                     }}
@@ -61,8 +63,8 @@ export function Gallery() {
             return (
                 <EmptyState
                     icon={<Inbox size={48} />}
-                    title="回收站是空的"
-                    description="保持整洁是个好习惯！回收站目前没有任何内容。"
+                    title={t('gallery.empty.trash_empty')}
+                    description={t('gallery.empty.trash_empty_desc')}
                 />
             );
         }
@@ -72,8 +74,8 @@ export function Gallery() {
             return (
                 <EmptyState
                     icon={<Sparkles size={48} />}
-                    title="所有梗图都已打上标签"
-                    description="真棒！库里所有的梗图都有了分类标识。"
+                    title={t('gallery.empty.untagged_empty')}
+                    description={t('gallery.empty.untagged_empty_desc')}
                 />
             );
         }
@@ -82,10 +84,10 @@ export function Gallery() {
         return (
             <EmptyState
                 icon={<ImagePlus size={48} />}
-                title="没有任何梗图"
-                description="快把好玩的图拖拽进来，或者点击下方的按钮导入吧！"
+                title={t('gallery.empty.no_memes')}
+                description={t('gallery.empty.no_memes_desc')}
                 action={{
-                    label: "导入第一张梗图",
+                    label: t('gallery.empty.import_first'),
                     onClick: () => { /* Logic for import */ },
                     icon: <ImagePlus size={16} />
                 }}
@@ -102,14 +104,14 @@ export function Gallery() {
                         icon={<ArrowLeft size={18} />}
                         size="sm"
                         variant="ghost"
-                        title="后退"
+                        title={t('gallery.controls.back')}
                     />
                     <IconButton
                         icon={<ArrowRight size={18} />}
                         size="sm"
                         variant="ghost"
                         disabled
-                        title="前进"
+                        title={t('gallery.controls.forward')}
                     />
                 </div>
 
@@ -123,7 +125,7 @@ export function Gallery() {
                             variant="ghost"
                             active={imageFit === 'contain'}
                             onClick={() => setImageFit(imageFit === 'contain' ? 'cover' : 'contain')}
-                            title={imageFit === 'contain' ? "原始比例 (Contain)" : "填充裁剪 (Cover)"}
+                            title={imageFit === 'contain' ? t('gallery.controls.original_ratio') : t('gallery.controls.fill_crop')}
                             className="rounded-lg"
                         />
                         <IconButton
@@ -132,7 +134,7 @@ export function Gallery() {
                             variant="ghost"
                             active={showTags}
                             onClick={() => setShowTags(!showTags)}
-                            title={showTags ? "隐藏标签" : "显示主标签"}
+                            title={showTags ? t('gallery.controls.hide_tags') : t('gallery.controls.show_tags')}
                             className="rounded-lg"
                         />
                     </div>
@@ -149,7 +151,7 @@ export function Gallery() {
                             active={viewMode === 'grid'}
                             onClick={() => setViewMode('grid')}
                             className="rounded-lg"
-                            title="网格视图"
+                            title={t('gallery.controls.grid_view')}
                         />
                         <IconButton
                             icon={<Columns3 size={16} />}
@@ -158,7 +160,7 @@ export function Gallery() {
                             active={viewMode === 'masonry'}
                             onClick={() => setViewMode('masonry')}
                             className="rounded-lg"
-                            title="瀑布流视图"
+                            title={t('gallery.controls.masonry_view')}
                         />
                     </div>
                 </div>
@@ -224,7 +226,7 @@ export function Gallery() {
                                                 size="sm"
                                                 className="bg-white/90 dark:bg-black/80 shadow-lg border border-white/20"
                                                 onClick={(e) => { e.stopPropagation(); }}
-                                                title="复制图片"
+                                                title={t('gallery.item.copy_image')}
                                             />
                                             <IconButton
                                                 icon={<Info size={14} />}
@@ -235,14 +237,14 @@ export function Gallery() {
                                                     selectMeme(meme.id);
                                                     togglePanel(true);
                                                 }}
-                                                title="查看详情"
+                                                title={t('gallery.item.view_details')}
                                             />
                                             <IconButton
                                                 icon={<MoreHorizontal size={14} />}
                                                 size="sm"
                                                 className="bg-white/90 dark:bg-black/80 shadow-lg border border-white/20"
                                                 onClick={(e) => { e.stopPropagation(); }}
-                                                title="更多"
+                                                title={t('gallery.item.more')}
                                             />
                                         </div>
                                     </div>

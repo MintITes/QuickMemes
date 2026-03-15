@@ -1,0 +1,172 @@
+{
+    "common": {
+        "all_memes": "存储库",
+        "categories": "",
+        "search_placeholder": "搜索 Meme...",
+        "add": "添加",
+        "settings": "设置",
+        "magic_store": {
+            "title": "Magic Store",
+            "bucket": "暂存箱"
+        },
+        "theme": {
+            "light": "浅色模式",
+            "dark": "深色模式",
+            "system": "跟随系统"
+        }
+    },
+    "sidebar": {
+        "repository_title": "存储库",
+        "all_memes_nav": "所有梗图",
+        "untagged": "未分类",
+        "trash": "回收站",
+        "recent": "最近使用",
+        "starred": "星标",
+        "shortcuts": "快速访问",
+        "categories": "分类"
+    },
+    "gallery": {
+        "empty": {
+            "no_memes": "没有任何梗图",
+            "no_memes_desc": "快把好玩的图拖拽进来，或者点击下方的按钮导入吧！",
+            "import_first": "导入第一张梗图",
+            "search_no_results": "没有找到匹配的梗图",
+            "search_no_results_desc": "未发现与 \"{{keyword}}\" 相关的梗图...",
+            "clear_search": "清除搜索",
+            "trash_empty": "回收站是空的",
+            "trash_empty_desc": "保持整洁是个好习惯！回收站目前没有任何内容。",
+            "untagged_empty": "所有梗图都已打上标签",
+            "untagged_empty_desc": "真棒！库里所有的梗图都有了分类标识。"
+        },
+        "controls": {
+            "back": "后退",
+            "forward": "前进",
+            "original_ratio": "原始比例",
+            "fill_crop": "填充裁剪",
+            "hide_tags": "隐藏标签",
+            "show_tags": "显示主标签",
+            "grid_view": "网格视图",
+            "masonry_view": "瀑布流视图"
+        },
+        "item": {
+            "copy_image": "复制图片",
+            "view_details": "查看详情",
+            "more": "更多"
+        }
+    },
+    "inspector": {
+        "title": "梗图详情",
+        "batch_title": "详情 ({{count}})",
+        "basic_info": "基础信息",
+        "tags": "标签",
+        "ocr_text": "OCR 文本",
+        "source": "来源",
+        "no_selection": "未选中",
+        "no_selection_desc": "选择一个或多个梗图以查看详情和操作。",
+        "labels": {
+            "name": "名称",
+            "format": "格式",
+            "size": "大小",
+            "resolution": "分辨率",
+            "added": "添加时间",
+            "modified": "更新时间"
+        },
+        "batch": {
+            "editing": "批量编辑",
+            "selected_desc": "你已选中 {{count}} 个梗图",
+            "tagging": "批量打标签",
+            "tag_input_tip": "输入标签名称并按回车以添加到所有选中项。",
+            "operations": "操作",
+            "export": "批量导出",
+            "delete": "移动到回收站"
+        }
+    },
+    "settings": {
+        "title": "设置中心",
+        "tabs": {
+            "general": "常规",
+            "appearance": "外观",
+            "storage": "存储",
+            "ocr": "OCR",
+            "ai": "AI 视觉",
+            "shortcuts": "快捷键",
+            "about": "关于"
+        },
+        "general": {
+            "title": "常规设置",
+            "theme": {
+                "label": "外观主题",
+                "desc": "夜间模式或白昼模式",
+                "light": "明亮",
+                "dark": "暗黑",
+                "system": "跟随系统"
+            },
+            "platform": {
+                "label": "窗口控制样式",
+                "desc": "手动切换控制按钮的视觉风格",
+                "auto": "自动",
+                "macos": "macOS",
+                "win_linux": "Windows/Linux"
+            },
+            "auto_start": {
+                "label": "开机自启",
+                "desc": "随系统启动并在后台静默运行"
+            },
+            "language": {
+                "label": "界面语言",
+                "desc": "切换应用程序的显示语言",
+                "zh_CN": "简体中文",
+                "en_US": "English",
+                "system": "跟随系统"
+            }
+        },
+        "appearance": {
+            "title": "个性化外观",
+            "glass": {
+                "label": "全局磨砂玻璃特效",
+                "experimental": "实验性",
+                "desc": "关闭以提升性能并解决部分渲染拖影问题"
+            },
+            "blur": {
+                "label": "磨砂玻璃模糊级别",
+                "warning": "需要开启玻璃特效"
+            },
+            "radius": "全局圆角半径",
+            "gap": "内容间距级别",
+            "accent": "强调色"
+        },
+        "storage": {
+            "title": "存储库管理",
+            "path": {
+                "label": "主存储路径",
+                "desc": "当前所有梗图保存的根目录",
+                "change": "更改"
+            }
+        },
+        "ocr": {
+            "title": "OCR 文本识别",
+            "auto_ocr": {
+                "label": "后台自动 OCR",
+                "desc": "导入图片后自动在后台提取文字索引"
+            }
+        },
+        "ai": {
+            "title": "AI 视觉分析",
+            "not_configured": "AI 自动打标模型尚未配置，请在后续版本配置 API Key"
+        },
+        "shortcuts": {
+            "title": "快捷键绑定",
+            "global_call": "全局唤出",
+            "quick_import": "快速截图导入",
+            "open_settings": "开启设置",
+            "not_set": "未设置"
+        },
+        "about": {
+            "desc": "一个跨平台的用于管理和存储 Memes 的工具，旨在帮助用户高效地组织、查找和分享 Memes。",
+            "license": "基于 GPL-3.0 开源协议发布",
+            "license_desc": "你可以自由地使用、修改和分发本程序，但前提是任何衍生作品都必须公开源代码，并继续沿用相同的 GPLv3 协议。",
+            "source_code": "源代码",
+            "official_website": "官方网站"
+        }
+    }
+}

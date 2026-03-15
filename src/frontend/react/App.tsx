@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { MainShell } from './components/layout/MainShell';
 import { useUiStore } from './stores/UiStore';
+import i18n from './i18n/config';
 import { useNotificationStore, type NotificationType } from './stores/NotificationStore';
 import { useTaskStore } from './stores/TaskStore';
 import './index.css';
@@ -129,8 +130,17 @@ function App() {
     root.style.setProperty('--corner-radius', `${cornerRadius}px`);
     root.style.setProperty('--gallery-gap', `${galleryGap}px`);
     root.style.setProperty('--accent-color', accentColor);
-
   }, [glassEffect, glassBlur, cornerRadius, galleryGap, accentColor]);
+
+  const language = useUiStore(state => state.language);
+
+  useEffect(() => {
+    if (language === 'system') {
+      i18n.changeLanguage(i18n.services.languageDetector.detect());
+    } else {
+      i18n.changeLanguage(language);
+    }
+  }, [language]);
 
   return <MainShell />;
 }
