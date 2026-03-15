@@ -10,11 +10,11 @@ describe('Sidebar component', () => {
 
     it('renders system and shortcuts categories', () => {
         render(<Sidebar />);
-        expect(screen.getByText('All Memes')).toBeInTheDocument();
-        expect(screen.getByText('Untagged')).toBeInTheDocument();
-        expect(screen.getByText('Trash')).toBeInTheDocument();
+        expect(screen.getByText('所有梗图')).toBeInTheDocument();
+        expect(screen.getByText('未分类')).toBeInTheDocument();
+        expect(screen.getByText('回收站')).toBeInTheDocument();
         // The bucket is labeled as "Bucket" internally in implementation, or "Magic Store" header
-        expect(screen.getByText(/Bucket/i)).toBeInTheDocument();
+        expect(screen.getByText(/暂存箱/i)).toBeInTheDocument();
     });
 
     it('renders category from store', () => {

@@ -95,7 +95,7 @@ export function Header() {
                 <IconButton
                     ref={layoutButtonRef}
                     icon={<LayoutGrid size={18} />}
-                    aria-label="Layout"
+                    aria-label={t('common.layout')}
                     className={clsx("opacity-70 hover:opacity-100", isLayoutOpen && "opacity-100 bg-black/5 dark:bg-white/10")}
                     onClick={() => setIsLayoutOpen(!isLayoutOpen)}
                 />

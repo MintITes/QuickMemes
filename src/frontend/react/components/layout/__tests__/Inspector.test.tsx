@@ -24,7 +24,7 @@ describe('Inspector component', () => {
 
     it('renders empty state when no selection', () => {
         render(<Inspector />);
-        expect(screen.getByText(/No selection/i)).toBeInTheDocument();
+        expect(screen.getByText(/未选中/i)).toBeInTheDocument();
     });
 
     it('renders meme details for single selection', () => {
@@ -38,8 +38,8 @@ describe('Inspector component', () => {
     it('renders batch actions for multiple selection', () => {
         useUiStore.setState({ selectedMemeIds: [1, 2] });
         render(<Inspector />);
-        expect(screen.getByText(/Batch Editing/i)).toBeInTheDocument();
-        expect(screen.getByText(/You have selected 2 memes/i)).toBeInTheDocument();
+        expect(screen.getByText(/批量编辑/i)).toBeInTheDocument();
+        expect(screen.getByText(/你已选中 2 个梗图/i)).toBeInTheDocument();
     });
 
     it('toggles panel close', () => {
@@ -57,7 +57,7 @@ describe('Inspector component', () => {
         useUiStore.setState({ selectedMemeIds: [1, 2] });
         render(<Inspector />);
 
-        const deleteBtn = screen.getByText(/Move to Recycle Bin/i);
+        const deleteBtn = screen.getByText(/移动到回收站/i);
         fireEvent.click(deleteBtn);
 
         expect(window.confirm).toHaveBeenCalled();

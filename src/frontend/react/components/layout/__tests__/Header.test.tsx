@@ -8,7 +8,7 @@ describe('Header component', () => {
         expect(screen.getByText('QuickMemes')).toBeInTheDocument();
         expect(screen.getByPlaceholderText(/搜索/i)).toBeInTheDocument();
         // Control buttons. The IconButton component doesn't always render title on the button itself if not passed directly, checking aria-label
-        expect(screen.getByLabelText(/Layout/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/Settings/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/布局/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/设置/i)).toBeInTheDocument();
     });
 });

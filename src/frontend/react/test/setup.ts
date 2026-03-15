@@ -1,6 +1,25 @@
 import '@testing-library/jest-dom';
 import { server } from '../__mocks__/server';
 import { vi, beforeAll, afterEach, afterAll } from 'vitest';
+import i18n from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import zhCN from '../i18n/locales/zh-CN.json';
+import enUS from '../i18n/locales/en-US.json';
+
+// Initialize i18n for tests
+i18n.use(initReactI18next).init({
+    lng: 'zh-CN',
+    fallbackLng: 'zh-CN',
+    ns: ['translation'],
+    defaultNS: 'translation',
+    resources: {
+        'zh-CN': { translation: zhCN },
+        'en-US': { translation: enUS }
+    },
+    interpolation: {
+        escapeValue: false,
+    }
+});
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => server.resetHandlers());

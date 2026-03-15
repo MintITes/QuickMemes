@@ -9,6 +9,7 @@ i18n
     .use(LanguageDetector)
     .use(initReactI18next)
     .init({
+        showSupportNotice: false,
         resources: {
             'zh-CN': { translation: zhCN },
             'en-US': { translation: enUS }
