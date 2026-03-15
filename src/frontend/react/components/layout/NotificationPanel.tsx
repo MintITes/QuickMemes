@@ -2,6 +2,7 @@ import { useNotificationStore, type NotificationType } from '../../stores/Notifi
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Info, AlertTriangle, AlertCircle, Trash2, Terminal, CheckCircle2, Bomb } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
+import { useTranslation } from 'react-i18next';
 import { useEffect } from 'react';
 
 const severityOrder: Record<NotificationType, number> = {
@@ -21,6 +22,7 @@ export function NotificationPanel() {
         removeNotification,
         clearAll
     } = useNotificationStore();
+    const { t } = useTranslation();
 
     // Sort notifications: Severity first (Fatal > Error > Warn > Info > Success > Debug), then Newest first
     const sortedNotifications = [...notifications].sort((a, b) => {
@@ -73,7 +75,7 @@ export function NotificationPanel() {
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between p-3 border-b border-borderColor bg-white/5">
-                            <span className="text-sm font-bold opacity-80 px-1">通知</span>
+                            <span className="text-sm font-bold opacity-80 px-1">{t('notifications.title')}</span>
                             <IconButton
                                 icon={<X size={14} />}
                                 size="sm"
@@ -87,7 +89,7 @@ export function NotificationPanel() {
                             {sortedNotifications.length === 0 ? (
                                 <div className="h-32 flex flex-col items-center justify-center opacity-40 text-xs">
                                     <Info size={24} className="mb-2" />
-                                    <span>没有任何通知</span>
+                                    <span>{t('notifications.empty')}</span>
                                 </div>
                             ) : (
                                 <div className="flex flex-col gap-2">
@@ -128,7 +130,7 @@ export function NotificationPanel() {
                                     className="flex items-center gap-2 px-4 py-1.5 text-xs font-medium text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
                                 >
                                     <Trash2 size={12} />
-                                    <span>清除全部</span>
+                                    <span>{t('notifications.clear_all')}</span>
                                 </button>
                             </div>
                         )}

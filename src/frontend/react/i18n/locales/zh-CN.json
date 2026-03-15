@@ -14,7 +14,42 @@
             "light": "浅色模式",
             "dark": "深色模式",
             "system": "跟随系统"
-        }
+        },
+        "confirm": "确定",
+        "cancel": "取消"
+    },
+    "layouts": {
+        "full": "左展+右展",
+        "left_only": "左展+右隐",
+        "right_only": "左折+右展",
+        "simple": "左折+右隐"
+    },
+    "notifications": {
+        "title": "通知",
+        "empty": "没有任何通知",
+        "clear_all": "清除全部"
+    },
+    "import": {
+        "title": "快捷导入",
+        "drop_zone": "将文件拖到此处",
+        "drop_zone_active": "松开鼠标即可导入",
+        "select_file": "选择文件",
+        "or": "或",
+        "formats_desc": "支持 PNG, JPG, GIF, WebP, BMP",
+        "invalid_format": "不支持的文件格式。请使用 PNG, JPG, GIF, WebP 或 BMP。",
+        "success": "导入成功！",
+        "failed": "导入失败",
+        "processing": "梗图正在存入库中..."
+    },
+    "dropdown": {
+        "quick": "快捷导入",
+        "quick_desc": "弹出拖拽导入窗口",
+        "clipboard": "从剪贴板导入",
+        "clipboard_desc": "直接读取图片",
+        "file": "从文件导入",
+        "file_desc": "选择本地图片",
+        "url": "从 URL 导入",
+        "url_desc": "输入网络图片链接"
     },
     "sidebar": {
         "repository_title": "存储库",

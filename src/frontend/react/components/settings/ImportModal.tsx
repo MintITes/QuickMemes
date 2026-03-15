@@ -3,6 +3,7 @@ import { X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
 import { IconButton } from '../common/IconButton';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp'];
@@ -12,6 +13,7 @@ export function ImportModal() {
     const [isDragging, setIsDragging] = useState(false);
     const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
+    const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -57,7 +59,7 @@ export function ImportModal() {
 
         if (validFiles.length === 0) {
             setImportStatus('error');
-            setErrorMessage('不支持的文件格式。请使用 PNG, JPG, GIF, WebP 或 BMP。');
+            setErrorMessage(t('import.invalid_format'));
             return;
         }
 
@@ -97,7 +99,7 @@ export function ImportModal() {
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between p-4 border-b border-white/10 dark:border-black/10">
-                            <h3 className="text-[15px] font-bold tracking-tight">快捷导入</h3>
+                            <h3 className="text-[15px] font-bold tracking-tight">{t('import.title')}</h3>
                             <IconButton
                                 icon={<X size={16} />}
                                 onClick={() => toggleImportModal(false)}
@@ -134,12 +136,12 @@ export function ImportModal() {
 
                                 <div className="text-center">
                                     <p className="font-semibold text-sm">
-                                        {importStatus === 'success' ? '导入成功！' :
-                                            importStatus === 'error' ? '导入失败' :
-                                                '将文件拖到此处'}
+                                        {importStatus === 'success' ? t('import.success') :
+                                            importStatus === 'error' ? t('import.failed') :
+                                                (isDragging ? t('import.drop_zone_active') : t('import.drop_zone'))}
                                     </p>
                                     <p className="text-xs text-textSecondary mt-1">
-                                        {importStatus === 'error' ? errorMessage : '支持 PNG, JPG, GIF, WebP, BMP'}
+                                        {importStatus === 'error' ? errorMessage : t('import.formats_desc')}
                                     </p>
                                 </div>
 
@@ -150,13 +152,13 @@ export function ImportModal() {
                             </div>
 
                             <div className="flex flex-col items-center gap-4">
-                                <span className="text-xs text-textSecondary font-medium">或</span>
+                                <span className="text-xs text-textSecondary font-medium">{t('import.or')}</span>
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className="px-8 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50"
                                     disabled={importStatus === 'success'}
                                 >
-                                    选择文件
+                                    {t('import.select_file')}
                                 </button>
                                 <input
                                     ref={fileInputRef}
@@ -179,7 +181,7 @@ export function ImportModal() {
                                     importStatus === 'success' ? "bg-green-500" : "bg-red-500"
                                 )}
                             >
-                                {importStatus === 'success' ? '梗图正在存入库中...' : errorMessage}
+                                {importStatus === 'success' ? t('import.processing') : errorMessage}
                             </motion.div>
                         )}
                     </motion.div>

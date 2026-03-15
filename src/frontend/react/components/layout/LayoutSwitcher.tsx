@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Portal } from '../common/Portal';
@@ -56,11 +57,12 @@ export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherPro
         };
     }, [isOpen, onClose, anchorRef]);
 
+    const { t } = useTranslation();
     const layouts = [
-        { id: 'full', label: '左展+右展', expanded: true, panel: true },
-        { id: 'left_only', label: '左展+右隐', expanded: true, panel: false },
-        { id: 'right_only', label: '左折+右展', expanded: false, panel: true },
-        { id: 'simple', label: '左折+右隐', expanded: false, panel: false },
+        { id: 'full', label: t('layouts.full'), expanded: true, panel: true },
+        { id: 'left_only', label: t('layouts.left_only'), expanded: true, panel: false },
+        { id: 'right_only', label: t('layouts.right_only'), expanded: false, panel: true },
+        { id: 'simple', label: t('layouts.simple'), expanded: false, panel: false },
     ];
 
     return (

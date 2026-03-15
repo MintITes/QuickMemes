@@ -14,7 +14,42 @@
             "light": "Light Mode",
             "dark": "Dark Mode",
             "system": "System Default"
-        }
+        },
+        "confirm": "Confirm",
+        "cancel": "Cancel"
+    },
+    "layouts": {
+        "full": "Expanded-Full",
+        "left_only": "Left-Only",
+        "right_only": "Right-Only",
+        "simple": "Collapsed-Simple"
+    },
+    "notifications": {
+        "title": "Notifications",
+        "empty": "No notifications",
+        "clear_all": "Clear All"
+    },
+    "import": {
+        "title": "Quick Import",
+        "drop_zone": "Drop files here",
+        "drop_zone_active": "Release to import",
+        "select_file": "Select Files",
+        "or": "or",
+        "formats_desc": "Supports PNG, JPG, GIF, WebP, BMP",
+        "invalid_format": "Unsupported format. Please use PNG, JPG, GIF, WebP, or BMP.",
+        "success": "Import Successful!",
+        "failed": "Import Failed",
+        "processing": "Saving memes to library..."
+    },
+    "dropdown": {
+        "quick": "Quick Import",
+        "quick_desc": "Show drag-and-drop window",
+        "clipboard": "Import from Clipboard",
+        "clipboard_desc": "Read image from clipboard",
+        "file": "Import from File",
+        "file_desc": "Select local images",
+        "url": "Import from URL",
+        "url_desc": "Enter image web link"
     },
     "sidebar": {
         "repository_title": "Library",

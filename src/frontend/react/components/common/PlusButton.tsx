@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { Plus } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -9,6 +10,7 @@ interface PlusButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 
 export const PlusButton = forwardRef<HTMLButtonElement, PlusButtonProps>(
     ({ active, className, ...props }, ref) => {
+        const { t } = useTranslation();
         return (
             <button
                 ref={ref}
@@ -21,7 +23,7 @@ export const PlusButton = forwardRef<HTMLButtonElement, PlusButtonProps>(
                         className
                     )
                 )}
-                title="添加新梗图"
+                title={t('common.add')}
                 {...props}
             >
                 <Plus size={16} strokeWidth={3} className="no-drag" />

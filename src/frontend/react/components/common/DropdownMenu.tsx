@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, Clipboard, FileUp, Link as LinkIcon } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Portal } from './Portal';
 
 interface DropdownMenuProps {
@@ -10,16 +11,17 @@ interface DropdownMenuProps {
     onAction: (type: 'quick' | 'clipboard' | 'file' | 'url') => void;
 }
 
-const menuItems = [
-    { id: 'quick', label: '快捷导入', icon: <Zap size={16} />, description: '弹出拖拽导入窗口' },
-    { id: 'clipboard', label: '从剪贴板导入', icon: <Clipboard size={16} />, description: '直接读取图片' },
-    { id: 'file', label: '从文件导入', icon: <FileUp size={16} />, description: '选择本地图片' },
-    { id: 'url', label: '从 URL 导入', icon: <LinkIcon size={16} />, description: '输入网络图片链接' },
-];
-
 export function DropdownMenu({ isOpen, onClose, anchorRef, onAction }: DropdownMenuProps) {
+    const { t } = useTranslation();
     const menuRef = useRef<HTMLDivElement>(null);
     const [style, setStyle] = React.useState<React.CSSProperties>({});
+
+    const menuItems = [
+        { id: 'quick', label: t('dropdown.quick'), icon: <Zap size={16} />, description: t('dropdown.quick_desc') },
+        { id: 'clipboard', label: t('dropdown.clipboard'), icon: <Clipboard size={16} />, description: t('dropdown.clipboard_desc') },
+        { id: 'file', label: t('dropdown.file'), icon: <FileUp size={16} />, description: t('dropdown.file_desc') },
+        { id: 'url', label: t('dropdown.url'), icon: <LinkIcon size={16} />, description: t('dropdown.url_desc') },
+    ];
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
