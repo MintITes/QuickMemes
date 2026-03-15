@@ -26,6 +26,12 @@ jobs:
         run: ./scripts/test.sh
         shell: bash
 
+      - name: Setup vcpkg
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          doNotCache: false
+        
       - name: Install Dependencies (Windows)
         if: runner.os == 'Windows'
         run: vcpkg install openssl:x64-windows
