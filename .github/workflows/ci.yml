@@ -25,13 +25,6 @@ jobs:
         if: runner.os == 'Linux'
         run: ./scripts/test.sh
         shell: bash
-
-      - name: Setup vcpkg (Windows)
-        if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@v11
-        with:
-          doNotCache: false
-          vcpkgGitCommitId: "4b77da7fed37817f124936239197833469f1b9a8"
         
       - name: Install Dependencies (Windows)
         if: runner.os == 'Windows'
