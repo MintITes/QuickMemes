@@ -24,6 +24,34 @@
         "right_only": "Right-Only",
         "simple": "Collapsed-Simple"
     },
+    "search": {
+        "history": "History",
+        "suggestions": "Suggestions",
+        "advanced": "Advanced Search",
+        "clear_history": "Clear History",
+        "placeholder": "Search Memes...",
+        "advanced_keywords": "Search Keywords",
+        "advanced_mode": "Match Mode",
+        "mode_fuzzy": "Fuzzy",
+        "mode_word": "Word",
+        "mode_regex": "Regex",
+        "advanced_category": "Category",
+        "advanced_tags": "Tags",
+        "advanced_media": "Media Type",
+        "advanced_date": "Date Range",
+        "media_all": "All types",
+        "media_image": "Images",
+        "media_video": "Videos",
+        "media_gif": "GIFs",
+        "date_all": "Any time",
+        "date_today": "Today",
+        "date_week": "Week",
+        "date_month": "Month",
+        "date_year": "Year",
+        "no_tags_available": "No tags available",
+        "reset_filters": "Reset all filters",
+        "clear_selected": "Clear selected"
+    },
     "notifications": {
         "title": "Notifications",
         "empty": "No notifications",
@@ -39,7 +67,11 @@
         "invalid_format": "Unsupported format. Please use PNG, JPG, GIF, WebP, or BMP.",
         "success": "Import Successful!",
         "failed": "Import Failed",
-        "processing": "Saving memes to library..."
+        "processing": "Saving memes to library...",
+        "url_dialog_title": "Import from URL",
+        "url_placeholder": "Enter image or gif URL...",
+        "cancel": "Cancel",
+        "confirm": "Import"
     },
     "dropdown": {
         "quick": "Quick Import",

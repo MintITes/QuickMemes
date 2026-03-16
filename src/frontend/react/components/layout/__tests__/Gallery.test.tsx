@@ -16,7 +16,7 @@ describe('Gallery component', () => {
         } as any);
         useUiStore.setState({
             activeNav: 'all',
-            searchQuery: { keyword: '', tagIds: [] },
+            searchQuery: { keyword: '', tagIds: [], matchMode: 'fuzzy', mediaType: 'all', dateRange: 'all' },
             viewMode: 'grid',
             imageFit: 'contain',
             selectedMemeIds: [],
@@ -49,7 +49,7 @@ describe('Gallery component', () => {
     });
 
     it('shows search empty state', () => {
-        useUiStore.setState({ searchQuery: { keyword: 'xyz', tagIds: [] } });
+        useUiStore.setState({ searchQuery: { keyword: 'xyz', tagIds: [], matchMode: 'fuzzy', mediaType: 'all', dateRange: 'all' } });
         render(<Gallery />);
         expect(screen.getByText(/没有找到匹配的梗图/i)).toBeInTheDocument();
     });

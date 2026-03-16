@@ -94,6 +94,7 @@ export function DropdownMenu({ isOpen, onClose, anchorRef, onAction }: DropdownM
                                         onAction(item.id as 'quick' | 'clipboard' | 'file' | 'url');
                                         onClose();
                                     }}
+                                    onMouseDown={(e) => e.preventDefault()}
                                     className="w-full group flex items-start gap-3 p-2.5 rounded-xl hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-200 text-left"
                                 >
                                     <div className="w-8 h-8 rounded-lg bg-black/5 dark:bg-white/5 flex items-center justify-center text-textSecondary group-hover:text-accent group-hover:bg-accent/10 transition-colors">

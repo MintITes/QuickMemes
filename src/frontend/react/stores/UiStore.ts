@@ -3,8 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 export interface SearchQuery {
     keyword: string;
-    categoryId?: string;
+    categoryId?: number;
     tagIds: number[];
+    matchMode: 'fuzzy' | 'word' | 'regex';
+    mediaType: 'all' | 'image' | 'video' | 'gif';
+    dateRange: 'all' | 'today' | 'week' | 'month' | 'year';
 }
 
 export interface UiState {
@@ -18,6 +21,7 @@ export interface UiState {
     resolvedTheme: 'light' | 'dark';
     isSettingsOpen: boolean;
     isImportModalOpen: boolean;
+    isUrlImportDialogOpen: boolean;
     glassEffect: boolean;
     activeNav: string;
     platformOverride: 'darwin' | 'win32' | 'linux' | 'auto';
@@ -30,6 +34,8 @@ export interface UiState {
     inspectorWidth: number;
     sidebarExpanded: boolean;
     language: 'zh-CN' | 'en-US' | 'system';
+    searchHistory: string[];
+    isAdvancedSearchOpen: boolean;
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -42,6 +48,7 @@ export interface UiState {
     setResolvedTheme: (theme: 'light' | 'dark') => void;
     toggleSettings: (isOpen?: boolean) => void;
     toggleImportModal: (isOpen?: boolean) => void;
+    toggleUrlImportDialog: (isOpen?: boolean) => void;
     toggleGlassEffect: (enabled?: boolean) => void;
     setActiveNav: (nav: string) => void;
     setPlatformOverride: (platform: 'darwin' | 'win32' | 'linux' | 'auto') => void;
@@ -54,6 +61,9 @@ export interface UiState {
     setInspectorWidth: (width: number) => void;
     setSidebarExpanded: (expanded: boolean) => void;
     setLanguage: (lang: 'zh-CN' | 'en-US' | 'system') => void;
+    addSearchHistory: (term: string) => void;
+    clearSearchHistory: () => void;
+    toggleAdvancedSearch: (isOpen?: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -63,12 +73,19 @@ export const useUiStore = create<UiState>()(
             isImporting: false,
             activeTaskId: null,
             selectedMemeIds: [],
-            searchQuery: { keyword: '', tagIds: [] },
+            searchQuery: {
+                keyword: '',
+                tagIds: [],
+                matchMode: 'fuzzy',
+                mediaType: 'all',
+                dateRange: 'all'
+            },
             viewMode: 'grid',
             theme: 'system',
             resolvedTheme: 'light',
             isSettingsOpen: false,
             isImportModalOpen: false,
+            isUrlImportDialogOpen: false,
             glassEffect: false,
             activeNav: 'all',
             platformOverride: 'auto',
@@ -81,6 +98,8 @@ export const useUiStore = create<UiState>()(
             inspectorWidth: 320,
             sidebarExpanded: true,
             language: 'system',
+            searchHistory: [],
+            isAdvancedSearchOpen: false,
 
             togglePanel: (isOpen) =>
                 set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -118,6 +137,9 @@ export const useUiStore = create<UiState>()(
             toggleImportModal: (isOpen) =>
                 set((state) => ({ isImportModalOpen: isOpen !== undefined ? isOpen : !state.isImportModalOpen })),
 
+            toggleUrlImportDialog: (isOpen) =>
+                set((state) => ({ isUrlImportDialogOpen: isOpen !== undefined ? isOpen : !state.isUrlImportDialogOpen })),
+
             toggleGlassEffect: (enabled) =>
                 set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),
 
@@ -147,6 +169,22 @@ export const useUiStore = create<UiState>()(
                 // in the root component to ensure the store and i18n stay in sync, 
                 // but we can also do it here if we import i18n.
             },
+
+            addSearchHistory: (term) =>
+                set((state) => {
+                    const cleanTerm = term.trim();
+                    if (!cleanTerm) return state;
+                    const newHistory = [
+                        cleanTerm,
+                        ...state.searchHistory.filter((t) => t !== cleanTerm)
+                    ].slice(0, 3);
+                    return { searchHistory: newHistory };
+                }),
+
+            clearSearchHistory: () => set({ searchHistory: [] }),
+
+            toggleAdvancedSearch: (isOpen) =>
+                set((state) => ({ isAdvancedSearchOpen: isOpen !== undefined ? isOpen : !state.isAdvancedSearchOpen })),
         }),
         {
             name: 'quick-memes-ui-storage',
@@ -167,6 +205,7 @@ export const useUiStore = create<UiState>()(
                 inspectorWidth: state.inspectorWidth,
                 sidebarExpanded: state.sidebarExpanded,
                 language: state.language,
+                searchHistory: state.searchHistory,
             }),
         }
     )

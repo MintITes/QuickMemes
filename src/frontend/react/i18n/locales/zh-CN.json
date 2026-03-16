@@ -24,6 +24,34 @@
         "right_only": "左折+右展",
         "simple": "左折+右隐"
     },
+    "search": {
+        "history": "搜索历史",
+        "suggestions": "智能提示",
+        "advanced": "高级搜索",
+        "clear_history": "清空历史",
+        "placeholder": "搜索 Meme...",
+        "advanced_keywords": "搜索关键词：",
+        "advanced_mode": "匹配模式：",
+        "mode_fuzzy": "模糊匹配",
+        "mode_word": "全词匹配",
+        "mode_regex": "正则搜索",
+        "advanced_category": "分类",
+        "advanced_tags": "标签",
+        "advanced_media": "媒体类型",
+        "advanced_date": "时间范围",
+        "media_all": "所有类型",
+        "media_image": "图片",
+        "media_video": "视频",
+        "media_gif": "动图",
+        "date_all": "不限时间",
+        "date_today": "今日",
+        "date_week": "本周",
+        "date_month": "本月",
+        "date_year": "本年",
+        "no_tags_available": "暂无可用标签",
+        "reset_filters": "重置所有过滤器",
+        "clear_selected": "清除已选"
+    },
     "notifications": {
         "title": "通知",
         "empty": "没有任何通知",
@@ -39,7 +67,11 @@
         "invalid_format": "不支持的文件格式。请使用 PNG, JPG, GIF, WebP 或 BMP。",
         "success": "导入成功！",
         "failed": "导入失败",
-        "processing": "梗图正在存入库中..."
+        "processing": "梗图正在存入库中...",
+        "url_dialog_title": "从 URL 导入",
+        "url_placeholder": "在此处输入图片或gif链接...",
+        "cancel": "取消",
+        "confirm": "导入"
     },
     "dropdown": {
         "quick": "快捷导入",

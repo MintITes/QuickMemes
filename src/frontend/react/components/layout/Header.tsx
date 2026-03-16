@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
 import { Search, LayoutGrid, Sun, Moon, Settings, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +9,7 @@ import { IconButton } from '../common/IconButton';
 import { PlusButton } from '../common/PlusButton';
 import { WindowControlButton } from '../common/WindowControlButton';
 import { DropdownMenu } from '../common/DropdownMenu';
+import { SearchDropdown } from './SearchDropdown';
 import { LayoutSwitcher } from './LayoutSwitcher';
 
 export function Header() {
@@ -17,9 +19,11 @@ export function Header() {
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
 
     const { t } = useTranslation();
-    const { resolvedTheme, setTheme, toggleSettings, toggleImportModal } = useUiStore();
+    const { resolvedTheme, setTheme, toggleSettings, toggleImportModal, toggleUrlImportDialog, setSearchQuery, addSearchHistory, searchQuery } = useUiStore();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLayoutOpen, setIsLayoutOpen] = useState(false);
+    const [isSearchFocused, setIsSearchFocused] = useState(false);
+    const [searchValue, setSearchValue] = useState(searchQuery.keyword);
 
     const plusButtonRef = useRef<HTMLButtonElement>(null);
     const layoutButtonRef = useRef<HTMLButtonElement>(null);
@@ -33,7 +37,29 @@ export function Header() {
         console.log('Action selected:', type);
         if (type === 'quick') {
             toggleImportModal(true);
+        } else if (type === 'url') {
+            toggleUrlImportDialog(true);
         }
+    };
+
+    // Sync input value with store keyword (for updates from Advanced Search)
+    useEffect(() => {
+        setSearchValue(searchQuery.keyword);
+    }, [searchQuery.keyword]);
+
+    // Debounced search logic
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setSearchQuery({ keyword: searchValue });
+        }, 300);
+
+        return () => clearTimeout(handler);
+    }, [searchValue, setSearchQuery]);
+
+    const handleSearchSelect = (term: string) => {
+        setSearchValue(term);
+        addSearchHistory(term);
+        setIsSearchFocused(false);
     };
 
     return (
@@ -68,18 +94,36 @@ export function Header() {
             </div>
 
             {/* Global Search Bar (Centered safely by Grid) */}
-            <div className="justify-self-center w-[240px] focus-within:w-[400px] h-9 rounded-xl bg-black/5 dark:bg-black/20 flex items-center px-3 shadow-inner overflow-hidden border border-black/10 dark:border-white/10 no-drag transition-[width,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:bg-white dark:focus-within:bg-black/40 focus-within:ring-2 focus-within:ring-accent/50 focus-within:shadow-md outline-none relative group">
+            <div className={clsx(
+                "justify-self-center h-9 rounded-xl bg-black/5 dark:bg-black/20 flex items-center px-3 shadow-inner overflow-visible border border-black/10 dark:border-white/10 no-drag transition-[width,background-color,box-shadow,height] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-within:bg-white dark:focus-within:bg-black/40 focus-within:ring-2 focus-within:ring-accent/50 focus-within:shadow-md outline-none relative group",
+                isSearchFocused ? "w-[500px]" : "w-[240px]"
+            )}>
                 <Search size={16} className="text-textSecondary mr-2 no-drag transition-colors group-focus-within:text-accent" />
                 <input
                     type="text"
-                    placeholder={t('common.search_placeholder')}
+                    value={searchValue}
+                    onChange={(e) => setSearchValue(e.target.value)}
+                    onFocus={() => setIsSearchFocused(true)}
+                    onBlur={() => {
+                        // Delay blurring to allow clicks in dropdown
+                        setTimeout(() => {
+                            setIsSearchFocused(false);
+                            if (searchValue.trim()) addSearchHistory(searchValue);
+                        }, 200);
+                    }}
+                    placeholder={t('search.placeholder')}
                     className="bg-transparent border-none outline-none flex-1 text-sm text-textPrimary placeholder:text-textSecondary h-full no-drag"
                 />
                 <PlusButton
                     ref={plusButtonRef}
                     active={isMenuOpen}
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100 transition-all duration-300"
+                    onMouseDown={(e) => e.preventDefault()}
+                    disabled={!isSearchFocused}
+                    className={clsx(
+                        "absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-focus-within:opacity-100 scale-90 group-focus-within:scale-100 transition-all duration-300",
+                        !isSearchFocused && "pointer-events-none"
+                    )}
                     data-testid="btn-add"
                 />
                 <DropdownMenu
@@ -88,6 +132,14 @@ export function Header() {
                     anchorRef={plusButtonRef}
                     onAction={handleAction}
                 />
+                <AnimatePresence>
+                    {isSearchFocused && (
+                        <SearchDropdown
+                            onClose={() => setIsSearchFocused(false)}
+                            onSelectHistory={handleSearchSelect}
+                        />
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Tools Area */}

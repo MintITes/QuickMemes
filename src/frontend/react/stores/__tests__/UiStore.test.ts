@@ -9,7 +9,7 @@ describe('UiStore', () => {
             isImporting: false,
             activeTaskId: null,
             selectedMemeIds: [],
-            searchQuery: { keyword: '', tagIds: [] },
+            searchQuery: { keyword: '', tagIds: [], matchMode: 'fuzzy', mediaType: 'all', dateRange: 'all' },
             viewMode: 'grid',
         });
     });

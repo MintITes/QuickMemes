@@ -6,6 +6,8 @@ import { StatusBar } from './StatusBar';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ImportModal } from '../settings/ImportModal';
 import { NotificationPanel } from './NotificationPanel';
+import { UrlImportDialog } from '../common/UrlImportDialog';
+import { AdvancedSearchDialog } from '../common/AdvancedSearchDialog';
 import { ToastContainer } from './ToastContainer';
 import { AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
@@ -28,6 +30,8 @@ export function MainShell() {
             {/* Absolute positioning modals */}
             <SettingsModal />
             <ImportModal />
+            <UrlImportDialog />
+            <AdvancedSearchDialog />
             <NotificationPanel />
             <ToastContainer />
         </div>
