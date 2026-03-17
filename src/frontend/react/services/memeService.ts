@@ -73,7 +73,7 @@ export async function searchMemes(query: SearchQuery) {
 }
 
 export async function fetchTrashMemes() {
-    return sendHttpRequest<Meme[]>('GET', '/api/memes/trash');
+    return sendHttpRequest<SearchResult>('GET', '/api/memes/trash');
 }
 
 export async function getMeme(id: number) {

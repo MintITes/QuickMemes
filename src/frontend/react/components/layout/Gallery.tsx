@@ -210,6 +210,9 @@ export function Gallery() {
                         )}
                         itemContent={(index) => {
                             const meme = memes[index];
+                            if (!meme) {
+                                return null;
+                            }
                             const isSelected = selectedMemeIds.includes(meme.id);
                             const memeTags = tags.filter((entry) => meme.tagIds.includes(entry.id));
 

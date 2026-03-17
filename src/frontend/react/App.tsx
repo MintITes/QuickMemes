@@ -265,9 +265,9 @@ function App() {
 
             try {
                 if (activeNav === 'trash') {
-                    const items = await fetchTrashMemes();
+                    const result = await fetchTrashMemes();
                     if (!cancelled) {
-                        setMemes(items, items.length);
+                        setMemes(result.items.map((item) => item.meme), result.total);
                     }
                     return;
                 }
