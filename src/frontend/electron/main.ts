@@ -149,19 +149,19 @@ app.whenReady().then(() => {
         win?.webContents.openDevTools();
     });
 
-    ipcMain.handle('open-file-dialog', async (event, options: any) => {
+    ipcMain.handle('open-file-dialog', async (event, options: Record<string, unknown>) => {
         const win = BrowserWindow.fromWebContents(event.sender);
         if (!win) return [];
 
         const { dialog } = await import('electron');
         const result = await dialog.showOpenDialog(win, {
-            title: options?.title || '选择 Meme 文件',
-            buttonLabel: options?.buttonLabel || '导入',
+            title: (options?.title as string) || '选择 Meme 文件',
+            buttonLabel: (options?.buttonLabel as string) || '导入',
             filters: [
                 { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] },
                 { name: 'All Files', extensions: ['*'] }
             ],
-            properties: options?.properties || ['openFile', 'multiSelections']
+            properties: (options?.properties as Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent'>) || ['openFile', 'multiSelections']
         });
 
         return result.filePaths;

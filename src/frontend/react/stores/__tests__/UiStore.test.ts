@@ -41,10 +41,22 @@ describe('UiStore', () => {
 
     it('should update search query partially', () => {
         useUiStore.getState().setSearchQuery({ keyword: 'test' });
-        expect(useUiStore.getState().searchQuery).toEqual({ keyword: 'test', tagIds: [] });
+        expect(useUiStore.getState().searchQuery).toEqual({
+            keyword: 'test',
+            tagIds: [],
+            matchMode: 'fuzzy',
+            mediaType: 'all',
+            dateRange: 'all'
+        });
 
         useUiStore.getState().setSearchQuery({ tagIds: [1, 2] });
-        expect(useUiStore.getState().searchQuery).toEqual({ keyword: 'test', tagIds: [1, 2] });
+        expect(useUiStore.getState().searchQuery).toEqual({
+            keyword: 'test',
+            tagIds: [1, 2],
+            matchMode: 'fuzzy',
+            mediaType: 'all',
+            dateRange: 'all'
+        });
     });
 
     it('should set importing workflow state', () => {
