@@ -29,6 +29,14 @@ namespace http  = beast::http;
 
 using WsSendCallback = std::function<void(std::shared_ptr<std::string>)>;
 
+template <typename Body>
+void applyCorsHeaders(http::response<Body> &res) {
+	res.set(http::field::access_control_allow_origin, "*");
+	res.set(http::field::access_control_allow_methods, "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+	res.set(http::field::access_control_allow_headers, "Authorization, Content-Type");
+	res.set(http::field::access_control_max_age, "86400");
+}
+
 class WsSession : public std::enable_shared_from_this<WsSession> {
 	beast::websocket::stream<beast::tcp_stream> ws_;
 	beast::flat_buffer                          buffer_;
@@ -159,6 +167,25 @@ private:
 	}
 
 	void handleRequest() {
+		if (req_.method() == http::verb::options) {
+			auto res = std::make_shared<http::response<http::string_body>>(http::status::no_content, req_.version());
+			res->set(http::field::server, "QuickMemes/1.0");
+			res->set(http::field::content_type, "application/json");
+			applyCorsHeaders(*res);
+			res->keep_alive(req_.keep_alive());
+			res->prepare_payload();
+
+			auto self = shared_from_this();
+			http::async_write(stream_, *res, [self, res](beast::error_code ec, std::size_t /*b*/) {
+				if (res->need_eof()) {
+					self->doClose();
+					return;
+				}
+				self->doRead();
+			});
+			return;
+		}
+
 		if (beast::websocket::is_upgrade(req_)) {
 			auto              path          = std::string(req_.target());
 			const bool        isWsPath      = path.rfind("/ws", 0) == 0; // strict path prefix check
@@ -196,6 +223,7 @@ private:
 				                                                        req_.version());
 				res->set(http::field::server, "QuickMemes/1.0");
 				res->set(http::field::content_type, "application/json");
+				applyCorsHeaders(*res);
 				res->keep_alive(req_.keep_alive());
 				res->body() = std::move(resProxy.body);
 				res->prepare_payload();
@@ -234,6 +262,7 @@ private:
 				auto res = std::make_shared<http::response<http::string_body>>(http::status::not_found, req_.version());
 				res->set(http::field::server, "QuickMemes/1.0");
 				res->set(http::field::content_type, "application/json");
+				applyCorsHeaders(*res);
 				res->keep_alive(req_.keep_alive());
 				res->body() = R"({"success": false, "data": null, "error": "File not found", "code": 1004})";
 				res->prepare_payload();
@@ -256,6 +285,7 @@ private:
 				                                                             req_.version());
 				res->set(http::field::server, "QuickMemes/1.0");
 				res->set(http::field::content_type, resProxy.contentType);
+				applyCorsHeaders(*res);
 				res->keep_alive(req_.keep_alive());
 				res->body() = std::move(file);
 				res->prepare_payload();
@@ -279,6 +309,7 @@ private:
 			                                                               req_.version());
 			res->set(http::field::server, "QuickMemes/1.0");
 			res->set(http::field::content_type, resProxy.contentType);
+			applyCorsHeaders(*res);
 			res->keep_alive(req_.keep_alive());
 			res->body() = std::move(resProxy.body);
 			res->prepare_payload();

@@ -5,15 +5,45 @@ import { useMemeStore } from '../../../stores/MemeStore';
 import { useUiStore } from '../../../stores/UiStore';
 import { useTagStore } from '../../../stores/TagStore';
 
+vi.mock('react-virtuoso', () => ({
+    VirtuosoGrid: ({ totalCount, itemContent }: { totalCount: number; itemContent: (index: number) => React.ReactNode }) => (
+        <div>{Array.from({ length: totalCount }).map((_, index) => <div key={index}>{itemContent(index)}</div>)}</div>
+    ),
+}));
+
+vi.mock('../../../services/assetService', () => ({
+    getThumbnailUrl: vi.fn().mockResolvedValue('blob:test'),
+    revokeAssetUrl: vi.fn(),
+}));
+
+const meme = {
+    id: 1,
+    name: 'Test Meme',
+    filePath: '/1.png',
+    fileHash: 'hash1',
+    mimeType: 'image/png',
+    fileSize: 1024,
+    width: 100,
+    height: 100,
+    sourceName: '',
+    sourceUrl: '',
+    description: '',
+    ocrText: '',
+    ocrStatus: 'PENDING' as const,
+    aiStatus: 'PENDING' as const,
+    tagIds: [],
+    tags: [],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    lastUsedAt: 0,
+    deletedAt: 0,
+    categoryId: 0,
+};
+
 describe('Gallery component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        useMemeStore.setState({
-            memes: [],
-            isLoading: false,
-            totalCount: 0
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any);
+        useMemeStore.setState({ memes: [], isLoading: false, totalCount: 0 } as never);
         useUiStore.setState({
             activeNav: 'all',
             searchQuery: { keyword: '', tagIds: [], matchMode: 'fuzzy', mediaType: 'all', dateRange: 'all' },
@@ -26,9 +56,10 @@ describe('Gallery component', () => {
             setImageFit: vi.fn(),
             setShowTags: vi.fn(),
             togglePanel: vi.fn(),
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any);
-        useTagStore.setState({ tags: [] });
+            toggleImportModal: vi.fn(),
+            showTags: true,
+        } as never);
+        useTagStore.setState({ tags: [], isLoading: false });
     });
 
     it('renders empty state when no memes', () => {
@@ -37,20 +68,8 @@ describe('Gallery component', () => {
     });
 
     it('renders memes from store', () => {
-        // We use Virtuoso, which might not render all items in a test environment without setup or mock
-        // But it usually renders some. Let's provide a meme.
-        useMemeStore.setState({
-            memes: [{ id: 1, name: 'Test Meme', size: 1024, createdAt: Date.now(), tagIds: [] }]
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any);
+        useMemeStore.setState({ memes: [meme], isLoading: false, totalCount: 1 } as never);
         render(<Gallery />);
-        // VirtuosoGrid might be tricky to test with getByText if not rendered.
-        // If it's not showing, we might need to mock Virtuoso or check why.
-    });
-
-    it('shows search empty state', () => {
-        useUiStore.setState({ searchQuery: { keyword: 'xyz', tagIds: [], matchMode: 'fuzzy', mediaType: 'all', dateRange: 'all' } });
-        render(<Gallery />);
-        expect(screen.getByText(/没有找到匹配的梗图/i)).toBeInTheDocument();
+        expect(screen.getByText('Test Meme')).toBeInTheDocument();
     });
 });

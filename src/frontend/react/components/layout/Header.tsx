@@ -5,6 +5,7 @@ import { useNotificationStore } from '../../stores/NotificationStore';
 import { Search, LayoutGrid, Sun, Moon, Settings, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import { importFiles } from '../../services/importService';
 
 import { IconButton } from '../common/IconButton';
 import { PlusButton } from '../common/PlusButton';
@@ -14,7 +15,6 @@ import { SearchDropdown } from './SearchDropdown';
 import { LayoutSwitcher } from './LayoutSwitcher';
 
 export function Header() {
-    // @ts-expect-error - electronAPI is injected by preload script
     const systemPlatform = window.electronAPI?.platform || 'linux';
     const platformOverride = useUiStore(state => state.platformOverride);
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
@@ -35,33 +35,32 @@ export function Header() {
     };
 
     const handleAction = async (type: 'quick' | 'clipboard' | 'file' | 'url') => {
-        console.log('Action selected:', type);
         if (type === 'quick') {
             toggleImportModal(true);
         } else if (type === 'url') {
             toggleUrlImportDialog(true);
         } else if (type === 'file') {
             try {
-                // @ts-expect-error - electronAPI is injected by preload script
                 const paths = await window.electronAPI.openFileDialog({
                     title: t('import.title'),
                     properties: ['openFile', 'multiSelections']
                 });
 
                 if (paths && paths.length > 0) {
-                    console.log('Files selected for import:', paths);
-                    // Use the same notification style as the rest of the app
+                    const task = await importFiles(paths);
+                    useUiStore.getState().setImporting(true, task.taskId);
                     useNotificationStore.getState().addNotification({
                         type: 'info',
-                        title: t('import.success'),
-                        description: `已选择 ${paths.length} 个文件进行导入。`
+                        title: t('import.processing'),
+                        description: `已提交 ${paths.length} 个文件，任务 ${task.taskId}`,
                     });
-
-                    // In a real implementation, we would now call a backend API to process these paths.
-                    // For now, we are just implementing the UI trigger as requested.
                 }
             } catch (error) {
-                console.error('Failed to open file dialog:', error);
+                useNotificationStore.getState().addNotification({
+                    type: 'error',
+                    title: t('import.failed'),
+                    description: error instanceof Error ? error.message : String(error),
+                });
             }
         }
     };

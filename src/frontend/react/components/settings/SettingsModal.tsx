@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, Shield, Globe, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconButton } from '../common/IconButton';
@@ -8,6 +8,8 @@ import { useUiStore } from '../../stores/UiStore';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { LivePreview } from './LivePreview';
+import { getAppConfig, setAppConfig } from '../../services/configService';
+import { useNotificationStore } from '../../stores/NotificationStore';
 
 type SettingsTab = 'general' | 'appearance' | 'storage' | 'ocr' | 'ai' | 'shortcuts' | 'about';
 
@@ -24,18 +26,114 @@ export function SettingsModal() {
         language, setLanguage
     } = useUiStore();
     const { t } = useTranslation();
+    const addNotification = useNotificationStore((state) => state.addNotification);
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
     const [debugClickCount, setDebugClickCount] = useState(0);
+    const [config, setConfig] = useState<AppConfig | null>(null);
+    const [savedConfig, setSavedConfig] = useState<AppConfig | null>(null);
+
+    const hasPatchChanges = (base: unknown, patch: unknown): boolean => {
+        if (patch === null || patch === undefined) {
+            return base !== patch;
+        }
+
+        if (Array.isArray(patch)) {
+            return JSON.stringify(base) !== JSON.stringify(patch);
+        }
+
+        if (typeof patch !== 'object') {
+            return base !== patch;
+        }
+
+        if (typeof base !== 'object' || base === null) {
+            return true;
+        }
+
+        return Object.entries(patch as Record<string, unknown>).some(([key, value]) => {
+            const currentValue = (base as Record<string, unknown>)[key];
+            return hasPatchChanges(currentValue, value);
+        });
+    };
+
+    useEffect(() => {
+        if (!isSettingsOpen) {
+            return;
+        }
+        void getAppConfig().then((nextConfig) => {
+            setConfig(nextConfig);
+            setSavedConfig(nextConfig);
+        }).catch(() => {
+            setConfig(null);
+            setSavedConfig(null);
+        });
+    }, [isSettingsOpen]);
+
+    const savePatch = async (patch: Partial<AppConfig>) => {
+        if (!savedConfig || !hasPatchChanges(savedConfig, patch)) {
+            return;
+        }
+
+        try {
+            const result = await setAppConfig(patch);
+            setConfig(result.config);
+            setSavedConfig(result.config);
+            addNotification({
+                type: 'success',
+                title: '设置已保存',
+                description: result.restartRequired ? '已应用并重启后端' : '已同步到后端',
+            });
+        } catch (error) {
+            addNotification({
+                type: 'error',
+                title: '设置保存失败',
+                description: error instanceof Error ? error.message : String(error),
+            });
+        }
+    };
+
+    const saveOcrField = async (key: keyof AppConfig['ocr'], value: string) => {
+        if (!config) {
+            return;
+        }
+        const nextOcr = { ...config.ocr, [key]: value };
+        const nextConfig = { ...config, ocr: nextOcr };
+        setConfig(nextConfig);
+        await savePatch({ ocr: nextOcr });
+    };
+
+    const saveVisionField = async (key: keyof AppConfig['vision'], value: string) => {
+        if (!config) {
+            return;
+        }
+        const nextVision = { ...config.vision, [key]: value };
+        const nextConfig = { ...config, vision: nextVision };
+        setConfig(nextConfig);
+        await savePatch({ vision: nextVision });
+    };
+
+    const pickDirectory = async (field: 'storagePath' | 'logDir') => {
+        const selected = await window.electronAPI.openDirectoryDialog({
+            title: field === 'storagePath' ? '选择存储目录' : '选择日志目录',
+            defaultPath: config?.[field],
+        });
+        if (!selected || !config) {
+            return;
+        }
+        const patch = { [field]: selected } as Partial<AppConfig>;
+        if (!savedConfig || !hasPatchChanges(savedConfig, patch)) {
+            return;
+        }
+        setConfig({ ...config, ...patch });
+        await savePatch(patch);
+    };
 
     const handleLogoClick = () => {
         const newCount = debugClickCount + 1;
         if (newCount >= 5) {
-            // @ts-expect-error - electronAPI is injected by preload script
             window.electronAPI?.openDevTools();
             setDebugClickCount(0);
         } else {
             setDebugClickCount(newCount);
-            // Reset counter after 2 seconds of inactivity
             const timer = setTimeout(() => setDebugClickCount(0), 2000);
             return () => clearTimeout(timer);
         }
@@ -116,11 +214,7 @@ export function SettingsModal() {
                                     <div className="font-medium text-sm">{t('settings.general.auto_start.label')}</div>
                                     <div className="text-xs opacity-60">{t('settings.general.auto_start.desc')}</div>
                                 </div>
-                                <Switch
-                                    checked={false}
-                                    onChange={() => { }}
-                                    aria-label="Toggle auto start"
-                                />
+                                <Switch checked={false} onChange={() => { }} aria-label="Toggle auto start" />
                             </div>
                         </div>
                     </div>
@@ -138,11 +232,7 @@ export function SettingsModal() {
                                     </div>
                                     <div className="text-xs opacity-60 mt-0.5">{t('settings.appearance.glass.desc')}</div>
                                 </div>
-                                <Switch
-                                    checked={glassEffect}
-                                    onChange={() => toggleGlassEffect()}
-                                    aria-label="Toggle glass effect"
-                                />
+                                <Switch checked={glassEffect} onChange={() => toggleGlassEffect()} aria-label="Toggle glass effect" />
                             </div>
 
                             <Slider
@@ -156,23 +246,8 @@ export function SettingsModal() {
                                 warning={!glassEffect ? t('settings.appearance.blur.warning') : undefined}
                             />
 
-                            <Slider
-                                label={t('settings.appearance.radius')}
-                                value={cornerRadius}
-                                min={0}
-                                max={24}
-                                onChange={setCornerRadius}
-                                unit="px"
-                            />
-
-                            <Slider
-                                label={t('settings.appearance.gap')}
-                                value={galleryGap}
-                                min={4}
-                                max={32}
-                                onChange={setGalleryGap}
-                                unit="px"
-                            />
+                            <Slider label={t('settings.appearance.radius')} value={cornerRadius} min={0} max={24} onChange={setCornerRadius} unit="px" />
+                            <Slider label={t('settings.appearance.gap')} value={galleryGap} min={4} max={32} onChange={setGalleryGap} unit="px" />
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div className="font-medium text-sm">{t('settings.appearance.accent')}</div>
@@ -199,8 +274,18 @@ export function SettingsModal() {
                                 <div className="font-medium text-sm mb-1">{t('settings.storage.path.label')}</div>
                                 <div className="text-xs opacity-60 mb-3">{t('settings.storage.path.desc')}</div>
                                 <div className="flex gap-2">
-                                    <input type="text" readOnly value="C:\Users\BoheSama\Pictures\QuickMemes" className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text" />
-                                    <button className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm">{t('settings.storage.path.change')}</button>
+                                    <input
+                                        type="text"
+                                        readOnly
+                                        value={config?.storagePath ?? ''}
+                                        className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text"
+                                    />
+                                    <button
+                                        className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm"
+                                        onClick={() => void pickDirectory('storagePath')}
+                                    >
+                                        {t('settings.storage.path.change')}
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -211,15 +296,13 @@ export function SettingsModal() {
                     <div className="space-y-6">
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ocr.title')}</h3>
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div>
-                                    <div className="font-medium text-sm">{t('settings.ocr.auto_ocr.label')}</div>
-                                    <div className="text-xs opacity-60">{t('settings.ocr.auto_ocr.desc')}</div>
-                                </div>
-                                <Switch
-                                    checked={true}
-                                    onChange={() => { }}
-                                    aria-label="Toggle OCR"
+                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div className="font-medium text-sm mb-2">OCR API URL</div>
+                                <input
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    value={config?.ocr.apiUrl ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, ocr: { ...prev.ocr, apiUrl: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveOcrField('apiUrl', e.target.value)}
                                 />
                             </div>
                         </div>
@@ -229,8 +312,25 @@ export function SettingsModal() {
                 return (
                     <div className="space-y-6">
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ai.title')}</h3>
-                        <div className="flex flex-col items-center justify-center h-40 opacity-50">
-                            <p className="text-sm">{t('settings.ai.not_configured')}</p>
+                        <div className="space-y-4">
+                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div className="font-medium text-sm mb-2">AI API Base URL</div>
+                                <input
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    value={config?.vision.apiBaseUrl ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, vision: { ...prev.vision, apiBaseUrl: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveVisionField('apiBaseUrl', e.target.value)}
+                                />
+                            </div>
+                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div className="font-medium text-sm mb-2">AI API Key</div>
+                                <input
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    value={config?.vision.apiKey ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, vision: { ...prev.vision, apiKey: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveVisionField('apiKey', e.target.value)}
+                                />
+                            </div>
                         </div>
                     </div>
                 );
@@ -241,7 +341,7 @@ export function SettingsModal() {
                         <div className="space-y-2">
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
                                 <span className="text-sm">{t('settings.shortcuts.global_call')}</span>
-                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">{t('settings.shortcuts.not_set')}</span>
+                                <span className="px-2 py-1 bg-black/10 dark:bg-black/30 border border-white/10 rounded-md text-xs font-mono opacity-40">{config?.ui.panelShortcut ?? t('settings.shortcuts.not_set')}</span>
                             </div>
                             <div className="flex justify-between items-center py-2 px-3 hover:bg-white/5 rounded-lg">
                                 <span className="text-sm">{t('settings.shortcuts.quick_import')}</span>
@@ -268,10 +368,7 @@ export function SettingsModal() {
                         <p className="text-sm opacity-60 mb-2">Version 0.0.1-dev</p>
 
                         <div className="max-w-md space-y-4 my-0">
-                            <p className="text-xs leading-relaxed opacity-60">
-                                {t('settings.about.desc')}
-                            </p>
-
+                            <p className="text-xs leading-relaxed opacity-60">{t('settings.about.desc')}</p>
                             <div className="flex flex-col gap-2 py-4 border-y border-white/5">
                                 <div className="flex items-center justify-center gap-1.5 text-xs font-medium">
                                     <Shield size={14} className="text-accent" />
@@ -279,13 +376,11 @@ export function SettingsModal() {
                                 </div>
                                 <p className="text-[10px] opacity-40">{t('settings.about.license_desc')}</p>
                             </div>
-
                             <div className="flex items-center justify-center gap-4 pt-0">
                                 <a
                                     href="https://github.com/MintITes/QuickMemes"
                                     onClick={(e) => {
                                         e.preventDefault();
-                                        // @ts-expect-error - electronAPI is injected by preload script
                                         window.electronAPI?.openExternal("https://github.com/MintITes/QuickMemes");
                                     }}
                                     className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
@@ -298,7 +393,6 @@ export function SettingsModal() {
                                     href="https://github.com/MintITes/QuickMemes"
                                     onClick={(e) => {
                                         e.preventDefault();
-                                        // @ts-expect-error - electronAPI is injected by preload script
                                         window.electronAPI?.openExternal("https://github.com/MintITes/QuickMemes");
                                     }}
                                     className="flex items-center gap-1.5 text-xs opacity-60 hover:opacity-100 hover:text-accent transition-all"
@@ -339,7 +433,6 @@ export function SettingsModal() {
                     className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
                     style={{ borderRadius: 'var(--corner-radius)' }}
                 >
-                    {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -349,24 +442,14 @@ export function SettingsModal() {
                         aria-hidden="true"
                     />
 
-                    {/* Modal Box */}
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        transition={{
-                            type: "spring",
-                            damping: 25,
-                            stiffness: 300,
-                            opacity: { duration: 0.2 }
-                        }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300, opacity: { duration: 0.2 } }}
                         className="relative surface-effect w-[920px] h-[600px] max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-white/10"
-                        style={{
-                            WebkitAppRegion: 'no-drag',
-                            borderRadius: 'var(--corner-radius)'
-                        } as React.CSSProperties}
+                        style={{ WebkitAppRegion: 'no-drag', borderRadius: 'var(--corner-radius)' } as React.CSSProperties}
                     >
-                        {/* Header */}
                         <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
                             <h2 className="text-base font-bold tracking-wide select-none">{t('settings.title')}</h2>
                             <IconButton
@@ -377,9 +460,7 @@ export function SettingsModal() {
                             />
                         </div>
 
-                        {/* Content Body - Split View */}
                         <div className="flex flex-1 overflow-hidden">
-                            {/* Left Sidebar */}
                             <div className="w-[180px] shrink-0 border-r border-white/5 bg-black/5 dark:bg-black/20 p-3 flex flex-col gap-1.5 overflow-y-auto select-none">
                                 {tabs.map((tab) => (
                                     <button
@@ -394,26 +475,20 @@ export function SettingsModal() {
                                         style={{ borderRadius: 'calc(var(--corner-radius) * 0.75)' }}
                                     >
                                         <span>{tab.label}</span>
-                                        <span className={clsx(
-                                            "text-[10px] font-bold tracking-tight",
-                                            activeTab === tab.id ? "text-white/60" : "opacity-30"
-                                        )}>
+                                        <span className={clsx("text-[10px] font-bold tracking-tight", activeTab === tab.id ? "text-white/60" : "opacity-30")}>
                                             {tab.subLabel}
                                         </span>
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Right Content */}
                             <div className="flex-1 flex min-w-0 overflow-hidden bg-white/40 dark:bg-white/5 shadow-inner select-none relative">
-                                {/* Settings Scroll Area */}
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
                                     <div className="max-w-2xl mx-auto">
                                         {renderContent()}
                                     </div>
                                 </div>
 
-                                {/* Dedicated Preview Column */}
                                 {activeTab === 'appearance' && (
                                     <div className="w-[280px] shrink-0 border-l border-white/5 bg-black/5 dark:bg-black/10 p-6 flex flex-col items-center justify-start overflow-y-auto no-drag animate-in fade-in slide-in-from-right-4 duration-500">
                                         <div className="w-full">
@@ -429,5 +504,3 @@ export function SettingsModal() {
         </AnimatePresence>
     );
 }
-
-

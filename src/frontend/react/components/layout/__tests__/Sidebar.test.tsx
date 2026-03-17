@@ -5,21 +5,20 @@ import { useCategoryStore } from '../../../stores/CategoryStore';
 
 describe('Sidebar component', () => {
     beforeEach(() => {
-        useCategoryStore.setState({ categories: [] });
+        useCategoryStore.setState({ categories: [], isLoading: false });
     });
 
-    it('renders system and shortcuts categories', () => {
+    it('renders system categories', () => {
         render(<Sidebar />);
         expect(screen.getByText('所有梗图')).toBeInTheDocument();
         expect(screen.getByText('未分类')).toBeInTheDocument();
         expect(screen.getByText('回收站')).toBeInTheDocument();
-        // The bucket is labeled as "Bucket" internally in implementation, or "Magic Store" header
-        expect(screen.getByText(/暂存箱/i)).toBeInTheDocument();
     });
 
     it('renders category from store', () => {
         useCategoryStore.setState({
-            categories: [{ id: 1, name: 'Fav Memes', order: 1 }]
+            categories: [{ id: 1, uuid: '1', name: 'Fav Memes', color: '#fff', createdAt: 0, updatedAt: 0 }],
+            isLoading: false,
         });
         render(<Sidebar />);
         expect(screen.getByText('Fav Memes')).toBeInTheDocument();

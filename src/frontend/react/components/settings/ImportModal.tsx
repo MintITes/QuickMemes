@@ -1,20 +1,43 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Upload, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
 import { IconButton } from '../common/IconButton';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import { importFiles } from '../../services/importService';
+import { useNotificationStore } from '../../stores/NotificationStore';
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp'];
 
+function extractPathsFromFileList(files: File[]) {
+    return files
+        .map((file) => (file as File & { path?: string }).path)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0);
+}
+
+function extractPathsFromUriList(raw: string) {
+    return raw
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('file://'))
+        .map((line) => {
+            try {
+                return decodeURIComponent(new URL(line).pathname);
+            } catch {
+                return '';
+            }
+        })
+        .filter((value) => value.length > 0);
+}
+
 export function ImportModal() {
-    const { isImportModalOpen, toggleImportModal } = useUiStore();
+    const { isImportModalOpen, toggleImportModal, setImporting } = useUiStore();
     const [isDragging, setIsDragging] = useState(false);
     const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
     const [errorMessage, setErrorMessage] = useState('');
     const { t } = useTranslation();
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const addNotification = useNotificationStore(state => state.addNotification);
 
     useEffect(() => {
         if (!isImportModalOpen) {
@@ -44,18 +67,38 @@ export function ImportModal() {
         setIsDragging(false);
 
         const files = Array.from(e.dataTransfer.files);
-        processFiles(files);
+        const rawUriList = e.dataTransfer.getData('text/uri-list');
+        void processFiles(files, rawUriList);
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const files = Array.from(e.target.files);
-            processFiles(files);
+    const submitImport = async (inputPaths: string[]) => {
+        if (inputPaths.length === 0) {
+            setImportStatus('error');
+            setErrorMessage('无法读取文件绝对路径，请使用“选择文件”导入。');
+            return;
+        }
+
+        try {
+            const task = await importFiles(inputPaths);
+            setImportStatus('success');
+            setImporting(true, task.taskId);
+            addNotification({
+                type: 'info',
+                title: t('import.processing'),
+                description: `任务 ${task.taskId} 已开始`,
+            });
+
+            setTimeout(() => {
+                toggleImportModal(false);
+            }, 1000);
+        } catch (error) {
+            setImportStatus('error');
+            setErrorMessage(error instanceof Error ? error.message : String(error));
         }
     };
 
-    const processFiles = (files: File[]) => {
-        const validFiles = files.filter(f => SUPPORTED_TYPES.includes(f.type));
+    const processFiles = async (files: File[], rawUriList?: string) => {
+        const validFiles = files.filter((f) => SUPPORTED_TYPES.includes(f.type));
 
         if (validFiles.length === 0) {
             setImportStatus('error');
@@ -63,14 +106,28 @@ export function ImportModal() {
             return;
         }
 
-        // Mock import process
-        console.log('Importing files:', validFiles);
-        setImportStatus('success');
+        const explicitPaths = extractPathsFromFileList(validFiles);
+        const uriPaths = rawUriList ? extractPathsFromUriList(rawUriList) : [];
+        const inputPaths = explicitPaths.length > 0 ? explicitPaths : uriPaths;
+        await submitImport(inputPaths);
+    };
 
-        // Close after a brief success message
-        setTimeout(() => {
-            toggleImportModal(false);
-        }, 1500);
+    const handleOpenFileDialog = async () => {
+        try {
+            const paths = await window.electronAPI.openFileDialog({
+                title: t('import.title'),
+                properties: ['openFile', 'multiSelections'],
+            });
+
+            if (paths.length === 0) {
+                return;
+            }
+
+            await submitImport(paths);
+        } catch (error) {
+            setImportStatus('error');
+            setErrorMessage(error instanceof Error ? error.message : String(error));
+        }
     };
 
     return (
@@ -154,20 +211,12 @@ export function ImportModal() {
                             <div className="flex flex-col items-center gap-4">
                                 <span className="text-xs text-textSecondary font-medium">{t('import.or')}</span>
                                 <button
-                                    onClick={() => fileInputRef.current?.click()}
+                                    onClick={() => void handleOpenFileDialog()}
                                     className="px-8 py-2.5 bg-accent hover:bg-accent/90 text-white rounded-xl text-sm font-bold shadow-lg shadow-accent/20 transition-all active:scale-95 disabled:opacity-50"
                                     disabled={importStatus === 'success'}
                                 >
                                     {t('import.select_file')}
                                 </button>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    multiple
-                                    accept={SUPPORTED_TYPES.join(',')}
-                                    className="hidden"
-                                    onChange={handleFileSelect}
-                                />
                             </div>
                         </div>
 

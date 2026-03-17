@@ -6,14 +6,15 @@ describe('CategoryStore', () => {
         useCategoryStore.setState({ categories: [], isLoading: false });
     });
 
-    it('should add, update, and sort categories correctly', () => {
-        useCategoryStore.getState().addCategory({ id: 1, name: 'Z', order: 2 });
-        useCategoryStore.getState().addCategory({ id: 2, name: 'A', order: 1 });
+    it('should add, update and remove categories', () => {
+        useCategoryStore.getState().addCategory({ id: 1, uuid: '1', name: 'Z', color: '#000', createdAt: 1, updatedAt: 1 });
+        useCategoryStore.getState().addCategory({ id: 2, uuid: '2', name: 'A', color: '#111', createdAt: 1, updatedAt: 1 });
+        expect(useCategoryStore.getState().categories).toHaveLength(2);
 
-        expect(useCategoryStore.getState().categories[0].id).toBe(2); // order 1 comes first
+        useCategoryStore.getState().updateCategory(2, { name: 'B' });
+        expect(useCategoryStore.getState().categories.find((item) => item.id === 2)?.name).toBe('B');
 
-        useCategoryStore.getState().updateCategory(2, { order: 3 });
-        // After updating order of id:2 to 3, id:1 (order 2) should be first
-        expect(useCategoryStore.getState().categories[0].id).toBe(1);
+        useCategoryStore.getState().removeCategory(1);
+        expect(useCategoryStore.getState().categories).toHaveLength(1);
     });
 });

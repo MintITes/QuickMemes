@@ -20,7 +20,7 @@ describe('httpClient', () => {
         );
 
         const result = await sendHttpRequest('POST', '/api/test', { payload: 'hello' });
-        expect(result).toEqual({ success: true, data: 'world' });
+        expect(result).toEqual('world');
     });
 
     it('should throw an error with status and message on 4xx', async () => {
@@ -40,6 +40,6 @@ describe('httpClient', () => {
             })
         );
 
-        await expect(sendHttpRequest('GET', '/api/fail-html')).rejects.toThrowError('HTTP Error 500: Server Error');
+        await expect(sendHttpRequest('GET', '/api/fail-html')).rejects.toThrowError('HTTP Error 500: Internal Server Error');
     });
 });

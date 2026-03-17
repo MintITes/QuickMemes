@@ -1,148 +1,309 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { MainShell } from './components/layout/MainShell';
 import { useUiStore } from './stores/UiStore';
 import i18n from './i18n/config';
 import { useNotificationStore, type NotificationType } from './stores/NotificationStore';
 import { useTaskStore } from './stores/TaskStore';
+import { useMemeStore } from './stores/MemeStore';
+import { useTagStore } from './stores/TagStore';
+import { useCategoryStore } from './stores/CategoryStore';
+import { fetchCategories } from './services/categoryService';
+import { fetchTags } from './services/tagService';
+import { buildBackendSearchQuery, fetchTrashMemes, searchMemes } from './services/memeService';
+import { connectWebSocket, disconnectWebSocket, onEvent } from './api/wsClient';
 import './index.css';
 
 function App() {
-  const {
-    theme, setResolvedTheme,
-    glassEffect, glassBlur,
-    cornerRadius, galleryGap,
-    accentColor, toggleImportModal
-  } = useUiStore();
+    const {
+        theme,
+        setResolvedTheme,
+        glassEffect,
+        glassBlur,
+        cornerRadius,
+        galleryGap,
+        accentColor,
+        toggleImportModal,
+        activeNav,
+        searchQuery,
+        language,
+    } = useUiStore();
 
-  const { addNotification, clearAll: clearNotifications } = useNotificationStore();
-  const { startTask, updateProgress, completeTask, clearTask } = useTaskStore();
+    const { addNotification, clearAll: clearNotifications } = useNotificationStore();
+    const { setTask, clearTask } = useTaskStore();
+    const { setMemes, setLoading, upsertMeme, removeMemes } = useMemeStore();
+    const { setTags, addTag, removeTag } = useTagStore();
+    const { setCategories, addCategory, updateCategory, removeCategory } = useCategoryStore();
+    const [backendReady, setBackendReady] = useState(false);
 
-  useEffect(() => {
-    // Expose debug commands to global window object
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).debug = {
-      notify: (type: NotificationType, title: string, description?: string) => {
-        addNotification({ type, title, description });
-        return `Notification sent: [${type.toUpperCase()}] ${title}`;
-      },
-      clearNotifications: () => {
-        clearNotifications();
-        return "All notifications cleared";
-      },
-      task: {
-        start: (name: string, description?: string, progress: number | null = null) => {
-          startTask({ id: 'debug-task', name, description, progress });
-          return `Task started: ${name}`;
-        },
-        update: (progress: number | null, description?: string) => {
-          updateProgress(progress, description);
-          return `Task updated: ${progress ?? 'indeterminate'}% ${description ?? ''}`;
-        },
-        complete: () => {
-          completeTask();
-          return "Task completed";
-        },
-        clear: () => {
-          clearTask();
-          return "Task cleared";
+    useEffect(() => {
+        (window as typeof window & { debug?: unknown }).debug = {
+            notify: (type: NotificationType, title: string, description?: string) => {
+                addNotification({ type, title, description });
+                return `[${type}] ${title}`;
+            },
+            clearNotifications: () => {
+                clearNotifications();
+                return 'ok';
+            },
+        };
+
+        return () => {
+            delete (window as typeof window & { debug?: unknown }).debug;
+        };
+    }, [addNotification, clearNotifications]);
+
+    useEffect(() => {
+        const handleGlobalDragOver = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+
+        const handleGlobalDrop = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                toggleImportModal(true);
+            }
+        };
+
+        window.addEventListener('dragover', handleGlobalDragOver);
+        window.addEventListener('drop', handleGlobalDrop);
+
+        return () => {
+            window.removeEventListener('dragover', handleGlobalDragOver);
+            window.removeEventListener('drop', handleGlobalDrop);
+        };
+    }, [toggleImportModal]);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+        const applyTheme = () => {
+            const isDark = theme === 'system' ? mediaQuery.matches : theme === 'dark';
+
+            if (isDark) {
+                root.classList.add('dark');
+                setResolvedTheme('dark');
+            } else {
+                root.classList.remove('dark');
+                setResolvedTheme('light');
+            }
+        };
+
+        applyTheme();
+
+        if (theme === 'system') {
+            mediaQuery.addEventListener('change', applyTheme);
+            return () => mediaQuery.removeEventListener('change', applyTheme);
         }
-      }
-    };
+    }, [theme, setResolvedTheme]);
 
-    console.log(
-      "%c🚀 QuickMemes Debug Mode Enabled",
-      "color: #0066cc; font-weight: bold; font-size: 14px;"
-    );
-    console.log("Commands available:");
-    console.log("- debug.notify(type, title, desc)");
-    console.log("- debug.task.start(name, desc, progress)");
-    console.log("- debug.task.update(progress, desc)");
-    console.log("- debug.task.complete()");
+    useEffect(() => {
+        const root = document.documentElement;
+        if (glassEffect) {
+            root.classList.add('glass-mode');
+        } else {
+            root.classList.remove('glass-mode');
+        }
 
-    return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (window as any).debug;
-    };
-  }, [addNotification, clearNotifications, startTask, updateProgress, completeTask, clearTask]);
+        root.style.setProperty('--glass-blur', `${glassBlur}px`);
+        root.style.setProperty('--corner-radius', `${cornerRadius}px`);
+        root.style.setProperty('--gallery-gap', `${galleryGap}px`);
+        root.style.setProperty('--accent-color', accentColor);
+    }, [glassEffect, glassBlur, cornerRadius, galleryGap, accentColor]);
 
-  useEffect(() => {
-    const handleGlobalDragOver = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      // Optional: visual feedback at window level
-    };
+    useEffect(() => {
+        if (language === 'system') {
+            i18n.changeLanguage(i18n.services.languageDetector.detect());
+        } else {
+            i18n.changeLanguage(language);
+        }
+    }, [language]);
 
-    const handleGlobalDrop = (e: DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+    useEffect(() => {
+        let disposed = false;
 
-      // Open modal when files are dropped
-      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-        toggleImportModal(true);
-      }
-    };
+        const initialize = async () => {
+            const status = await window.electronAPI.getBackendStatus();
+            if (!status.ready) {
+                setBackendReady(false);
+                return;
+            }
+            setBackendReady(true);
 
-    window.addEventListener('dragover', handleGlobalDragOver);
-    window.addEventListener('drop', handleGlobalDrop);
+            const [categories, tags] = await Promise.all([
+                fetchCategories(),
+                fetchTags(),
+            ]);
 
-    return () => {
-      window.removeEventListener('dragover', handleGlobalDragOver);
-      window.removeEventListener('drop', handleGlobalDrop);
-    };
-  }, [toggleImportModal]);
+            if (disposed) {
+                return;
+            }
 
-  useEffect(() => {
-    const root = document.documentElement;
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            setCategories(categories);
+            setTags(tags);
+            await connectWebSocket();
+        };
 
-    const applyTheme = () => {
-      const isDark = theme === 'system' ? mediaQuery.matches : theme === 'dark';
+        void initialize();
+        const unsubscribeStatus = window.electronAPI.onBackendStatusChange((status) => {
+            if (status.ready) {
+                setBackendReady(true);
+                void initialize();
+            } else {
+                setBackendReady(false);
+            }
+            if (status.lastError) {
+                addNotification({
+                    type: 'error',
+                    title: '后端状态异常',
+                    description: status.lastError,
+                });
+            }
+        });
 
-      if (isDark) {
-        root.classList.add('dark');
-        setResolvedTheme('dark');
-      } else {
-        root.classList.remove('dark');
-        setResolvedTheme('light');
-      }
-    };
+        const unsubscribeTaskProgress = onEvent('task:progress', (task) => {
+            setTask(task);
+        });
+        const unsubscribeTaskComplete = onEvent('task:complete', (task) => {
+            setTask(task);
+            addNotification({
+                type: 'success',
+                title: '导入完成',
+                description: `成功 ${task.succeeded} 项，失败 ${task.failed} 项`,
+            });
+        });
+        const unsubscribeTaskError = onEvent('task:error', (task) => {
+            setTask(task);
+            addNotification({
+                type: 'error',
+                title: '导入失败',
+                description: task.errors.join('\n') || '任务执行失败',
+            });
+        });
+        const unsubscribeMemeAdded = onEvent('meme:added', (meme) => upsertMeme(meme));
+        const unsubscribeMemeUpdated = onEvent('meme:updated', (meme) => upsertMeme(meme));
+        const unsubscribeMemeDeleted = onEvent('meme:deleted', ({ id }) => removeMemes([id]));
+        const unsubscribeMemeUsed = onEvent('meme:used', ({ id, lastUsedAt }) => {
+            upsertMeme({
+                ...(useMemeStore.getState().memes.find((meme) => meme.id === id) ?? {
+                    id,
+                    filePath: '',
+                    fileHash: '',
+                    mimeType: '',
+                    fileSize: 0,
+                    width: 0,
+                    height: 0,
+                    sourceName: '',
+                    sourceUrl: '',
+                    name: '',
+                    description: '',
+                    ocrText: '',
+                    ocrStatus: 'PENDING',
+                    aiStatus: 'PENDING',
+                    tagIds: [],
+                    tags: [],
+                    createdAt: 0,
+                    updatedAt: 0,
+                    lastUsedAt,
+                    deletedAt: 0,
+                    categoryId: 0,
+                }),
+                lastUsedAt,
+            });
+        });
+        const unsubscribeTagCreated = onEvent('tag:created', (tag) => addTag(tag));
+        const unsubscribeTagDeleted = onEvent('tag:deleted', ({ id }) => removeTag(id));
+        const unsubscribeCategoryCreated = onEvent('category:created', (category) => addCategory(category));
+        const unsubscribeCategoryUpdated = onEvent('category:updated', (category) => updateCategory(category.id, category));
+        const unsubscribeCategoryDeleted = onEvent('category:deleted', ({ id }) => removeCategory(id));
 
-    applyTheme();
+        return () => {
+            disposed = true;
+            unsubscribeStatus();
+            unsubscribeTaskProgress();
+            unsubscribeTaskComplete();
+            unsubscribeTaskError();
+            unsubscribeMemeAdded();
+            unsubscribeMemeUpdated();
+            unsubscribeMemeDeleted();
+            unsubscribeMemeUsed();
+            unsubscribeTagCreated();
+            unsubscribeTagDeleted();
+            unsubscribeCategoryCreated();
+            unsubscribeCategoryUpdated();
+            unsubscribeCategoryDeleted();
+            clearTask();
+            disconnectWebSocket();
+        };
+    }, [
+        addCategory,
+        addNotification,
+        addTag,
+        clearTask,
+        removeCategory,
+        removeMemes,
+        removeTag,
+        setCategories,
+        setTags,
+        setTask,
+        updateCategory,
+        upsertMeme,
+    ]);
 
-    if (theme === 'system') {
-      mediaQuery.addEventListener('change', applyTheme);
-      return () => mediaQuery.removeEventListener('change', applyTheme);
-    }
-  }, [theme, setResolvedTheme]);
+    useEffect(() => {
+        let cancelled = false;
 
-  useEffect(() => {
-    const root = document.documentElement;
+        const run = async () => {
+            if (!backendReady) {
+                setLoading(false);
+                return;
+            }
+            setLoading(true);
 
-    // Toggle glass-mode class
-    if (glassEffect) {
-      root.classList.add('glass-mode');
-    } else {
-      root.classList.remove('glass-mode');
-    }
+            try {
+                if (activeNav === 'trash') {
+                    const items = await fetchTrashMemes();
+                    if (!cancelled) {
+                        setMemes(items, items.length);
+                    }
+                    return;
+                }
 
-    // Apply CSS Variables
-    root.style.setProperty('--glass-blur', `${glassBlur}px`);
-    root.style.setProperty('--corner-radius', `${cornerRadius}px`);
-    root.style.setProperty('--gallery-gap', `${galleryGap}px`);
-    root.style.setProperty('--accent-color', accentColor);
-  }, [glassEffect, glassBlur, cornerRadius, galleryGap, accentColor]);
+                const result = await searchMemes(buildBackendSearchQuery(searchQuery, activeNav));
+                if (!cancelled) {
+                    setMemes(result.items.map((item) => item.meme), result.total);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    if (message.toLowerCase().includes('failed to fetch')) {
+                        return;
+                    }
+                    addNotification({
+                        type: 'error',
+                        title: '加载失败',
+                        description: message,
+                    });
+                    setMemes([], 0);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
 
-  const language = useUiStore(state => state.language);
+        void run();
 
-  useEffect(() => {
-    if (language === 'system') {
-      i18n.changeLanguage(i18n.services.languageDetector.detect());
-    } else {
-      i18n.changeLanguage(language);
-    }
-  }, [language]);
+        return () => {
+            cancelled = true;
+        };
+    }, [activeNav, addNotification, backendReady, searchQuery, setLoading, setMemes]);
 
-  return <MainShell />;
+    return <MainShell />;
 }
 
 export default App;

@@ -7,7 +7,7 @@ describe('TagStore', () => {
     });
 
     it('should add, update, and remove tags', () => {
-        const tag1 = { id: 1, name: 'funny' };
+        const tag1 = { id: 1, name: 'funny', color: '#fff', createdAt: 0 };
 
         useTagStore.getState().addTag(tag1);
         expect(useTagStore.getState().tags).toHaveLength(1);

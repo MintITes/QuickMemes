@@ -1,14 +1,16 @@
-type EventHandler = (payload: unknown) => void;
+import type { WsEventMap, WsEventName } from '../types';
+
+type EventHandler<K extends WsEventName> = (payload: WsEventMap[K]) => void;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let currentRetries = 0;
 let isForcedDisconnect = false;
 
-const MAX_RETRY_DELAY = 30000;
-const INITIAL_RETRY_DELAY = 1000;
+const MAX_RETRY_DELAY = 30_000;
+const INITIAL_RETRY_DELAY = 1_000;
 
-const subscribers: Map<string, Set<EventHandler>> = new Map();
+const subscribers = new Map<WsEventName, Set<(payload: unknown) => void>>();
 
 export async function connectWebSocket() {
     isForcedDisconnect = false;
@@ -17,12 +19,15 @@ export async function connectWebSocket() {
     }
 
     const config = await window.electronAPI.getBackendConfig();
-    const url = `ws://127.0.0.1:${config.port}/ws?token=${config.token}`;
+    if (!config.ready) {
+        return;
+    }
 
+    const url = `ws://${config.bindAddress}:${config.port}/ws?token=${config.token}`;
     ws = new WebSocket(url);
 
     ws.onopen = () => {
-        currentRetries = 0; // reset retries on successful connection
+        currentRetries = 0;
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -31,15 +36,14 @@ export async function connectWebSocket() {
 
     ws.onmessage = (event) => {
         try {
-            const data = JSON.parse(event.data);
-            if (data && data.event) {
-                const handlers = subscribers.get(data.event);
-                if (handlers) {
-                    handlers.forEach((fn) => fn(data.payload));
-                }
+            const data = JSON.parse(event.data) as { event?: WsEventName; payload?: unknown };
+            if (!data.event) {
+                return;
             }
-        } catch (e) {
-            console.error('Failed to parse WebSocket message', e);
+            const handlers = subscribers.get(data.event);
+            handlers?.forEach((handler) => handler(data.payload));
+        } catch (error) {
+            console.error('Failed to parse WebSocket message', error);
         }
     };
 
@@ -50,20 +54,22 @@ export async function connectWebSocket() {
         }
     };
 
-    ws.onerror = (err) => {
-        console.error('WebSocket encountered an error', err);
-        // onclose will be called after onerror, so reconnect logic remains in onclose
+    ws.onerror = (error) => {
+        console.error('WebSocket encountered an error', error);
     };
 }
 
 function scheduleReconnect() {
-    if (reconnectTimer) return;
-    const delay = Math.min(INITIAL_RETRY_DELAY * Math.pow(2, currentRetries), MAX_RETRY_DELAY);
-    currentRetries++;
+    if (reconnectTimer) {
+        return;
+    }
+
+    const delay = Math.min(INITIAL_RETRY_DELAY * (2 ** currentRetries), MAX_RETRY_DELAY);
+    currentRetries += 1;
 
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
-        connectWebSocket();
+        void connectWebSocket();
     }, delay);
 }
 
@@ -79,19 +85,20 @@ export function disconnectWebSocket() {
     }
 }
 
-export function onEvent(eventName: string, handler: EventHandler): () => void {
-    if (!subscribers.has(eventName)) {
-        subscribers.set(eventName, new Set());
-    }
-    subscribers.get(eventName)!.add(handler);
+export function onEvent<K extends WsEventName>(eventName: K, handler: EventHandler<K>) {
+    const current = subscribers.get(eventName) ?? new Set<(payload: unknown) => void>();
+    const wrapped = handler as (payload: unknown) => void;
+    current.add(wrapped);
+    subscribers.set(eventName, current);
 
     return () => {
         const handlers = subscribers.get(eventName);
-        if (handlers) {
-            handlers.delete(handler);
-            if (handlers.size === 0) {
-                subscribers.delete(eventName);
-            }
+        if (!handlers) {
+            return;
+        }
+        handlers.delete(wrapped);
+        if (handlers.size === 0) {
+            subscribers.delete(eventName);
         }
     };
 }

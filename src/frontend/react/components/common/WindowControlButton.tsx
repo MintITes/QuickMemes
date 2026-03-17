@@ -9,7 +9,6 @@ interface WindowControlButtonProps {
 }
 
 export const WindowControlButton: React.FC<WindowControlButtonProps> = ({ className }) => {
-    // @ts-expect-error - electronAPI is injected by preload script
     const systemPlatform = window.electronAPI?.platform || 'linux';
     const platformOverride = useUiStore(state => state.platformOverride);
     const platform = platformOverride === 'auto' ? systemPlatform : platformOverride;
@@ -30,7 +29,6 @@ export const WindowControlButton: React.FC<WindowControlButtonProps> = ({ classN
     }, []);
 
     const handleAction = (action: 'minimize' | 'maximize' | 'close') => {
-        // @ts-expect-error - electronAPI is injected by preload script
         window.electronAPI?.windowControls(action);
     };
 

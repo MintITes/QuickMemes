@@ -4,12 +4,15 @@ import { Link as LinkIcon, X, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../stores/UiStore';
 import { IconButton } from './IconButton';
+import { importUrls } from '../../services/importService';
+import { useNotificationStore } from '../../stores/NotificationStore';
 
 export function UrlImportDialog() {
     const { t } = useTranslation();
-    const { isUrlImportDialogOpen, toggleUrlImportDialog } = useUiStore();
+    const { isUrlImportDialogOpen, toggleUrlImportDialog, setImporting } = useUiStore();
     const [url, setUrl] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
+    const addNotification = useNotificationStore(state => state.addNotification);
 
     const [prevOpen, setPrevOpen] = useState(isUrlImportDialogOpen);
     if (!isUrlImportDialogOpen && prevOpen) {
@@ -37,11 +40,24 @@ export function UrlImportDialog() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isUrlImportDialogOpen, toggleUrlImportDialog]);
 
-    const handleImport = () => {
+    const handleImport = async () => {
         if (!url.trim()) return;
-        console.log('Importing URL:', url);
-        // TODO: Actually trigger import logic here
-        toggleUrlImportDialog(false);
+        try {
+            const task = await importUrls([url.trim()]);
+            setImporting(true, task.taskId);
+            addNotification({
+                type: 'info',
+                title: t('import.processing'),
+                description: `任务 ${task.taskId} 已开始`,
+            });
+            toggleUrlImportDialog(false);
+        } catch (error) {
+            addNotification({
+                type: 'error',
+                title: t('import.failed'),
+                description: error instanceof Error ? error.message : String(error),
+            });
+        }
     };
 
     return (

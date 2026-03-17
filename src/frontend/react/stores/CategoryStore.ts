@@ -16,15 +16,17 @@ export const useCategoryStore = create<CategoryState>((set) => ({
     categories: [],
     isLoading: false,
 
-    setCategories: (categories) => set({ categories: categories.sort((a, b) => a.order - b.order) }),
+    setCategories: (categories) => set({ categories }),
     addCategory: (category) => set((state) => ({
-        categories: [...state.categories, category].sort((a, b) => a.order - b.order)
+        categories: [...state.categories, category]
     })),
     updateCategory: (id, updates) => set((state) => ({
-        categories: state.categories.map(c => c.id === id ? { ...c, ...updates } : c).sort((a, b) => a.order - b.order)
+        categories: state.categories.map((category) =>
+            category.id === id ? { ...category, ...updates } : category
+        )
     })),
     removeCategory: (id) => set((state) => ({
-        categories: state.categories.filter(c => c.id !== id)
+        categories: state.categories.filter((category) => category.id !== id)
     })),
     setLoading: (isLoading) => set({ isLoading }),
 }));

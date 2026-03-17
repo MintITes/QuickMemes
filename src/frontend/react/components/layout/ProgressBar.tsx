@@ -6,9 +6,12 @@ export function ProgressBar() {
     const activeTask = useTaskStore(state => state.activeTask);
     const clearTask = useTaskStore(state => state.clearTask);
     const [showShine, setShowShine] = useState(false);
+    const progress = activeTask
+        ? (activeTask.total > 0 ? (activeTask.processed / activeTask.total) * 100 : null)
+        : null;
 
     useEffect(() => {
-        if (activeTask?.status === 'completed') {
+        if (activeTask?.status === 'DONE') {
             const timer = setTimeout(() => {
                 setShowShine(true);
             }, 0);
@@ -41,7 +44,7 @@ export function ProgressBar() {
                     <div className="relative w-44 group/progress h-1.5 shrink-0">
                         {/* Background Track - Minimalist thin rounded bar */}
                         <div className="absolute inset-0 bg-white/10 rounded-full overflow-hidden">
-                            {activeTask.progress === null ? (
+                            {progress === null ? (
                                 <motion.div
                                     className="absolute inset-0"
                                     style={{
@@ -62,7 +65,7 @@ export function ProgressBar() {
                                         className="absolute top-0 left-0 h-full bg-white relative rounded-full shadow-[0_0_10px_rgba(255,255,255,0.3)]"
                                         initial={{ width: 0 }}
                                         animate={{
-                                            width: `${activeTask.progress}%`,
+                                            width: `${progress}%`,
                                         }}
                                         transition={{
                                             type: "spring",
@@ -109,19 +112,19 @@ export function ProgressBar() {
                     {/* Task Description & Meta */}
                     <div className="absolute left-[calc(50%+100px)] flex items-center gap-2 whitespace-nowrap leading-none select-none h-4">
                         <span className="text-[10px] font-bold tracking-tight text-white max-w-[120px] truncate leading-none">
-                            {activeTask.name}
+                            {activeTask.taskId}
                         </span>
 
                         <div className="w-px h-2.5 bg-white/20 shrink-0 mx-0.5" />
 
                         <div className="flex items-center gap-2 leading-none">
-                            {activeTask.progress !== null ? (
+                            {progress !== null ? (
                                 <span className="text-[10px] text-white/50 font-medium leading-none">
-                                    {Math.round(activeTask.progress)}%
+                                    {Math.round(progress ?? 0)}%
                                 </span>
-                            ) : activeTask.description && (
+                            ) : activeTask.inputs[0] && (
                                 <span className="text-[10px] text-white/40 truncate max-w-[100px] leading-none">
-                                    {activeTask.description}
+                                    {activeTask.inputs[0]}
                                 </span>
                             )}
                         </div>

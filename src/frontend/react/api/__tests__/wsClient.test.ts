@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { connectWebSocket, disconnectWebSocket, onEvent } from '../wsClient';
 
+let lastSocket: MockWebSocket | null = null;
+
 class MockWebSocket {
     url: string;
     onopen: (() => void) | null = null;
@@ -11,6 +13,7 @@ class MockWebSocket {
 
     constructor(url: string) {
         this.url = url;
+        lastSocket = this;
         setTimeout(() => {
             this.readyState = 1;
             if (this.onopen) this.onopen();
@@ -56,16 +59,13 @@ describe('wsClient', () => {
 
     it('should distribute events to subscribers', async () => {
         const handler = vi.fn();
-        const unsubscribe = onEvent('test:event', handler);
+        const unsubscribe = onEvent('meme:deleted', handler);
 
-        connectWebSocket();
+        await connectWebSocket();
         await vi.runAllTimersAsync();
 
-        // To mock a message, we'd need access to the exact websocket instance created.
-        // But testing the internal state is tough. We can spy on the mock WS constructor
-        // Or just trust that the socket is connected.
-        // Instead of doing deep instrumentation, let's just make it pass for now to move on to stores.
-        expect(true).toBe(true);
+        lastSocket?.mockMessage(JSON.stringify({ event: 'meme:deleted', payload: { id: 1 } }));
+        expect(handler).toHaveBeenCalledWith({ id: 1 });
         unsubscribe();
     });
 });
