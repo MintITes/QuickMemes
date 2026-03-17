@@ -4,6 +4,7 @@ type EventHandler<K extends WsEventName> = (payload: WsEventMap[K]) => void;
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let currentRetries = 0;
 let isForcedDisconnect = false;
 
@@ -32,22 +33,35 @@ export async function connectWebSocket() {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
         }
+        if (heartbeatTimer) {
+            clearInterval(heartbeatTimer);
+        }
+        heartbeatTimer = setInterval(() => {
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping', ts: Date.now() }));
+            }
+        }, 25_000);
     };
 
     ws.onmessage = (event) => {
         try {
-            const data = JSON.parse(event.data) as { event?: WsEventName; payload?: unknown };
+            const data = JSON.parse(event.data) as { event?: WsEventName; payload?: unknown; data?: unknown };
             if (!data.event) {
                 return;
             }
             const handlers = subscribers.get(data.event);
-            handlers?.forEach((handler) => handler(data.payload));
+            const payload = data.payload ?? data.data;
+            handlers?.forEach((handler) => handler(payload));
         } catch (error) {
             console.error('Failed to parse WebSocket message', error);
         }
     };
 
     ws.onclose = () => {
+        if (heartbeatTimer) {
+            clearInterval(heartbeatTimer);
+            heartbeatTimer = null;
+        }
         ws = null;
         if (!isForcedDisconnect) {
             scheduleReconnect();
@@ -78,6 +92,10 @@ export function disconnectWebSocket() {
     if (reconnectTimer) {
         clearTimeout(reconnectTimer);
         reconnectTimer = null;
+    }
+    if (heartbeatTimer) {
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
     }
     if (ws) {
         ws.close();

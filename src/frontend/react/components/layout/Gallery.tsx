@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useMemeStore } from '../../stores/MemeStore';
 import { VirtuosoGrid } from 'react-virtuoso';
 import {
@@ -13,63 +12,14 @@ import {
     SearchX,
     Inbox,
     Sparkles,
-    Copy,
-    MoreHorizontal,
-    Check,
-    Info,
-    Image as ImageIcon,
 } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { EmptyState } from '../common/EmptyState';
 import { useUiStore } from '../../stores/UiStore';
-import { useTagStore } from '../../stores/TagStore';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { getThumbnailUrl, revokeAssetUrl } from '../../services/assetService';
-import { useNotificationStore } from '../../stores/NotificationStore';
+import { MemeCard } from './MemeCard';
 
-function MemeCardImage({ memeId, alt, imageFit }: { memeId: number; alt: string; imageFit: 'contain' | 'cover' }) {
-    const [src, setSrc] = useState<string | null>(null);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        void getThumbnailUrl(memeId).then((nextUrl) => {
-            if (!cancelled) {
-                setSrc(nextUrl);
-            }
-        }).catch(() => {
-            if (!cancelled) {
-                setSrc(null);
-            }
-        });
-
-        return () => {
-            cancelled = true;
-            revokeAssetUrl(`thumb:${memeId}`);
-            revokeAssetUrl(`file:${memeId}`);
-        };
-    }, [memeId]);
-
-    if (!src) {
-        return (
-            <div className="w-full h-full flex items-center justify-center bg-black/5 dark:bg-white/5">
-                <ImageIcon className="text-textSecondary/40" size={36} />
-            </div>
-        );
-    }
-
-    return (
-        <img
-            src={src}
-            alt={alt}
-            className={clsx(
-                'w-full h-full transition-transform duration-300',
-                imageFit === 'contain' ? 'object-contain p-4' : 'object-cover'
-            )}
-        />
-    );
-}
 
 export function Gallery() {
     const { t } = useTranslation();
@@ -77,8 +27,6 @@ export function Gallery() {
     const activeNav = useUiStore((state) => state.activeNav);
     const searchQuery = useUiStore((state) => state.searchQuery);
     const setSearchQuery = useUiStore((state) => state.setSearchQuery);
-    const tags = useTagStore((state) => state.tags);
-    const addNotification = useNotificationStore((state) => state.addNotification);
 
     const {
         viewMode,
@@ -88,8 +36,6 @@ export function Gallery() {
         showTags,
         setShowTags,
         selectedMemeIds,
-        selectMeme,
-        togglePanel,
         toggleImportModal,
     } = useUiStore();
 
@@ -214,102 +160,16 @@ export function Gallery() {
                                 return null;
                             }
                             const isSelected = selectedMemeIds.includes(meme.id);
-                            const memeTags = tags.filter((entry) => meme.tagIds.includes(entry.id));
 
                             return (
-                                <div
-                                    className={clsx(
-                                        'flex flex-col gap-2 group cursor-pointer',
-                                        viewMode === 'masonry' && 'mb-4'
-                                    )}
-                                    onClick={(event) => selectMeme(meme.id, event.metaKey || event.ctrlKey)}
-                                >
-                                    <div className={clsx(
-                                        'w-full bg-white dark:bg-white/5 rounded-xl border flex items-center justify-center relative group overflow-hidden transition-[box-shadow,transform] duration-300',
-                                        isSelected ? 'border-accent ring-2 ring-accent/30 shadow-lg' : 'border-borderColor hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-1',
-                                        viewMode === 'grid' ? 'aspect-square' : 'min-h-[150px]'
-                                    )}>
-                                        <MemeCardImage memeId={meme.id} alt={meme.name} imageFit={imageFit} />
-
-                                        <div className={clsx(
-                                            'absolute inset-0 border-2 rounded-xl transition-colors pointer-events-none',
-                                            isSelected ? 'border-accent/40' : 'border-transparent group-hover:border-accent/30'
-                                        )} />
-
-                                        {isSelected && (
-                                            <div className="absolute top-2 left-2 w-5 h-5 bg-accent text-white rounded-full flex items-center justify-center shadow-md">
-                                                <Check size={12} strokeWidth={4} />
-                                            </div>
-                                        )}
-
-                                        <div className="absolute bottom-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all translate-y-2 group-hover:translate-y-0 duration-200">
-                                            <IconButton
-                                                icon={<Copy size={14} />}
-                                                size="sm"
-                                                className="bg-white/90 dark:bg-black/80 shadow-lg border border-white/20"
-                                                onClick={async (event) => {
-                                                    event.stopPropagation();
-                                                    try {
-                                                        await window.electronAPI.writeClipboardImageFromMeme(meme.id);
-                                                        addNotification({
-                                                            type: 'success',
-                                                            title: t('gallery.item.copy_image'),
-                                                            description: meme.name,
-                                                        });
-                                                    } catch (error) {
-                                                        addNotification({
-                                                            type: 'error',
-                                                            title: t('gallery.item.copy_image'),
-                                                            description: error instanceof Error ? error.message : String(error),
-                                                        });
-                                                    }
-                                                }}
-                                                title={t('gallery.item.copy_image')}
-                                            />
-                                            <IconButton
-                                                icon={<Info size={14} />}
-                                                size="sm"
-                                                className="bg-white/90 dark:bg-black/80 shadow-lg border border-white/20"
-                                                onClick={(event) => {
-                                                    event.stopPropagation();
-                                                    selectMeme(meme.id);
-                                                    togglePanel(true);
-                                                }}
-                                                title={t('gallery.item.view_details')}
-                                            />
-                                            <IconButton
-                                                icon={<MoreHorizontal size={14} />}
-                                                size="sm"
-                                                className="bg-white/90 dark:bg-black/80 shadow-lg border border-white/20"
-                                                onClick={(event) => event.stopPropagation()}
-                                                title={t('gallery.item.more')}
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {(showTags || viewMode === 'grid') && (
-                                        <div className="px-1 flex flex-col gap-0.5">
-                                            <span className={clsx(
-                                                'text-xs font-medium truncate transition-colors',
-                                                isSelected ? 'text-accent' : 'text-textPrimary'
-                                            )}>
-                                                {meme.name}
-                                            </span>
-                                            {showTags && memeTags.length > 0 && (
-                                                <div className="flex gap-1 overflow-hidden flex-wrap">
-                                                    {memeTags.slice(0, 3).map((tagEntry) => (
-                                                        <span
-                                                            key={tagEntry.id}
-                                                            className="text-[10px] text-accent font-medium px-1.5 py-0.5 bg-accent/10 rounded-md"
-                                                        >
-                                                            {tagEntry.name}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
+                                <MemeCard
+                                    key={meme.id}
+                                    meme={meme}
+                                    isSelected={isSelected}
+                                    viewMode={viewMode}
+                                    imageFit={imageFit}
+                                    showTags={showTags}
+                                />
                             );
                         }}
                     />

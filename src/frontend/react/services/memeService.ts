@@ -80,6 +80,6 @@ export async function getMeme(id: number) {
     return sendHttpRequest<Meme>('GET', `/api/meme/${id}`);
 }
 
-export async function updateMeme(id: number, patch: Partial<Pick<Meme, 'name' | 'description' | 'sourceName' | 'sourceUrl' | 'categoryId'>>) {
+export async function updateMeme(id: number, patch: Partial<Pick<Meme, 'name' | 'description' | 'sourceName' | 'sourceUrl' | 'categoryId' | 'tagIds'>>) {
     return sendHttpRequest<Meme>('PUT', `/api/meme/${id}`, patch);
 }

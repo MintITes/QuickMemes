@@ -16,7 +16,9 @@
             "system": "System Default"
         },
         "confirm": "Confirm",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        "save_failed": "Save Failed",
+        "copy_failed": "Copy Failed"
     },
     "layouts": {
         "full": "Expanded-Full",
@@ -123,6 +125,7 @@
         },
         "item": {
             "copy_image": "Copy Image",
+            "copy_success": "Copied to clipboard successfully",
             "view_details": "View Details",
             "more": "More"
         }
@@ -132,8 +135,13 @@
         "batch_title": "Details ({{count}})",
         "basic_info": "Basic Info",
         "tags": "Tags",
+        "add_tag": "Add Tag",
         "ocr_text": "OCR Text",
         "source": "Source",
+        "loading_asset": "Loading Asset",
+        "no_tags": "No tags assigned.",
+        "ocr_placeholder": "Describe this meme or wait for OCR...",
+        "source_placeholder": "Paste source URL...",
         "no_selection": "No selection",
         "no_selection_desc": "Select one or more memes to see details and actions.",
         "labels": {
@@ -151,7 +159,8 @@
             "tag_input_tip": "Input a tag name and Enter to add it to all selected items.",
             "operations": "Operations",
             "export": "Batch Export",
-            "delete": "Move to Recycle Bin"
+            "delete": "Move to Recycle Bin",
+            "bulk_footer": "Bulk updates will be applied to all {{count}} items."
         }
     },
     "settings": {

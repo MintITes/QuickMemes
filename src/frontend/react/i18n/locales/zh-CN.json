@@ -16,7 +16,9 @@
             "system": "跟随系统"
         },
         "confirm": "确定",
-        "cancel": "取消"
+        "cancel": "取消",
+        "save_failed": "保存失败",
+        "copy_failed": "复制失败"
     },
     "layouts": {
         "full": "左展+右展",
@@ -123,6 +125,7 @@
         },
         "item": {
             "copy_image": "复制图片",
+            "copy_success": "已成功复制到剪贴板",
             "view_details": "查看详情",
             "more": "更多"
         }
@@ -132,8 +135,13 @@
         "batch_title": "详情 ({{count}})",
         "basic_info": "基础信息",
         "tags": "标签",
+        "add_tag": "添加标签",
         "ocr_text": "OCR 文本",
         "source": "来源",
+        "loading_asset": "正在加载资源",
+        "no_tags": "尚未添加标签",
+        "ocr_placeholder": "描述这张梗图，或等待 OCR 识别...",
+        "source_placeholder": "粘贴来源链接...",
         "no_selection": "未选中",
         "no_selection_desc": "选择一个或多个梗图以查看详情和操作。",
         "labels": {
@@ -151,7 +159,8 @@
             "tag_input_tip": "输入标签名称并按回车以添加到所有选中项。",
             "operations": "操作",
             "export": "批量导出",
-            "delete": "移动到回收站"
+            "delete": "移动到回收站",
+            "bulk_footer": "批量操作将应用到所有 {{count}} 个选中项。"
         }
     },
     "settings": {

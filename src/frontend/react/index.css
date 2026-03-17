@@ -58,16 +58,44 @@
   body {
     background-color: transparent !important;
     @apply overflow-hidden select-none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-synthesis-weight: none;
+    font-kerning: normal;
   }
 
   body {
     @apply text-textPrimary font-sans text-[14px];
   }
 
+  button,
+  input,
+  textarea,
+  select {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-kerning: normal;
+  }
+
+  img,
+  svg,
+  canvas,
+  video {
+    image-rendering: auto;
+    shape-rendering: geometricPrecision;
+    text-rendering: geometricPrecision;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
   #root {
     @apply w-screen h-screen flex flex-col bg-bgPrimary rounded-xl overflow-hidden border border-black/10 dark:border-white/10;
     /* This creates a new stacking context and makes #root a containing block for fixed/absolute elements */
     transform: translateZ(0);
+    will-change: transform;
+    isolation: isolate;
     border-radius: var(--corner-radius);
   }
 }
@@ -82,6 +110,8 @@
       0 6px 16px rgba(0, 0, 0, 0.08);
     border-radius: var(--corner-radius);
     border: 1px solid var(--border-color);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .dark .surface-effect {
@@ -103,6 +133,8 @@
     border-radius: var(--corner-radius);
     /* Hardware acceleration fix for Electron rendering artifacts */
     transform: translateZ(0);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .glass-mode .glass-effect {
@@ -113,6 +145,8 @@
   /* Secondary surface for cards/items inside panels */
   .inner-container-effect {
     @apply bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-xl;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 
   .glass-effect::before {
@@ -154,5 +188,20 @@
 
   .no-drag {
     -webkit-app-region: no-drag;
+  }
+
+  /* Smooth fade-in for image loading */
+  .image-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 }

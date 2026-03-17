@@ -642,25 +642,48 @@ function createTray() {
 
 async function writeClipboardImageFromMeme(memeId: number) {
     const config = currentConfig ?? loadConfig();
-    const response = await fetch(`http://${config.bindAddress}:${config.backendPort}/api/meme/${memeId}/file`, {
+    const url = `http://${config.bindAddress}:${config.backendPort}/api/meme/${memeId}/file`;
+    console.log(`[Electron] Starting clipboard copy for meme ${memeId} from ${url}`);
+
+    const response = await fetch(url, {
         headers: {
             Authorization: `Bearer ${backendSession.token}`,
         },
     });
+
     if (!response.ok) {
-        throw new Error(`读取图片失败: ${response.status}`);
+        const errorMsg = `读取图片失败: ${response.status}`;
+        console.error(`[Electron] ${errorMsg}`);
+        throw new Error(errorMsg);
     }
 
+    const contentType = response.headers.get('content-type');
     const arrayBuffer = await response.arrayBuffer();
-    const image = nativeImage.createFromBuffer(Buffer.from(arrayBuffer));
-    clipboard.writeImage(image);
+    const buffer = Buffer.from(arrayBuffer);
 
-    await fetch(`http://${config.bindAddress}:${config.backendPort}/api/meme/${memeId}/use`, {
+    console.log(`[Electron] Received image data. Type: ${contentType}, Size: ${buffer.length} bytes`);
+
+    if (buffer.length === 0) {
+        throw new Error('接收到的图片数据为空');
+    }
+
+    const image = nativeImage.createFromBuffer(buffer);
+    if (image.isEmpty()) {
+        const errorDetail = `无法解析图片内容 (MIME: ${contentType}, Size: ${buffer.length})`;
+        console.error(`[Electron] ${errorDetail}`);
+        throw new Error(errorDetail);
+    }
+
+    clipboard.writeImage(image);
+    console.log(`[Electron] Image successfully written to clipboard`);
+
+    // Track usage (fire and forget)
+    fetch(`http://${config.bindAddress}:${config.backendPort}/api/meme/${memeId}/use`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${backendSession.token}`,
         },
-    });
+    }).catch(err => console.warn(`[Electron] Usage tracking failed: ${err.message}`));
 }
 
 function registerIpcHandlers() {

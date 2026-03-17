@@ -125,14 +125,22 @@ export const useUiStore = create<UiState>()(
 
             selectMeme: (id, multi = false) =>
                 set((state) => {
+                    const isSelected = state.selectedMemeIds.includes(id);
+
                     if (multi) {
-                        const isSelected = state.selectedMemeIds.includes(id);
                         return {
                             selectedMemeIds: isSelected
                                 ? state.selectedMemeIds.filter((m) => m !== id)
                                 : [...state.selectedMemeIds, id],
                         };
                     }
+
+                    // Single select logic: deselect if already selected as the only item, 
+                    // otherwise set as the only selected item.
+                    if (isSelected && state.selectedMemeIds.length === 1) {
+                        return { selectedMemeIds: [] };
+                    }
+
                     return { selectedMemeIds: [id] };
                 }),
 

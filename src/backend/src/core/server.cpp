@@ -51,9 +51,9 @@ public:
 
 	template <class Body, class Allocator> void run(http::request<Body, http::basic_fields<Allocator>> req) {
 		beast::websocket::stream_base::timeout opt{
-		    std::chrono::seconds(30), // handshake_timeout
-		    std::chrono::seconds(60), // idle_timeout
-		    true                      // keep_alive_pings
+		    std::chrono::seconds(30),          // handshake_timeout
+		    beast::websocket::stream_base::none(), // idle_timeout disabled for one-way push clients
+		    true                               // keep_alive_pings
 		};
 		ws_.set_option(opt);
 
@@ -155,6 +155,10 @@ private:
 		boost::ignore_unused(bytes_transferred);
 
 		if (ec == http::error::end_of_stream) {
+			doClose();
+			return;
+		}
+		if (ec == beast::error::timeout) {
 			doClose();
 			return;
 		}

@@ -41,7 +41,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         };
         set((state) => ({
             notifications: [newNotification, ...state.notifications],
-            activeToasts: state.isPanelOpen ? state.activeToasts : [newNotification, ...state.activeToasts]
+            activeToasts: [newNotification, ...state.activeToasts]
         }));
     },
 
