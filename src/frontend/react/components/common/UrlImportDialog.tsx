@@ -11,12 +11,18 @@ export function UrlImportDialog() {
     const [url, setUrl] = useState('');
     const inputRef = useRef<HTMLInputElement>(null);
 
+    const [prevOpen, setPrevOpen] = useState(isUrlImportDialogOpen);
+    if (!isUrlImportDialogOpen && prevOpen) {
+        setUrl('');
+        setPrevOpen(false);
+    } else if (isUrlImportDialogOpen && !prevOpen) {
+        setPrevOpen(true);
+    }
+
     // Auto-focus input when dialog opens
     useEffect(() => {
         if (isUrlImportDialogOpen) {
             setTimeout(() => inputRef.current?.focus(), 100);
-        } else {
-            setUrl('');
         }
     }, [isUrlImportDialogOpen]);
 

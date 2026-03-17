@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, ChevronDown, Calendar, Tag, Layers, Monitor, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
 import { useTagStore } from '../../stores/TagStore';
@@ -24,17 +24,18 @@ export function AdvancedSearchDialog() {
     const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
     const categoryButtonRef = useRef<HTMLButtonElement>(null);
 
-    // Sync with store when dialog opens
-    useEffect(() => {
-        if (isAdvancedSearchOpen) {
-            setLocalKeyword(searchQuery.keyword);
-            setLocalMatchMode(searchQuery.matchMode);
-            setLocalCategoryId(searchQuery.categoryId);
-            setLocalTagIds(searchQuery.tagIds);
-            setLocalMediaType(searchQuery.mediaType);
-            setLocalDateRange(searchQuery.dateRange);
-        }
-    }, [isAdvancedSearchOpen, searchQuery]);
+    const [prevOpen, setPrevOpen] = useState(isAdvancedSearchOpen);
+    if (isAdvancedSearchOpen && !prevOpen) {
+        setLocalKeyword(searchQuery.keyword);
+        setLocalMatchMode(searchQuery.matchMode);
+        setLocalCategoryId(searchQuery.categoryId);
+        setLocalTagIds(searchQuery.tagIds);
+        setLocalMediaType(searchQuery.mediaType);
+        setLocalDateRange(searchQuery.dateRange);
+        setPrevOpen(true);
+    } else if (!isAdvancedSearchOpen && prevOpen) {
+        setPrevOpen(false);
+    }
 
     const handleSearch = () => {
         setSearchQuery({

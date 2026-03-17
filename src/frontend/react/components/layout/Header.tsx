@@ -42,10 +42,12 @@ export function Header() {
         }
     };
 
-    // Sync input value with store keyword (for updates from Advanced Search)
-    useEffect(() => {
+    // Render-phase sync for updates from Advanced Search or external sources
+    const [prevStoreKeyword, setPrevStoreKeyword] = useState(searchQuery.keyword);
+    if (searchQuery.keyword !== prevStoreKeyword) {
         setSearchValue(searchQuery.keyword);
-    }, [searchQuery.keyword]);
+        setPrevStoreKeyword(searchQuery.keyword);
+    }
 
     // Debounced search logic
     useEffect(() => {
@@ -135,6 +137,7 @@ export function Header() {
                 <AnimatePresence>
                     {isSearchFocused && (
                         <SearchDropdown
+                            keyword={searchValue}
                             onClose={() => setIsSearchFocused(false)}
                             onSelectHistory={handleSearchSelect}
                         />

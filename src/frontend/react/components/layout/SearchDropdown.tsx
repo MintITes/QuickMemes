@@ -2,22 +2,43 @@ import { motion } from 'framer-motion';
 import { History, Sparkles, SlidersHorizontal, ArrowRight, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../stores/UiStore';
+import { useMemeStore } from '../../stores/MemeStore';
+import { useTagStore } from '../../stores/TagStore';
+import { useCategoryStore } from '../../stores/CategoryStore';
+import { SuggestionService } from '../../services/SuggestionService';
 import clsx from 'clsx';
+import { useMemo } from 'react';
 
 interface SearchDropdownProps {
+    keyword: string;
     onSelectHistory: (term: string) => void;
     onClose: () => void;
 }
 
-export function SearchDropdown({ onSelectHistory, onClose }: SearchDropdownProps) {
+export function SearchDropdown({ keyword, onSelectHistory, onClose }: SearchDropdownProps) {
     const { t } = useTranslation();
-    const { searchHistory, clearSearchHistory, toggleAdvancedSearch } = useUiStore();
+    const { searchHistory, clearSearchHistory, toggleAdvancedSearch, browsingHistory } = useUiStore();
+    const { memes } = useMemeStore();
+    const { tags } = useTagStore();
+    const { categories } = useCategoryStore();
 
-    // Mock smart suggestions for now
-    const suggestions = [
-        { id: 1, text: 'coding memes', type: 'tag' },
-        { id: 2, text: 'funny cats', type: 'category' },
-    ];
+    const suggestions = useMemo(() => {
+        return SuggestionService.getSuggestions(
+            keyword,
+            searchHistory,
+            browsingHistory,
+            memes,
+            tags,
+            categories
+        );
+    }, [keyword, searchHistory, browsingHistory, memes, tags, categories]);
+
+    const historyItems = useMemo(() => {
+        const normalized = keyword.toLowerCase().trim();
+        return searchHistory
+            .filter(h => !normalized || h.term.toLowerCase().includes(normalized))
+            .slice(0, 5);
+    }, [searchHistory, keyword]);
 
     return (
         <motion.div
@@ -30,7 +51,7 @@ export function SearchDropdown({ onSelectHistory, onClose }: SearchDropdownProps
         >
             <div className="glass-effect surface-effect shadow-2xl rounded-2xl overflow-hidden flex flex-col border border-white/10 dark:border-black/10">
                 {/* Search History */}
-                {searchHistory.length > 0 && (
+                {historyItems.length > 0 && (
                     <div className="p-2 border-b border-borderColor">
                         <div className="flex items-center justify-between px-2 mb-1">
                             <span className="text-[10px] font-bold uppercase tracking-wider opacity-40 flex items-center gap-1">
@@ -50,15 +71,15 @@ export function SearchDropdown({ onSelectHistory, onClose }: SearchDropdownProps
                             </button>
                         </div>
                         <div className="flex flex-col gap-0.5">
-                            {searchHistory.map((item) => (
+                            {historyItems.map((item) => (
                                 <button
-                                    key={item}
-                                    onClick={() => onSelectHistory(item)}
+                                    key={item.term}
+                                    onClick={() => onSelectHistory(item.term)}
                                     onMouseDown={(e) => e.preventDefault()}
                                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left group"
                                 >
                                     <ArrowRight size={12} className="opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-[opacity,margin] duration-200 text-accent" />
-                                    <span className="text-xs truncate">{item}</span>
+                                    <span className="text-xs truncate">{item.term}</span>
                                 </button>
                             ))}
                         </div>
@@ -74,6 +95,11 @@ export function SearchDropdown({ onSelectHistory, onClose }: SearchDropdownProps
                         </span>
                     </div>
                     <div className="flex flex-col gap-0.5">
+                        {suggestions.length === 0 && (
+                            <div className="px-2 py-4 text-center opacity-30 text-[10px]">
+                                {t('search.no_suggestions', 'No matching suggestions')}
+                            </div>
+                        )}
                         {suggestions.map((item) => (
                             <button
                                 key={item.id}
@@ -84,9 +110,12 @@ export function SearchDropdown({ onSelectHistory, onClose }: SearchDropdownProps
                                 <span className="text-xs">{item.text}</span>
                                 <span className={clsx(
                                     "text-[9px] px-1.5 py-0.5 rounded-md",
-                                    item.type === 'tag' ? "bg-accent/10 text-accent" : "bg-black/10 dark:bg-white/10 opacity-60"
+                                    item.type === 'tag' ? "bg-accent/10 text-accent" :
+                                        item.type === 'browsing' ? "bg-purple-500/10 text-purple-500" :
+                                            item.type === 'category' ? "bg-blue-500/10 text-blue-500" :
+                                                "bg-black/10 dark:bg-white/10 opacity-60"
                                 )}>
-                                    {item.type}
+                                    {t(`search.type_${item.type}`, item.type)}
                                 </span>
                             </button>
                         ))}

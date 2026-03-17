@@ -10,6 +10,19 @@ export interface SearchQuery {
     dateRange: 'all' | 'today' | 'week' | 'month' | 'year';
 }
 
+export interface SearchHistoryItem {
+    term: string;
+    count: number;
+    lastUsed: number;
+}
+
+export interface BrowsingHistoryItem {
+    memeId: number;
+    categoryId?: number;
+    tagIds: number[];
+    timestamp: number;
+}
+
 export interface UiState {
     isPanelOpen: boolean;
     isImporting: boolean;
@@ -34,7 +47,8 @@ export interface UiState {
     inspectorWidth: number;
     sidebarExpanded: boolean;
     language: 'zh-CN' | 'en-US' | 'system';
-    searchHistory: string[];
+    searchHistory: SearchHistoryItem[];
+    browsingHistory: BrowsingHistoryItem[];
     isAdvancedSearchOpen: boolean;
 
     // Actions
@@ -63,6 +77,7 @@ export interface UiState {
     setLanguage: (lang: 'zh-CN' | 'en-US' | 'system') => void;
     addSearchHistory: (term: string) => void;
     clearSearchHistory: () => void;
+    addBrowsingHistory: (meme: { id: number, categoryId?: number, tagIds: number[] }) => void;
     toggleAdvancedSearch: (isOpen?: boolean) => void;
 }
 
@@ -99,6 +114,7 @@ export const useUiStore = create<UiState>()(
             sidebarExpanded: true,
             language: 'system',
             searchHistory: [],
+            browsingHistory: [],
             isAdvancedSearchOpen: false,
 
             togglePanel: (isOpen) =>
@@ -174,14 +190,46 @@ export const useUiStore = create<UiState>()(
                 set((state) => {
                     const cleanTerm = term.trim();
                     if (!cleanTerm) return state;
-                    const newHistory = [
-                        cleanTerm,
-                        ...state.searchHistory.filter((t) => t !== cleanTerm)
-                    ].slice(0, 3);
-                    return { searchHistory: newHistory };
+
+                    const existingIndex = state.searchHistory.findIndex(h => h.term === cleanTerm);
+                    const newHistory = [...state.searchHistory];
+
+                    if (existingIndex >= 0) {
+                        const existing = newHistory[existingIndex];
+                        newHistory[existingIndex] = {
+                            ...existing,
+                            count: existing.count + 1,
+                            lastUsed: Date.now()
+                        };
+                    } else {
+                        newHistory.unshift({
+                            term: cleanTerm,
+                            count: 1,
+                            lastUsed: Date.now()
+                        });
+                    }
+
+                    // Sort by frequency (primary) and recency (secondary)
+                    newHistory.sort((a, b) => b.count - a.count || b.lastUsed - a.lastUsed);
+
+                    return { searchHistory: newHistory.slice(0, 20) }; // Keep top 20
                 }),
 
             clearSearchHistory: () => set({ searchHistory: [] }),
+
+            addBrowsingHistory: (meme) =>
+                set((state) => {
+                    const newItem: BrowsingHistoryItem = {
+                        memeId: meme.id,
+                        categoryId: meme.categoryId,
+                        tagIds: meme.tagIds,
+                        timestamp: Date.now()
+                    };
+                    const filtered = state.browsingHistory.filter(h => h.memeId !== meme.id);
+                    return {
+                        browsingHistory: [newItem, ...filtered].slice(0, 50)
+                    };
+                }),
 
             toggleAdvancedSearch: (isOpen) =>
                 set((state) => ({ isAdvancedSearchOpen: isOpen !== undefined ? isOpen : !state.isAdvancedSearchOpen })),
@@ -206,7 +254,28 @@ export const useUiStore = create<UiState>()(
                 sidebarExpanded: state.sidebarExpanded,
                 language: state.language,
                 searchHistory: state.searchHistory,
+                browsingHistory: state.browsingHistory,
             }),
+            version: 1,
+            migrate: (persistedState: unknown, version: number) => {
+                if (version === 0) {
+                    const state = persistedState as { searchHistory?: unknown[] };
+                    // Migrate searchHistory from string[] to SearchHistoryItem[]
+                    if (state && Array.isArray(state.searchHistory)) {
+                        state.searchHistory = state.searchHistory.map((item: unknown) => {
+                            if (typeof item === 'string') {
+                                return {
+                                    term: item,
+                                    count: 1,
+                                    lastUsed: Date.now()
+                                };
+                            }
+                            return item;
+                        });
+                    }
+                }
+                return persistedState;
+            },
         }
     )
 );

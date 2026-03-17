@@ -48,7 +48,12 @@
         "date_week": "Week",
         "date_month": "Month",
         "date_year": "Year",
+        "no_suggestions": "No matching suggestions",
         "no_tags_available": "No tags available",
+        "type_history": "History",
+        "type_tag": "Tag",
+        "type_category": "Category",
+        "type_browsing": "Recent",
         "reset_filters": "Reset all filters",
         "clear_selected": "Clear selected"
     },

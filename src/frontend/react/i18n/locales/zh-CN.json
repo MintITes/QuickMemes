@@ -48,7 +48,12 @@
         "date_week": "本周",
         "date_month": "本月",
         "date_year": "本年",
-        "no_tags_available": "暂无可用标签",
+        "no_suggestions": "暂无匹配建议",
+        "no_tags_available": "没有可用标签",
+        "type_history": "历史",
+        "type_tag": "标签",
+        "type_category": "分类",
+        "type_browsing": "最近浏览",
         "reset_filters": "重置所有过滤器",
         "clear_selected": "清除已选"
     },
