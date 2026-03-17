@@ -4,7 +4,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
     readClipboardImage: () => Promise.resolve(null),
     writeClipboardImage: (_filePath: string) => Promise.resolve(),
-    openFileDialog: (_options: unknown) => Promise.resolve([]),
+    openFileDialog: (options: unknown) => ipcRenderer.invoke('open-file-dialog', options),
     saveFileDialog: (_options: unknown) => Promise.resolve(null),
     registerGlobalShortcut: (_key: string, _callback: () => void) => { },
     unregisterGlobalShortcut: (_key: string) => { },
