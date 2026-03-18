@@ -136,13 +136,15 @@ Category {
     uuid      : string
     name      : string
     color     : string
+    position  : int64
     createdAt : int64
     updatedAt : int64
 }
 
 CategoryPatch {
-    name?  : string
-    color? : string
+    name?     : string
+    color?    : string
+    position? : int64
 }
 
 BatchCategoryRequest {
@@ -348,15 +350,15 @@ RuntimeConfigPatch {
 
 ### `GET /api/categories` — 获取全部分类
 
-- **描述**：返回系统中所有分类列表
+- **描述**：返回系统中所有分类列表，按 `position ASC, created_at ASC, id ASC` 排序
 - **成功响应**：`ApiResponse<Category[]>`
 
 ---
 
 ### `POST /api/categories` — 创建新分类
 
-- **描述**：创建一个新分类，生成 UUID
-- **请求体**：`{ name: string, color?: string }`
+- **描述**：创建一个新分类，生成 UUID；若未提供 `position`，默认追加到末尾
+- **请求体**：`{ name: string, color?: string, position?: int64 }`
 - **成功响应**：`ApiResponse<Category>`
 - **可能错误**：`ERR_INVALID_PARAMS`（名称为空）
 
@@ -364,7 +366,7 @@ RuntimeConfigPatch {
 
 ### `PUT /api/categories/:id` — 更新分类
 
-- **描述**：更新分类名称或颜色
+- **描述**：更新分类名称、颜色或排序位置
 - **路径参数**：`id`：分类 ID（`int64`）
 - **请求体**：`CategoryPatch`
 - **成功响应**：`ApiResponse<Category>`

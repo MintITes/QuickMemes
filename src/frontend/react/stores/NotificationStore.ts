@@ -9,6 +9,10 @@ export interface AppNotification {
     description?: string;
     timestamp: number;
     read: boolean;
+    action?: {
+        label: string;
+        onClick: () => void;
+    };
 }
 
 interface NotificationState {

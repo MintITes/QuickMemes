@@ -74,6 +74,20 @@ export function ToastNotification({ notification }: ToastNotificationProps) {
                         {notification.description}
                     </div>
                 )}
+                {notification.action && (
+                    <div className="mt-2">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                notification.action?.onClick();
+                                removeNotification(notification.id);
+                            }}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-accent text-white shadow-sm hover:bg-accent/90 active:scale-95 transition-all"
+                        >
+                            {notification.action.label}
+                        </button>
+                    </div>
+                )}
             </div>
 
             <button

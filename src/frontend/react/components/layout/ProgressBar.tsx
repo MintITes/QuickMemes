@@ -6,8 +6,11 @@ export function ProgressBar() {
     const activeTask = useTaskStore(state => state.activeTask);
     const clearTask = useTaskStore(state => state.clearTask);
     const [showShine, setShowShine] = useState(false);
-    const progress = activeTask
-        ? (activeTask.total > 0 ? (activeTask.processed / activeTask.total) * 100 : null)
+    const hasProgress = activeTask
+        ? Number.isFinite(activeTask.total) && activeTask.total > 0 && Number.isFinite(activeTask.processed)
+        : false;
+    const progress = activeTask && hasProgress
+        ? (activeTask.processed / activeTask.total) * 100
         : null;
 
     useEffect(() => {

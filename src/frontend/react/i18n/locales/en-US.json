@@ -111,7 +111,9 @@
             "trash_empty": "Trash is empty",
             "trash_empty_desc": "Staying organized is a great habit! Trash currently has no content.",
             "untagged_empty": "All memes are tagged",
-            "untagged_empty_desc": "Great! Every meme in your library has a classification."
+            "untagged_empty_desc": "Great! Every meme in your library has a classification.",
+            "category_empty": "No memes in this category",
+            "category_empty_desc": "You can assign memes to this category by editing their details or dragging them here."
         },
         "controls": {
             "back": "Back",
@@ -128,6 +130,16 @@
             "copy_success": "Copied to clipboard successfully",
             "view_details": "View Details",
             "more": "More"
+        },
+        "context_menu": {
+            "copy": "Copy to clipboard",
+            "export": "Export...",
+            "edit_tags": "Edit details / tags",
+            "view_original": "View original",
+            "move_to": "Move to",
+            "move_to_trash": "Move to trash",
+            "trash_undo": "Undo",
+            "trash_success": "Moved to trash"
         }
     },
     "inspector": {

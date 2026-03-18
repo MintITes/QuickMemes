@@ -80,8 +80,9 @@ struct MemePatch {
  * @brief 分类局部更新数据
  */
 struct CategoryPatch {
-	std::optional<std::string> name;  ///< 新名称
-	std::optional<std::string> color; ///< 新颜色
+	std::optional<std::string> name;     ///< 新名称
+	std::optional<std::string> color;    ///< 新颜色
+	std::optional<int64_t>     position; ///< 新排序位置
 };
 
 /**
@@ -256,11 +257,13 @@ inline void to_json(nlohmann::json &j, const MemePatch &p) {
 inline void from_json(const nlohmann::json &j, CategoryPatch &p) {
 	if (j.contains("name") && !j.at("name").is_null()) p.name = j.at("name").get<std::string>();
 	if (j.contains("color") && !j.at("color").is_null()) p.color = j.at("color").get<std::string>();
+	if (j.contains("position") && !j.at("position").is_null()) p.position = j.at("position").get<int64_t>();
 }
 inline void to_json(nlohmann::json &j, const CategoryPatch &p) {
 	j = nlohmann::json::object();
 	if (p.name) j["name"] = *p.name;
 	if (p.color) j["color"] = *p.color;
+	if (p.position) j["position"] = *p.position;
 }
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BatchCategoryRequest, memeIds, categoryId)

@@ -40,7 +40,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(({
                     sizeClasses[size],
                     variantClasses[variant],
                     active && "bg-black/10 dark:bg-white/15 border-accent/30 text-accent",
-                    disabled ? "opacity-40 grayscale pointer-events-none" : "hover:scale-105 active:scale-95 active:bg-black/20 dark:active:bg-white/20",
+                    disabled ? "opacity-30 grayscale pointer-events-none !bg-transparent !border-transparent !shadow-none" : "hover:scale-105 active:scale-95 active:bg-black/20 dark:active:bg-white/20",
                     className
                 )
             )}

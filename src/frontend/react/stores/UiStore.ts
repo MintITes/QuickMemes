@@ -39,6 +39,7 @@ export interface UiState {
     activeNav: string;
     platformOverride: 'darwin' | 'win32' | 'linux' | 'auto';
     glassBlur: number;
+    galleryItemSize: number;
     cornerRadius: number;
     galleryGap: number;
     accentColor: string;
@@ -50,6 +51,8 @@ export interface UiState {
     searchHistory: SearchHistoryItem[];
     browsingHistory: BrowsingHistoryItem[];
     isAdvancedSearchOpen: boolean;
+    contextMenu: { memeId: number, x: number, y: number } | null;
+    lightboxMemeId: number | null;
 
     // Actions
     togglePanel: (isOpen?: boolean) => void;
@@ -67,6 +70,7 @@ export interface UiState {
     setActiveNav: (nav: string) => void;
     setPlatformOverride: (platform: 'darwin' | 'win32' | 'linux' | 'auto') => void;
     setGlassBlur: (value: number) => void;
+    setGalleryItemSize: (value: number) => void;
     setCornerRadius: (value: number) => void;
     setGalleryGap: (value: number) => void;
     setAccentColor: (color: string) => void;
@@ -79,6 +83,8 @@ export interface UiState {
     clearSearchHistory: () => void;
     addBrowsingHistory: (meme: { id: number, categoryId?: number, tagIds: number[] }) => void;
     toggleAdvancedSearch: (isOpen?: boolean) => void;
+    setContextMenu: (menu: { memeId: number, x: number, y: number } | null) => void;
+    setLightboxMemeId: (id: number | null) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -105,6 +111,7 @@ export const useUiStore = create<UiState>()(
             activeNav: 'all',
             platformOverride: 'auto',
             glassBlur: 20,
+            galleryItemSize: 200,
             cornerRadius: 12,
             galleryGap: 16,
             accentColor: '#0066cc',
@@ -116,6 +123,8 @@ export const useUiStore = create<UiState>()(
             searchHistory: [],
             browsingHistory: [],
             isAdvancedSearchOpen: false,
+            contextMenu: null,
+            lightboxMemeId: null,
 
             togglePanel: (isOpen) =>
                 set((state) => ({ isPanelOpen: isOpen !== undefined ? isOpen : !state.isPanelOpen })),
@@ -172,6 +181,8 @@ export const useUiStore = create<UiState>()(
             setPlatformOverride: (platform) => set({ platformOverride: platform }),
 
             setGlassBlur: (value) => set({ glassBlur: value }),
+
+            setGalleryItemSize: (value) => set({ galleryItemSize: value }),
 
             setCornerRadius: (value) => set({ cornerRadius: value }),
 
@@ -241,6 +252,10 @@ export const useUiStore = create<UiState>()(
 
             toggleAdvancedSearch: (isOpen) =>
                 set((state) => ({ isAdvancedSearchOpen: isOpen !== undefined ? isOpen : !state.isAdvancedSearchOpen })),
+
+            setContextMenu: (menu) => set({ contextMenu: menu }),
+
+            setLightboxMemeId: (id) => set({ lightboxMemeId: id }),
         }),
         {
             name: 'quick-memes-ui-storage',
@@ -253,6 +268,7 @@ export const useUiStore = create<UiState>()(
                 glassEffect: state.glassEffect,
                 platformOverride: state.platformOverride,
                 glassBlur: state.glassBlur,
+                galleryItemSize: state.galleryItemSize,
                 cornerRadius: state.cornerRadius,
                 galleryGap: state.galleryGap,
                 accentColor: state.accentColor,

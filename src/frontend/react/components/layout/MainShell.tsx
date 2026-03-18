@@ -11,6 +11,8 @@ import { AdvancedSearchDialog } from '../common/AdvancedSearchDialog';
 import { ToastContainer } from './ToastContainer';
 import { AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
+import { ContextMenu } from '../meme/ContextMenu';
+import { Lightbox } from '../meme/Lightbox';
 
 export function MainShell() {
     const isPanelOpen = useUiStore(state => state.isPanelOpen);
@@ -34,6 +36,9 @@ export function MainShell() {
             <AdvancedSearchDialog />
             <NotificationPanel />
             <ToastContainer />
+
+            <ContextMenu />
+            <Lightbox />
         </div>
     );
 }

@@ -3,9 +3,6 @@ import { useUiStore } from '../../stores/UiStore';
 import { useMemeStore } from '../../stores/MemeStore';
 import { useTagStore } from '../../stores/TagStore';
 import {
-    Info,
-    Tag as TagIcon,
-    FileText,
     Image as ImageIcon,
     X,
     Copy,
@@ -63,44 +60,36 @@ const itemVariants = {
     }
 } as const;
 
-function DetailCard({ children, title, icon: Icon, action }: { children: React.ReactNode, title: string, icon: any, action?: React.ReactNode }) {
-    return (
-        <motion.section variants={itemVariants} className="flex flex-col gap-3">
-            <div className="flex items-center justify-between px-1.5">
-                <h3 className="text-[11px] font-bold text-textSecondary/70 tracking-[0.08em] flex items-center">
-                    <Icon size={13} className="mr-2 opacity-70" /> {title}
-                </h3>
-                {action}
-            </div>
-            <div className="inner-container-effect rounded-2xl p-4 bg-black/[0.03] dark:bg-white/[0.03] border-black/5 dark:border-white/5 shadow-sm">
-                {children}
-            </div>
-        </motion.section>
-    );
-}
 
 function MemeDetails({ meme }: { meme: Meme }) {
     const { t } = useTranslation();
     const upsertMeme = useMemeStore((state) => state.upsertMeme);
+    const updateMemeInStore = useMemeStore((state) => state.updateMeme);
     const allTags = useTagStore((state) => state.tags);
     const setTags = useTagStore((state) => state.setTags);
     const addNotification = useNotificationStore((state) => state.addNotification);
 
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [lastMemeId, setLastMemeId] = useState<number | null>(null);
+    const [editingName, setEditingName] = useState(meme.name || '');
     const [editingDescription, setEditingDescription] = useState(meme.description || meme.ocrText || '');
     const [editingSource, setEditingSource] = useState(meme.sourceUrl || '');
     const [copySuccess, setCopySuccess] = useState(false);
     const [isAddingTag, setIsAddingTag] = useState(false);
     const [newTagName, setNewTagName] = useState('');
     const tagInputRef = useRef<HTMLInputElement>(null);
+    const isSubmittingTagRef = useRef(false);
+    const skipTagBlurRef = useRef(false);
 
-    if (meme.id !== lastMemeId) {
-        setLastMemeId(meme.id);
+    useEffect(() => {
+        if (meme.id !== lastMemeId) {
+            setLastMemeId(meme.id);
+            setPreviewUrl(null);
+        }
+        setEditingName(meme.name || '');
         setEditingDescription(meme.description || meme.ocrText || '');
         setEditingSource(meme.sourceUrl || '');
-        setPreviewUrl(null);
-    }
+    }, [lastMemeId, meme.description, meme.id, meme.name, meme.ocrText, meme.sourceUrl]);
 
     useEffect(() => {
         let cancelled = false;
@@ -126,11 +115,13 @@ function MemeDetails({ meme }: { meme: Meme }) {
         }
     }, [isAddingTag]);
 
-    const persistPatch = async (patch: Partial<Pick<Meme, 'description' | 'sourceUrl'>>) => {
+    const persistPatch = async (patch: Partial<Pick<Meme, 'name' | 'description' | 'sourceUrl'>>) => {
+        updateMemeInStore(meme.id, patch);
         try {
             const updated = await updateMemeRemote(meme.id, patch);
             upsertMeme(updated);
         } catch (error) {
+            upsertMeme(meme);
             addNotification({
                 type: 'error',
                 title: t('common.save_failed'),
@@ -165,12 +156,19 @@ function MemeDetails({ meme }: { meme: Meme }) {
         }
     };
 
-    const submitNewTag = async () => {
-        const name = newTagName.trim();
+    const submitNewTag = async (rawName = newTagName) => {
+        const name = rawName.trim();
         if (!name) {
             setIsAddingTag(false);
+            setNewTagName('');
             return;
         }
+
+        if (isSubmittingTagRef.current) {
+            return;
+        }
+
+        isSubmittingTagRef.current = true;
 
         try {
             let tag = allTags.find(t => t.name.toLowerCase() === name.toLowerCase());
@@ -207,6 +205,7 @@ function MemeDetails({ meme }: { meme: Meme }) {
                 description: error instanceof Error ? error.message : String(error),
             });
         } finally {
+            isSubmittingTagRef.current = false;
             setIsAddingTag(false);
             setNewTagName('');
         }
@@ -242,19 +241,25 @@ function MemeDetails({ meme }: { meme: Meme }) {
         >
             {/* Preview Section */}
             <motion.div variants={itemVariants} className="relative group">
-                <div className="w-full min-h-[180px] max-h-[320px] bg-black/[0.03] dark:bg-white/[0.03] flex items-center justify-center p-4 rounded-2xl border border-borderColor/30 overflow-hidden relative group/preview shadow-sm">
+                <div className="w-full bg-black/5 dark:bg-white/5 flex items-center justify-center rounded-xl overflow-hidden relative group/preview">
                     {previewUrl ? (
-                        <div className="relative z-0 w-full flex items-center justify-center">
+                        <div className="relative w-full pt-[100%]">
                             <img
                                 src={previewUrl}
                                 alt={meme.name}
-                                className="max-w-full max-h-[280px] object-contain rounded-xl shadow-lg dark:shadow-black/30 transition-transform duration-300 group-hover/preview:scale-[1.01]"
+                                className="absolute inset-0 w-full h-full object-cover"
                             />
+                            {/* Format Badge */}
+                            <div className="absolute top-3 left-3 bg-black/50 backdrop-blur-md text-white text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm">
+                                {(meme.mimeType || '-').split('/').pop()}
+                            </div>
                         </div>
                     ) : (
-                        <div className="flex flex-col items-center gap-2 text-textSecondary/20">
-                            <ImageIcon size={40} strokeWidth={1} />
-                            <span className="text-[10px] font-semibold tracking-wide">{t('inspector.loading_asset')}</span>
+                        <div className="relative w-full pt-[100%]">
+                            <div className="absolute inset-0 flex flex-col items-center justify-center text-textSecondary/20">
+                                <ImageIcon size={40} strokeWidth={1} />
+                                <span className="text-[10px] font-semibold tracking-wide mt-2">{t('inspector.loading_asset')}</span>
+                            </div>
                         </div>
                     )}
 
@@ -262,156 +267,148 @@ function MemeDetails({ meme }: { meme: Meme }) {
                     <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover/preview:opacity-100 transition-opacity duration-200">
                         <button
                             onClick={handleCopyFullImage}
-                            className="p-2.5 bg-white/92 dark:bg-black/60 text-textPrimary rounded-xl shadow-md hover:bg-accent hover:text-white active:scale-95 transition-all border border-black/5 dark:border-white/10 backdrop-blur-md"
+                            className="p-2 bg-black/50 text-white rounded-lg shadow-md hover:bg-white hover:text-black active:scale-95 transition-all backdrop-blur-md"
                             title="Copy Image"
                         >
-                            <Copy size={16} />
+                            <Copy size={14} />
                         </button>
                     </div>
                 </div>
+
+
             </motion.div>
 
-            {/* Info Section */}
-            <DetailCard title={t('inspector.basic_info')} icon={Info}>
-                <div className="space-y-3">
-                    {[
-                        { label: t('inspector.labels.name'), value: meme.name, truncate: true, highlight: true },
-                        { label: t('inspector.labels.format'), value: (meme.mimeType || '-').split('/').pop()?.toUpperCase() },
-                        { label: t('inspector.labels.size'), value: formatSize(meme.fileSize) },
-                        { label: t('inspector.labels.resolution'), value: `${meme.width} × ${meme.height}` },
-                        { label: t('inspector.labels.added'), value: formatDate(meme.createdAt) },
-                    ].map((item) => (
-                        <div key={item.label} className="grid grid-cols-[84px_1fr] items-baseline gap-3 text-[12px]">
-                            <span className="text-textSecondary/50 font-medium text-[11px] shrink-0">{item.label}</span>
-                            <span className={clsx(
-                                'font-semibold break-all text-right leading-5',
-                                item.truncate && 'truncate',
-                                item.highlight ? 'text-accent' : 'text-textPrimary/80'
-                            )} title={item.value}>
-                                {item.value}
-                            </span>
-                        </div>
-                    ))}
-                </div>
-            </DetailCard>
+            {/* Editable Title */}
+            <motion.div variants={itemVariants} className="px-1">
+                <input
+                    type="text"
+                    className="w-full text-[18px] font-bold bg-transparent border-none p-0 focus:outline-none focus:ring-0 text-textPrimary placeholder:text-textSecondary/30 truncate"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onBlur={() => {
+                        if (editingName !== meme.name) {
+                            void persistPatch({ name: editingName });
+                        }
+                    }}
+                    placeholder={t('inspector.labels.name')}
+                />
+            </motion.div>
 
-            {/* Tags Section */}
-            <DetailCard
-                title={t('inspector.tags')}
-                icon={TagIcon}
-                action={
-                    isAddingTag ? (
-                        <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-right-2 duration-200">
-                            <input
-                                ref={tagInputRef}
-                                type="text"
-                                className="h-6 px-2 text-[11px] font-bold bg-accent/5 dark:bg-accent/10 border border-accent/20 text-accent rounded-md outline-none w-20 focus:w-28 focus:ring-2 focus:ring-accent/20 transition-all placeholder:text-accent/30"
-                                placeholder={t('common.add') + '...'}
-                                value={newTagName}
-                                onChange={(e) => setNewTagName(e.target.value)}
-                                onBlur={submitNewTag}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') void submitNewTag();
-                                    if (e.key === 'Escape') {
-                                        setIsAddingTag(false);
-                                        setNewTagName('');
-                                    }
-                                }}
-                                autoFocus
-                            />
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setIsAddingTag(true)}
-                            className="px-2 py-1 rounded-lg text-accent hover:bg-accent/10 active:scale-95 transition-all flex items-center gap-1.5 group"
-                            title={t('inspector.add_tag')}
-                        >
-                            <TagIcon size={12} className="group-hover:rotate-12 transition-transform" />
-                            <span className="text-[10px] font-bold tracking-wide">{t('common.add')}</span>
-                        </button>
-                    )
-                }
-            >
-                <div className="flex flex-wrap gap-2">
-                    {memeTags.length === 0 && (
-                        <span className="text-[12px] text-textSecondary/35 italic py-1">{t('inspector.no_tags')}</span>
-                    )}
-                    {memeTags.map((tag) => (
-                        <motion.span
-                            key={tag.id}
-                            variants={{
-                                initial: { scale: 0.9, opacity: 0 },
-                                visible: { scale: 1, opacity: 1 },
-                                hover: { scale: 1.05 }
-                            }}
-                            initial="initial"
-                            animate="visible"
-                            whileHover="hover"
-                            className="relative overflow-hidden inline-flex items-center rounded-xl bg-accent/[0.08] dark:bg-accent/20 text-accent text-[12px] font-semibold cursor-default group/tag h-8 px-3 border border-accent/10 hover:border-accent/25 transition-colors"
-                        >
-                            <span className="opacity-45 mr-1.5 text-[10px]">#</span>
-                            {tag.name}
-
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    void handleRemoveTag(tag.id);
-                                }}
-                                className="ml-2 p-0.5 rounded-full hover:bg-accent/20 opacity-0 group-hover/tag:opacity-100 transition-opacity"
-                            >
-                                <X size={10} strokeWidth={3} />
-                            </button>
-                        </motion.span>
-                    ))}
-                </div>
-            </DetailCard>
-
-            {/* OCR/Description Section */}
-            <DetailCard
-                title={t('inspector.ocr_text')}
-                icon={FileText}
-                action={
-                    <button
-                        onClick={handleCopyOcr}
-                        disabled={!meme.ocrText}
-                        className="p-1 px-1.5 hover:bg-accent/10 dark:hover:bg-accent/20 rounded-md transition-colors disabled:opacity-20 text-accent"
-                        title="Copy text"
-                    >
-                        {copySuccess ? <Check size={14} className="text-green-500" /> : <Copy size={13} />}
-                    </button>
-                }
-            >
+            {/* OCR/Description Section - Flat style */}
+            <motion.div variants={itemVariants} className="relative group/desc">
                 <textarea
-                    className="w-full min-h-[128px] text-[13px] leading-6 bg-transparent border-none p-0 focus:outline-none focus:ring-0 resize-none placeholder:text-textSecondary/20 scrollbar-hide"
-                    placeholder={t('inspector.ocr_placeholder') || ''}
+                    className="w-full min-h-[140px] text-[13px] leading-relaxed bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 rounded-xl p-3.5 focus:bg-white dark:focus:bg-black/20 focus:border-accent/30 focus:shadow-sm transition-all focus:outline-none resize-none placeholder:text-textSecondary/30 text-textPrimary/90"
+                    placeholder={t('inspector.ocr_placeholder') || 'Enter description or prompt...'}
                     value={editingDescription}
                     onChange={(event) => setEditingDescription(event.target.value)}
                     onBlur={() => void persistPatch({ description: editingDescription })}
                 />
-            </DetailCard>
+                <button
+                    onClick={handleCopyOcr}
+                    disabled={!meme.ocrText}
+                    className="absolute top-2 right-2 p-1.5 bg-white/80 dark:bg-black/80 rounded-md shadow-sm border border-black/5 dark:border-white/10 opacity-0 group-hover/desc:opacity-100 transition-opacity disabled:opacity-0 text-textSecondary hover:text-accent backdrop-blur-md"
+                    title="Copy text"
+                >
+                    {copySuccess ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                </button>
+            </motion.div>
 
-            {/* Source Section */}
-            <DetailCard title={t('inspector.source')} icon={ExternalLink}>
-                <div className="relative group/input">
-                    <input
-                        type="text"
-                        placeholder={t('inspector.source_placeholder') || ''}
-                        className="w-full text-[12px] bg-black/[0.03] dark:bg-white/[0.03] border border-black/5 dark:border-white/5 rounded-xl pl-3.5 pr-10 py-3 focus:bg-white dark:focus:bg-black/40 focus:border-accent/30 focus:shadow-sm transition-all outline-none"
-                        value={editingSource}
-                        onChange={(event) => setEditingSource(event.target.value)}
-                        onBlur={() => void persistPatch({ sourceUrl: editingSource })}
-                    />
-                    {meme.sourceUrl && (
-                        <button
-                            onClick={() => window.electronAPI.openExternal(meme.sourceUrl)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-textSecondary/40 hover:text-accent hover:bg-accent/10 rounded-lg transition-all"
-                            title="Open in Browser"
+            {/* Source URL - Standalone input */}
+            <motion.div variants={itemVariants} className="relative group/input">
+                <input
+                    type="text"
+                    placeholder={t('inspector.source_placeholder') || 'https://...'}
+                    className="w-full text-[12px] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 rounded-xl pl-3.5 pr-9 py-2.5 focus:bg-white dark:focus:bg-black/20 focus:border-accent/30 focus:shadow-sm transition-all outline-none text-textSecondary"
+                    value={editingSource}
+                    onChange={(event) => setEditingSource(event.target.value)}
+                    onBlur={() => void persistPatch({ sourceUrl: editingSource })}
+                />
+                {meme.sourceUrl && (
+                    <button
+                        onClick={() => window.electronAPI.openExternal(meme.sourceUrl)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-textSecondary/40 hover:text-accent hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-all"
+                        title="Open in Browser"
+                    >
+                        <ExternalLink size={13} />
+                    </button>
+                )}
+            </motion.div>
+
+            {/* Tags Section */}
+            <motion.div variants={itemVariants} className="flex flex-col gap-2">
+                <h3 className="text-[12px] font-bold text-textPrimary/80 px-1 mb-1">{t('inspector.tags')}</h3>
+                <div className="flex flex-wrap gap-1.5 px-1">
+                    {memeTags.map((tag) => (
+                        <span
+                            key={tag.id}
+                            className="group/tag inline-flex items-center h-7 px-2.5 rounded-md bg-transparent border border-black/10 dark:border-white/10 text-[11px] text-textSecondary whitespace-nowrap transition-colors hover:border-black/20 dark:hover:border-white/20"
                         >
-                            <ExternalLink size={14} />
+                            {tag.name}
+                            <button
+                                onClick={() => void handleRemoveTag(tag.id)}
+                                className="ml-1.5 -mr-1 p-0.5 text-textSecondary/40 hover:text-red-500 transition-colors"
+                            >
+                                <X size={10} strokeWidth={2.5} />
+                            </button>
+                        </span>
+                    ))}
+
+                    {isAddingTag ? (
+                        <input
+                            ref={tagInputRef}
+                            type="text"
+                            className="h-7 px-2.5 text-[11px] bg-transparent border border-accent/40 text-accent rounded-md outline-none w-24 focus:w-32 focus:border-accent transition-all placeholder:text-accent/30"
+                            placeholder="New tag..."
+                            value={newTagName}
+                            onChange={(e) => setNewTagName(e.target.value)}
+                            onBlur={(e) => {
+                                if (skipTagBlurRef.current) {
+                                    skipTagBlurRef.current = false;
+                                    return;
+                                }
+                                void submitNewTag(e.currentTarget.value);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    skipTagBlurRef.current = true;
+                                    void submitNewTag(e.currentTarget.value);
+                                }
+                                if (e.key === 'Escape') {
+                                    setIsAddingTag(false);
+                                    setNewTagName('');
+                                }
+                            }}
+                            autoFocus
+                        />
+                    ) : (
+                        <button
+                            onClick={() => setIsAddingTag(true)}
+                            className="h-7 px-2.5 flex items-center justify-center rounded-md border border-dashed border-black/15 dark:border-white/15 text-textSecondary/50 hover:bg-black/5 dark:hover:bg-white/5 hover:text-textSecondary hover:border-solid hover:border-black/20 dark:hover:border-white/20 transition-all font-mono"
+                            title={t('inspector.add_tag')}
+                        >
+                            +
                         </button>
                     )}
                 </div>
-            </DetailCard>
+            </motion.div>
+
+            <div className="my-2 border-t border-black/5 dark:border-white/5" />
+
+            {/* Basic Info Footer */}
+            <motion.div variants={itemVariants} className="px-1 mb-4">
+                <h3 className="text-[12px] font-bold text-textPrimary/80 mb-2">基本信息</h3>
+                <div className="grid grid-cols-[60px_1fr] gap-y-1.5 text-[11px]">
+                    <span className="text-textSecondary/50 font-medium">尺寸</span>
+                    <span className="text-textSecondary">{meme.width} × {meme.height}</span>
+
+                    <span className="text-textSecondary/50 font-medium">大小</span>
+                    <span className="text-textSecondary">{formatSize(meme.fileSize)}</span>
+
+                    <span className="text-textSecondary/50 font-medium">添加日期</span>
+                    <span className="text-textSecondary">{formatDate(meme.createdAt)}</span>
+                </div>
+            </motion.div>
         </motion.div>
     );
 }
@@ -443,25 +440,24 @@ function BatchActions({ selectedIds }: { selectedIds: number[] }) {
                 </div>
             </motion.div>
 
-            <DetailCard title={t('inspector.batch.operations')} icon={Check}>
-                <div className="grid grid-cols-1 gap-2.5">
-                    <button className="w-full flex items-center justify-between py-3 px-4 rounded-xl bg-black/[0.03] dark:bg-white/[0.03] hover:bg-accent hover:text-white border border-transparent transition-all group/btn shadow-sm active:scale-[0.98]">
+            <motion.div variants={itemVariants} className="flex flex-col gap-2 mt-2">
+                <h3 className="text-[12px] font-bold text-textPrimary/80 px-1 mb-1">{t('inspector.batch.operations')}</h3>
+                <div className="grid grid-cols-1 gap-2">
+                    <button className="w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-black/[0.02] dark:bg-white/[0.02] hover:bg-black/5 dark:hover:bg-white/10 border border-black/5 dark:border-white/5 transition-all group/btn">
                         <div className="flex items-center gap-3">
-                            <Download size={16} className="opacity-40 group-hover/btn:opacity-100 transition-opacity" />
-                            <span className="text-xs font-bold">{t('inspector.batch.export')}</span>
+                            <Download size={14} className="text-textSecondary/60" />
+                            <span className="text-[12px] font-semibold text-textPrimary/90">{t('inspector.batch.export')}</span>
                         </div>
-                        <Check size={14} className="opacity-0 group-hover/btn:opacity-100 transition-opacity" />
                     </button>
 
-                    <button className="w-full flex items-center justify-between py-3 px-4 rounded-xl bg-red-500/[0.04] dark:bg-red-500/[0.08] hover:bg-red-500 border border-transparent text-red-600 dark:text-red-400 hover:text-white transition-all group/btn shadow-sm active:scale-[0.98]">
+                    <button className="w-full flex items-center justify-between py-2.5 px-3.5 rounded-xl bg-red-500/[0.02] dark:bg-red-500/[0.04] hover:bg-red-500/10 border border-red-500/10 text-red-600 dark:text-red-400 transition-all group/btn">
                         <div className="flex items-center gap-3">
-                            <Trash2 size={16} className="opacity-60 group-hover/btn:opacity-100 transition-opacity" />
-                            <span className="text-xs font-bold">{t('inspector.batch.delete')}</span>
+                            <Trash2 size={14} className="opacity-80" />
+                            <span className="text-[12px] font-semibold">{t('inspector.batch.delete')}</span>
                         </div>
-                        <X size={14} className="opacity-0 group-hover/btn:opacity-100 transition-opacity" />
                     </button>
                 </div>
-            </DetailCard>
+            </motion.div>
 
             <motion.div variants={itemVariants} className="px-1 text-[10px] text-textSecondary/30 text-center tracking-wide leading-relaxed">
                 {t('inspector.batch.bulk_footer', { count: selectedIds.length })}
@@ -526,7 +522,7 @@ export function Inspector() {
                         "w-1.5 h-1.5 rounded-full transition-all duration-500",
                         selectedMemeIds.length > 0 ? "bg-accent shadow-[0_0_8px_var(--accent-color)] scale-110" : "bg-textSecondary/20 scale-100"
                     )} />
-                    <h2 className="text-[11px] font-black uppercase tracking-[0.2em] truncate text-textSecondary">
+                    <h2 className="text-[13px] font-bold uppercase tracking-[0.15em] truncate text-textPrimary/90">
                         {selectedMemeIds.length > 1 ? t('inspector.batch_title', { count: selectedMemeIds.length }) : t('inspector.title')}
                     </h2>
                 </div>

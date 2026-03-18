@@ -13,6 +13,8 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <random>
 #include <regex>
 #include <set>
 #include <sqlite3.h>
@@ -24,6 +26,23 @@ extern "C" int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_
 #include <unordered_map>
 
 namespace {
+static std::string generateUuidV4() {
+	thread_local std::random_device rd;
+	thread_local std::mt19937_64   gen(rd());
+	std::uniform_int_distribution<int> hexDist(0, 15);
+	std::uniform_int_distribution<int> variantDist(8, 11);
+
+	std::string uuid = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
+	for (char &ch : uuid) {
+		if (ch == 'x') {
+			ch = "0123456789abcdef"[hexDist(gen)];
+		} else if (ch == 'y') {
+			ch = "89ab"[variantDist(gen) - 8];
+		}
+	}
+	return uuid;
+}
+
 static void regexp_func(sqlite3_context *context, int argc, sqlite3_value **argv) {
 	if (argc != 2) return;
 	const char *re   = reinterpret_cast<const char *>(sqlite3_value_text(argv[0]));
@@ -251,7 +270,7 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
             FROM memes m
         )";
 
-		if (!query.keyword.empty()) { sql += " JOIN memes_fts mf ON m.id = mf.rowid "; }
+		if (!query.keyword.empty()) { sql += " LEFT JOIN memes_fts ON m.id = memes_fts.rowid "; }
 
 		if (!query.tagIds.empty()) {
 			sql += " JOIN (SELECT meme_id FROM meme_tags WHERE tag_id IN (";
@@ -758,22 +777,27 @@ bool Database::removeMemeTag(int64_t memeId, int64_t tagId) {
 int64_t Database::insertCategory(const Category &category) {
 	std::unique_lock lock(dbMutex_);
 	try {
+		int64_t position = category.position;
+		if (position <= 0) {
+			position = db_->execAndGet("SELECT COALESCE(MAX(position), 0) + 1 FROM categories").getInt64();
+		}
+
 		SQLite::Statement stmt(
 		    *db_,
-		    "INSERT INTO categories (uuid, name, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?)");
+		    "INSERT INTO categories (uuid, name, color, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
 
 		auto nowMs =
 		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
 		        .count();
 
-		std::string uuid =
-		    category.uuid.empty() ? "uuid_placeholder" : category.uuid; // Ideally use a real UUID generator
+		std::string uuid = category.uuid.empty() ? generateUuidV4() : category.uuid;
 
 		stmt.bind(1, uuid);
 		stmt.bind(2, category.name);
 		stmt.bind(3, category.color);
-		stmt.bind(4, static_cast<int64_t>(nowMs));
+		stmt.bind(4, position);
 		stmt.bind(5, static_cast<int64_t>(nowMs));
+		stmt.bind(6, static_cast<int64_t>(nowMs));
 
 		stmt.exec();
 		return db_->getLastInsertRowid();
@@ -786,16 +810,16 @@ int64_t Database::insertCategory(const Category &category) {
 bool Database::updateCategory(int64_t id, const CategoryPatch &patch) {
 	std::unique_lock lock(dbMutex_);
 	try {
-		std::string              sql = "UPDATE categories SET updated_at = ?";
-		std::vector<std::string> params;
+		std::string sql = "UPDATE categories SET updated_at = ?";
 
 		if (patch.name) {
 			sql += ", name = ?";
-			params.push_back(*patch.name);
 		}
 		if (patch.color) {
 			sql += ", color = ?";
-			params.push_back(*patch.color);
+		}
+		if (patch.position) {
+			sql += ", position = ?";
 		}
 		sql += " WHERE id = ?";
 
@@ -807,9 +831,9 @@ bool Database::updateCategory(int64_t id, const CategoryPatch &patch) {
 
 		int bindIdx = 1;
 		stmt.bind(bindIdx++, static_cast<int64_t>(nowMs));
-		for (const auto &p : params) {
-			stmt.bind(bindIdx++, p);
-		}
+		if (patch.name) stmt.bind(bindIdx++, *patch.name);
+		if (patch.color) stmt.bind(bindIdx++, *patch.color);
+		if (patch.position) stmt.bind(bindIdx++, *patch.position);
 		stmt.bind(bindIdx, id);
 
 		return stmt.exec() > 0;
@@ -820,6 +844,7 @@ bool Database::updateCategory(int64_t id, const CategoryPatch &patch) {
 }
 
 bool Database::deleteCategory(int64_t id) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Transaction txn(*db_);
 
@@ -842,10 +867,13 @@ bool Database::deleteCategory(int64_t id) {
 }
 
 std::vector<Category> Database::getCategories() {
+	std::shared_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(
 		    *db_,
-		    "SELECT id, uuid, name, color, created_at, updated_at FROM categories ORDER BY name ASC");
+		    "SELECT id, uuid, name, color, position, created_at, updated_at "
+		    "FROM categories "
+		    "ORDER BY position ASC, created_at ASC, id ASC");
 		std::vector<Category> results;
 		while (stmt.executeStep()) {
 			Category c;
@@ -853,8 +881,9 @@ std::vector<Category> Database::getCategories() {
 			c.uuid      = stmt.getColumn(1).getString();
 			c.name      = stmt.getColumn(2).getString();
 			c.color     = stmt.getColumn(3).getString();
-			c.createdAt = stmt.getColumn(4).getInt64();
-			c.updatedAt = stmt.getColumn(5).getInt64();
+			c.position  = stmt.getColumn(4).getInt64();
+			c.createdAt = stmt.getColumn(5).getInt64();
+			c.updatedAt = stmt.getColumn(6).getInt64();
 			results.push_back(c);
 		}
 		return results;
@@ -862,6 +891,7 @@ std::vector<Category> Database::getCategories() {
 }
 
 bool Database::updateMemeCategory(int64_t memeId, int64_t categoryId) {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "UPDATE memes SET category_id = ?, updated_at = ? WHERE id = ?");
 
@@ -1160,6 +1190,35 @@ void Database::runMigrations() {
 		transaction.commit();
 		LOG_INFO("persist", "Database migrated to schema v2 successfully.");
 	}
+
+	// 迁移到 v3：分类排序位置
+	if (currentVersion < 3) {
+		SQLite::Transaction transaction(*db_);
+		LOG_INFO("persist", "Migrating database to schema v3 (Category positions)...");
+
+		db_->exec("ALTER TABLE categories ADD COLUMN position INTEGER NOT NULL DEFAULT 0;");
+		db_->exec(R"(
+            WITH ordered AS (
+                SELECT id, ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS next_position
+                FROM categories
+            )
+            UPDATE categories
+            SET position = (
+                SELECT next_position
+                FROM ordered
+                WHERE ordered.id = categories.id
+            );
+        )");
+		db_->exec("CREATE INDEX IF NOT EXISTS idx_categories_position ON categories(position);");
+
+		auto nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		db_->exec("INSERT INTO schema_version (version, applied_at) VALUES (3, " + std::to_string(nowMs) + ");");
+
+		transaction.commit();
+		LOG_INFO("persist", "Database migrated to schema v3 successfully.");
+	}
 }
 
 SearchSql Database::buildSearchSql(const SearchQuery &query) {
@@ -1172,8 +1231,15 @@ SearchSql Database::buildSearchSql(const SearchQuery &query) {
 	res.whereClauses.push_back("m.deleted_at = 0");
 
 	if (!query.keyword.empty()) {
-		res.whereClauses.push_back("memes_fts MATCH ?");
+		res.whereClauses.push_back(
+		    "(m.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH ?) OR lower(m.name) LIKE lower(?) OR EXISTS ("
+		    "SELECT 1 FROM meme_tags mt_keyword "
+		    "JOIN tags t_keyword ON t_keyword.id = mt_keyword.tag_id "
+		    "WHERE mt_keyword.meme_id = m.id AND lower(t_keyword.name) LIKE lower(?)"
+		    "))");
 		res.params.push_back(query.keyword);
+		res.params.push_back("%" + query.keyword + "%");
+		res.params.push_back("%" + query.keyword + "%");
 	}
 
 	if (!query.source.empty()) {
@@ -1185,6 +1251,9 @@ SearchSql Database::buildSearchSql(const SearchQuery &query) {
 	if (query.categoryId != 0) {
 		if (query.categoryId == -1) {
 			res.whereClauses.push_back("m.category_id = 0");
+			res.whereClauses.push_back(
+			    "NOT EXISTS (SELECT 1 FROM meme_tags mt_uncategorized WHERE mt_uncategorized.meme_id = m.id)");
+			res.whereClauses.push_back("trim(m.ocr_text) = ''");
 		} else {
 			res.whereClauses.push_back("m.category_id = ?");
 			res.params.push_back(std::to_string(query.categoryId));

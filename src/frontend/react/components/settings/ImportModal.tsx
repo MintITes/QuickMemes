@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { importFiles } from '../../services/importService';
 import { useNotificationStore } from '../../stores/NotificationStore';
+import { useTaskStore } from '../../stores/TaskStore';
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp'];
 
@@ -82,6 +83,7 @@ export function ImportModal() {
             const task = await importFiles(inputPaths);
             setImportStatus('success');
             setImporting(true, task.taskId);
+            useTaskStore.getState().setTask(task);
             addNotification({
                 type: 'info',
                 title: t('import.processing'),

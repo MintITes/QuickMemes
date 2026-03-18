@@ -45,7 +45,8 @@ export function buildBackendSearchQuery(
 ): SearchQuery {
     const { timeFrom, timeTo } = getTimeRange(uiQuery.dateRange);
     const categoryId =
-        activeNav.startsWith('category-') ? Number(activeNav.replace('category-', '')) :
+        activeNav === 'untagged' ? -1 :
+            activeNav.startsWith('category-') ? Number(activeNav.replace('category-', '')) :
             uiQuery.categoryId ?? 0;
 
     return {

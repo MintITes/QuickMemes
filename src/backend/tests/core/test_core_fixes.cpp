@@ -1,5 +1,6 @@
 #include "../mocks.hpp"
 #include "../test_utils.hpp"
+#include "core/server.hpp"
 #include "db/database.hpp"
 #include "vision/vision.hpp"
 
@@ -89,6 +90,57 @@ TEST_F(CoreFixesTest, Database_Restore_Atomic_Verification) {
 	// Verify data is now there
 	EXPECT_EQ(target.countMemes(SearchQuery()), 1);
 	EXPECT_EQ(target.getMeme(id).fileHash, "atomic_restore_h1");
+}
+
+TEST_F(CoreFixesTest, Server_StartBackup_DoesNotCreateDuplicateRecentBackups) {
+	db->shutdown();
+
+	ServerConfig config;
+	config.bindAddress            = "127.0.0.1";
+	config.port                   = 0;
+	config.authToken              = "test-token";
+	config.storagePath            = tempDir_->getSubPath("storage");
+	config.dbPath                 = tempDir_->getSubPath("server-startup.db");
+	config.logDir                 = tempDir_->getSubPath("logs");
+	config.logLevel               = "info";
+	config.workerCount            = 1;
+	config.maxQueueSize           = 16;
+	config.thumbnailEnabled       = false;
+	config.backupEnabled          = true;
+	config.backupRetentionDays    = 30;
+	config.recycleBinRetentionDays = 30;
+
+	std::filesystem::create_directories(config.storagePath);
+	std::filesystem::create_directories(config.logDir);
+
+	auto countBackups = [&]() {
+		size_t count = 0;
+		for (const auto &entry : std::filesystem::directory_iterator(tempDir_->getPath())) {
+			if (!entry.is_regular_file()) continue;
+			const auto fileName = entry.path().filename().string();
+			if (fileName.rfind("server-startup.db.bak.", 0) == 0) {
+				++count;
+			}
+		}
+		return count;
+	};
+
+	{
+		Server server;
+		ASSERT_TRUE(server.start(config));
+		server.stop();
+		server.waitForStop();
+	}
+	const auto firstCount = countBackups();
+	EXPECT_EQ(firstCount, 1U);
+
+	{
+		Server server;
+		ASSERT_TRUE(server.start(config));
+		server.stop();
+		server.waitForStop();
+	}
+	EXPECT_EQ(countBackups(), firstCount);
 }
 
 } // namespace quickmemes::testing

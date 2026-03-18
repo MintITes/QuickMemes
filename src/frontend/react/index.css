@@ -181,6 +181,17 @@
     background-clip: padding-box;
   }
 
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+
   /* Electron Window Drag Regions */
   .drag {
     -webkit-app-region: drag;

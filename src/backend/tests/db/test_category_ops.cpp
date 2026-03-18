@@ -19,6 +19,32 @@ TEST_F(MemeDbTest, InsertCategory_ValidCategory_ReturnsId) {
 	ASSERT_FALSE(cats.empty());
 	EXPECT_EQ(cats[0].name, "Memes 2024");
 	EXPECT_EQ(cats[0].color, "#FFD700");
+	EXPECT_EQ(cats[0].position, 1);
+}
+
+TEST_F(MemeDbTest, InsertCategory_WithoutUuid_GeneratesDistinctUuids) {
+	Category c1;
+	c1.name  = "Auto UUID 1";
+	c1.color = "#123456";
+
+	Category c2;
+	c2.name  = "Auto UUID 2";
+	c2.color = "#654321";
+
+	const int64_t id1 = db->insertCategory(c1);
+	const int64_t id2 = db->insertCategory(c2);
+
+	EXPECT_GT(id1, 0);
+	EXPECT_GT(id2, 0);
+	EXPECT_NE(id1, id2);
+
+	const auto cats = db->getCategories();
+	ASSERT_EQ(cats.size(), 2);
+	EXPECT_FALSE(cats[0].uuid.empty());
+	EXPECT_FALSE(cats[1].uuid.empty());
+	EXPECT_NE(cats[0].uuid, cats[1].uuid);
+	EXPECT_EQ(cats[0].position, 1);
+	EXPECT_EQ(cats[1].position, 2);
 }
 
 TEST_F(MemeDbTest, UpdateCategory_PartialPatch_UpdatesFields) {
@@ -36,6 +62,37 @@ TEST_F(MemeDbTest, UpdateCategory_PartialPatch_UpdatesFields) {
 	auto cats = db->getCategories();
 	EXPECT_EQ(cats[0].name, "New Name");
 	EXPECT_EQ(cats[0].color, "#000"); // Unchanged
+}
+
+TEST_F(MemeDbTest, UpdateCategory_Position_ReordersCategories) {
+	Category first;
+	first.name  = "First";
+	first.color = "#111111";
+	first.uuid  = "u-first";
+	const int64_t firstId = db->insertCategory(first);
+
+	Category second;
+	second.name  = "Second";
+	second.color = "#222222";
+	second.uuid  = "u-second";
+	const int64_t secondId = db->insertCategory(second);
+
+	CategoryPatch patch;
+	patch.position = 0;
+	EXPECT_TRUE(db->updateCategory(firstId, patch));
+
+	auto categories = db->getCategories();
+	ASSERT_EQ(categories.size(), 2);
+	EXPECT_EQ(categories[0].id, firstId);
+
+	patch.position = 3;
+	EXPECT_TRUE(db->updateCategory(firstId, patch));
+
+	categories = db->getCategories();
+	ASSERT_EQ(categories.size(), 2);
+	EXPECT_EQ(categories[0].id, secondId);
+	EXPECT_EQ(categories[1].id, firstId);
+	EXPECT_EQ(categories[1].position, 3);
 }
 
 TEST_F(MemeDbTest, DeleteCategory_ResetsMemeAssociations) {
@@ -70,7 +127,7 @@ TEST_F(MemeDbTest, SearchByCategory_FiltersCorrectly) {
 	int64_t id1 = db->insertCategory(c1);
 	int64_t id2 = db->insertCategory(c2);
 
-	MemeEntry m1, m2, m3;
+	MemeEntry m1, m2, m3, m4, m5;
 	m1.fileHash = "h1";
 	m1.filePath = "p1";
 	m1.mimeType = "j";
@@ -83,12 +140,25 @@ TEST_F(MemeDbTest, SearchByCategory_FiltersCorrectly) {
 	m3.filePath = "p3";
 	m3.mimeType = "j";
 	db->insertMeme(m3);
+	m4.fileHash = "h4";
+	m4.filePath = "p4";
+	m4.mimeType = "j";
+	m4.ocrText  = "recognized text";
+	db->insertMeme(m4);
+	m5.fileHash = "h5";
+	m5.filePath = "p5";
+	m5.mimeType = "j";
+	db->insertMeme(m5);
 
-	// Get IDs (assuming 1, 2, 3)
-	int64_t m1id = 1, m2id = 2, m3id = 3;
+	// Get IDs (assuming insert order)
+	int64_t m1id = 1, m2id = 2, m3id = 3, m4id = 4, m5id = 5;
 	db->updateMemeCategory(m1id, id1);
 	db->updateMemeCategory(m2id, id2);
-	// m3 remains uncategorized (0)
+	// m3 remains fully uncategorized (no category, no tags, no OCR)
+	Tag tag;
+	tag.name = "has-tag";
+	int64_t tagId = db->insertTag(tag);
+	ASSERT_TRUE(db->addMemeTag(m5id, tagId));
 
 	SearchQuery q;
 	q.categoryId = id1;
@@ -101,10 +171,12 @@ TEST_F(MemeDbTest, SearchByCategory_FiltersCorrectly) {
 	EXPECT_EQ(res2.items.size(), 1);
 	EXPECT_EQ(res2.items[0].id, m2id);
 
-	q.categoryId = -1; // Uncategorized
+	q.categoryId = -1; // No category, no tags, no OCR
 	auto res3    = db->searchMemes(q);
 	EXPECT_EQ(res3.items.size(), 1);
 	EXPECT_EQ(res3.items[0].id, m3id);
+	EXPECT_NE(res3.items[0].id, m4id);
+	EXPECT_NE(res3.items[0].id, m5id);
 }
 
 }} // namespace quickmemes::testing

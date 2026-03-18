@@ -13,6 +13,7 @@ export class HttpError extends Error {
 }
 
 type ResponseKind = 'json' | 'blob' | 'raw';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 async function buildRequest(path: string, init?: RequestInit) {
     const { bindAddress, port, token } = await window.electronAPI.getBackendConfig();
@@ -58,7 +59,23 @@ async function request<T>(method: string, path: string, body?: unknown, response
     }
 
     const { url, options } = await buildRequest(path, init);
-    const response = await fetch(url, options);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+        });
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw new HttpError(408, `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
 
     if (!response.ok) {
         await parseError(response);

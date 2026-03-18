@@ -22,6 +22,46 @@ TEST_F(MemeDbTest, SearchMemes_ValidQuery_ReturnsMatchingResults) {
 	EXPECT_EQ(results.items[0].fileHash, "hash_search_1");
 }
 
+TEST_F(MemeDbTest, SearchMemes_NameKeywordSupportsPartialMatch) {
+	MemeEntry meme;
+	meme.fileHash = "hash_search_name_partial";
+	meme.filePath = getSubPath("partial.png");
+	meme.mimeType = "image/png";
+	meme.name     = "FunnyReactionFace";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword = "Reaction";
+	auto results = db->searchMemes(q);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_name_partial");
+}
+
+TEST_F(MemeDbTest, SearchMemes_TagKeyword_ReturnsMatchingResults) {
+	MemeEntry meme;
+	meme.fileHash = "hash_search_tag_1";
+	meme.filePath = getSubPath("tagged.png");
+	meme.mimeType = "image/png";
+	meme.name     = "Unrelated title";
+	int64_t memeId = db->insertMeme(meme);
+
+	Tag tag;
+	tag.name = "Reaction";
+	tag.color = "#ffffff";
+	int64_t tagId = db->insertTag(tag);
+	ASSERT_TRUE(db->addMemeTag(memeId, tagId));
+
+	SearchQuery q;
+	q.keyword = "reaction";
+	auto results = db->searchMemes(q);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_tag_1");
+	ASSERT_EQ(results.items[0].tags.size(), 1);
+	EXPECT_EQ(results.items[0].tags[0].name, "Reaction");
+}
+
 TEST_F(MemeDbTest, VectorSearch_ValidEmbedding_ReturnsRankedResults) {
 	MemeEntry meme;
 	meme.fileHash = "hash_vec_1";

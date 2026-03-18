@@ -90,6 +90,7 @@ struct Category {
 	std::string uuid;          ///< UUID v4
 	std::string name;          ///< 分类名称（可重名）
 	std::string color;         ///< 显示颜色，HEX 格式
+	int64_t     position  = 0; ///< 自定义排序位置，值越小越靠前
 	int64_t     createdAt = 0; ///< Unix 时间戳（毫秒）
 	int64_t     updatedAt = 0; ///< Unix 时间戳（毫秒）
 };
@@ -141,7 +142,7 @@ struct MemeEntry {
 struct SearchQuery {
 	std::string              keyword;                   ///< 关键词，模糊匹配名称/描述/OCR 文本（可为空）
 	std::vector<int64_t>     tagIds;                    ///< 按标签过滤（空表示不过滤）
-	int64_t                  categoryId = 0;            ///< 按分类过滤（0=不限, -1=未分类, >0=具体 ID）
+	int64_t                  categoryId = 0;            ///< 按分类过滤（0=不限, -1=无分类且无标签且无 OCR, >0=具体 ID）
 	std::string              source;                    ///< 按来源名称过滤（可为空）
 	int64_t                  timeFrom = 0;              ///< 时间范围起始（毫秒，0 = 不限）
 	int64_t                  timeTo   = 0;              ///< 时间范围结束（毫秒，0 = 不限）
@@ -306,7 +307,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(TaskStatus,
 })
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Tag, id, name, color, createdAt)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Category, id, uuid, name, color, createdAt, updatedAt)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Category, id, uuid, name, color, position, createdAt, updatedAt)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(MemeEntry,
                                                 id,

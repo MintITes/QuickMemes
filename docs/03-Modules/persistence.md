@@ -148,12 +148,14 @@ CREATE TABLE categories (
     uuid       TEXT    NOT NULL UNIQUE,
     name       TEXT    NOT NULL,
     color      TEXT    NOT NULL DEFAULT '',
+    position   INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX idx_categories_uuid ON categories(uuid);
 CREATE INDEX idx_categories_name ON categories(name);
+CREATE INDEX idx_categories_position ON categories(position);
 ```
 
 ### `tags` 表
@@ -277,6 +279,7 @@ Category {
     uuid      : string
     name      : string
     color     : string
+    position  : int64
     createdAt : int64
     updatedAt : int64
 }
@@ -284,6 +287,7 @@ Category {
 CategoryPatch {
     name?       : string
     color?      : string
+    position?   : int64
 }
 
 ExportRequest {
@@ -593,7 +597,7 @@ removeMemeTag(memeId: int64, tagId: int64): bool
 insertCategory(category: Category): int64
 ```
 
-- **描述**：向 `categories` 表插入新分类，生成 UUID 并记录时间戳。
+- **描述**：向 `categories` 表插入新分类，生成 UUID 并记录时间戳；若未指定 `position`，则自动追加到当前分类列表末尾。
 - **输入**：`category`：分类数据（`id`, `uuid`, `createdAt`, `updatedAt` 忽略）
 - **输出**：新分类的自增 ID
 
@@ -605,7 +609,7 @@ insertCategory(category: Category): int64
 updateCategory(id: int64, patch: CategoryPatch): bool
 ```
 
-- **描述**：更新分类名称或颜色，并更新 `updated_at`。
+- **描述**：更新分类名称、颜色或排序位置，并更新 `updated_at`。
 - **输入**：`id`：分类 ID；`patch`：变更字段
 - **输出**：成功返回 `true`
 
@@ -629,7 +633,7 @@ deleteCategory(id: int64): bool
 getCategories(): Category[]
 ```
 
-- **描述**：获取系统中所有分类，按创建时间排序。
+- **描述**：获取系统中所有分类，按 `position ASC, created_at ASC, id ASC` 排序。
 - **输入**：无
 - **输出**：全量分类列表
 

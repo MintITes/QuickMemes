@@ -91,7 +91,7 @@
         "url_desc": "输入网络图片链接"
     },
     "sidebar": {
-        "repository_title": "存储库",
+        "repository_title": "主分类",
         "all_memes_nav": "所有梗图",
         "untagged": "未分类",
         "trash": "回收站",
@@ -111,7 +111,9 @@
             "trash_empty": "回收站是空的",
             "trash_empty_desc": "保持整洁是个好习惯！回收站目前没有任何内容。",
             "untagged_empty": "所有梗图都已打上标签",
-            "untagged_empty_desc": "真棒！库里所有的梗图都有了分类标识。"
+            "untagged_empty_desc": "真棒！库里所有的梗图都有了分类标识。",
+            "category_empty": "此分类下没有任何梗图",
+            "category_empty_desc": "你可以拖拽梗图到此处，或者通过编辑梗图详细来将其归类。"
         },
         "controls": {
             "back": "后退",
@@ -128,6 +130,16 @@
             "copy_success": "已成功复制到剪贴板",
             "view_details": "查看详情",
             "more": "更多"
+        },
+        "context_menu": {
+            "copy": "复制到剪贴板",
+            "export": "导出...",
+            "edit_tags": "编辑详情/标签",
+            "view_original": "查看原图",
+            "move_to": "移动到",
+            "move_to_trash": "移入回收站",
+            "trash_undo": "撤销",
+            "trash_success": "已移入回收站"
         }
     },
     "inspector": {

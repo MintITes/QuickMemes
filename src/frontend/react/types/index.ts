@@ -14,6 +14,7 @@ export interface Category {
     uuid: string;
     name: string;
     color: string;
+    position: number;
     createdAt: number;
     updatedAt: number;
 }

@@ -297,7 +297,8 @@ export function SettingsModal() {
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ocr.title')}</h3>
                         <div className="space-y-4">
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-2">OCR API URL</div>
+                                <div className="font-medium text-sm mb-1">OCR API URL</div>
+                                <div className="text-xs opacity-60 mb-3">{t('settings.ocr.apiUrl.desc', '填写用于图片文字识别的完整 API 接口地址')}</div>
                                 <input
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
                                     value={config?.ocr.apiUrl ?? ''}
@@ -314,7 +315,8 @@ export function SettingsModal() {
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ai.title')}</h3>
                         <div className="space-y-4">
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-2">AI API Base URL</div>
+                                <div className="font-medium text-sm mb-1">AI API Base URL</div>
+                                <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiBaseUrl.desc', '兼容 OpenAI 格式的大语言模型服务基础地址')}</div>
                                 <input
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
                                     value={config?.vision.apiBaseUrl ?? ''}
@@ -323,7 +325,8 @@ export function SettingsModal() {
                                 />
                             </div>
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-2">AI API Key</div>
+                                <div className="font-medium text-sm mb-1">AI API Key</div>
+                                <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiKey.desc', '调用大模型服务所需的 API 密钥，将安全保存')}</div>
                                 <input
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
                                     value={config?.vision.apiKey ?? ''}

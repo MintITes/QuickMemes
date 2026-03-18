@@ -250,6 +250,7 @@ Category {
     uuid      : string   // UUID v4
     name      : string   // 分类名称（可重名）
     color     : string   // 显示颜色，HEX 格式
+    position  : int64    // 自定义排序位置，值越小越靠前
     createdAt : int64    // Unix 时间戳（毫秒）
     updatedAt : int64    // Unix 时间戳（毫秒）
 }

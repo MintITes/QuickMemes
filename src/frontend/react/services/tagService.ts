@@ -14,5 +14,5 @@ export async function addTagToMeme(memeId: number, tagId: number) {
 }
 
 export async function removeTagFromMeme(memeId: number, tagId: number) {
-    return sendHttpRequest<null>('DELETE', `/api/meme/${memeId}/tag/${tagId}`);
+    return sendHttpRequest<null>('DELETE', `/api/meme/${memeId}/tags/${tagId}`);
 }

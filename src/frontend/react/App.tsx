@@ -11,6 +11,7 @@ import { fetchCategories } from './services/categoryService';
 import { fetchTags } from './services/tagService';
 import { buildBackendSearchQuery, fetchTrashMemes, searchMemes } from './services/memeService';
 import { connectWebSocket, disconnectWebSocket, onEvent } from './api/wsClient';
+import { mergeImportTaskUpdate } from './utils/taskEvents';
 import './index.css';
 
 function App() {
@@ -165,22 +166,35 @@ function App() {
         });
 
         const unsubscribeTaskProgress = onEvent('task:progress', (task) => {
-            setTask(task);
+            const nextTask = mergeImportTaskUpdate(task, useTaskStore.getState().activeTask);
+            if (nextTask) {
+                setTask(nextTask);
+            }
         });
         const unsubscribeTaskComplete = onEvent('task:complete', (task) => {
-            setTask(task);
+            const nextTask = mergeImportTaskUpdate(task, useTaskStore.getState().activeTask);
+            if (!nextTask) {
+                return;
+            }
+
+            setTask(nextTask);
             addNotification({
                 type: 'success',
                 title: '导入完成',
-                description: `成功 ${task.succeeded} 项，失败 ${task.failed} 项`,
+                description: `成功 ${nextTask.succeeded} 项，失败 ${nextTask.failed} 项`,
             });
         });
         const unsubscribeTaskError = onEvent('task:error', (task) => {
-            setTask(task);
+            const nextTask = mergeImportTaskUpdate(task, useTaskStore.getState().activeTask);
+            if (!nextTask) {
+                return;
+            }
+
+            setTask(nextTask);
             addNotification({
                 type: 'error',
                 title: '导入失败',
-                description: task.errors.join('\n') || '任务执行失败',
+                description: nextTask.errors.join('\n') || '任务执行失败',
             });
         });
         const unsubscribeMemeAdded = onEvent('meme:added', (meme) => upsertMeme(meme));
@@ -213,6 +227,19 @@ function App() {
                 }),
                 lastUsedAt,
             });
+
+            const { activeNav, searchQuery } = useUiStore.getState();
+            if (activeNav !== 'recent') {
+                return;
+            }
+
+            void searchMemes(buildBackendSearchQuery(searchQuery, activeNav))
+                .then((result) => {
+                    setMemes(result.items.map((item) => item.meme), result.total);
+                })
+                .catch(() => {
+                    // Keep the optimistic timestamp update if the background refresh fails.
+                });
         });
         const unsubscribeTagCreated = onEvent('tag:created', (tag) => addTag(tag));
         const unsubscribeTagDeleted = onEvent('tag:deleted', ({ id }) => removeTag(id));
@@ -247,6 +274,7 @@ function App() {
         removeMemes,
         removeTag,
         setCategories,
+        setMemes,
         setTags,
         setTask,
         updateCategory,

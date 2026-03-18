@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useUiStore } from '../../stores/UiStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
+import { useTaskStore } from '../../stores/TaskStore';
 import { Search, LayoutGrid, Sun, Moon, Settings, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
@@ -49,6 +50,7 @@ export function Header() {
                 if (paths && paths.length > 0) {
                     const task = await importFiles(paths);
                     useUiStore.getState().setImporting(true, task.taskId);
+                    useTaskStore.getState().setTask(task);
                     useNotificationStore.getState().addNotification({
                         type: 'info',
                         title: t('import.processing'),

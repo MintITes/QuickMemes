@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useMemeStore } from '../../stores/MemeStore';
 import { VirtuosoGrid } from 'react-virtuoso';
 import {
@@ -12,6 +13,7 @@ import {
     SearchX,
     Inbox,
     Sparkles,
+    FolderOpen,
 } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { EmptyState } from '../common/EmptyState';
@@ -37,7 +39,35 @@ export function Gallery() {
         setShowTags,
         selectedMemeIds,
         toggleImportModal,
+        galleryItemSize,
     } = useUiStore();
+
+    const mainRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        const el = mainRef.current;
+        if (!el) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) {
+                // Prevent browser zoom
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 1 : -1;
+                // Faster zooming when holding shift, otherwise 20px step
+                const step = e.shiftKey ? 50 : 20;
+
+                useUiStore.setState((state) => {
+                    const currentSize = state.galleryItemSize || 200;
+                    const newSize = Math.max(100, Math.min(800, currentSize - delta * step));
+                    return { galleryItemSize: newSize };
+                });
+            }
+        };
+
+        // Needs to be passive: false to prevent default
+        el.addEventListener('wheel', handleWheel, { passive: false });
+        return () => el.removeEventListener('wheel', handleWheel);
+    }, []);
 
     const renderEmptyState = () => {
         if (searchQuery.keyword) {
@@ -75,6 +105,16 @@ export function Gallery() {
             );
         }
 
+        if (activeNav.startsWith('category-')) {
+            return (
+                <EmptyState
+                    icon={<FolderOpen size={48} />}
+                    title={t('gallery.empty.category_empty')}
+                    description={t('gallery.empty.category_empty_desc')}
+                />
+            );
+        }
+
         return (
             <EmptyState
                 icon={<ImagePlus size={48} />}
@@ -90,7 +130,11 @@ export function Gallery() {
     };
 
     return (
-        <main className="flex-1 h-full surface-effect flex flex-col relative z-0 overflow-hidden shadow-none box-border">
+        <main
+            ref={mainRef}
+            className="flex-1 h-full surface-effect flex flex-col relative z-0 overflow-hidden shadow-none box-border transition-[padding] duration-300"
+            style={{ '--gallery-item-size': `${galleryItemSize || 200}px` } as React.CSSProperties}
+        >
             <div className="h-12 mx-4 mt-3 mb-2 rounded-xl border border-borderColor flex px-4 items-center justify-between glass-effect z-10 sticky top-3">
                 <div className="flex gap-1.5">
                     <IconButton icon={<ArrowLeft size={18} />} size="sm" variant="ghost" title={t('gallery.controls.back')} />
@@ -103,9 +147,10 @@ export function Gallery() {
                             icon={imageFit === 'contain' ? <Box size={16} /> : <Crop size={16} />}
                             size="sm"
                             variant="ghost"
-                            active={imageFit === 'contain'}
+                            active={imageFit === 'contain' || viewMode === 'masonry'}
+                            disabled={viewMode === 'masonry'}
                             onClick={() => setImageFit(imageFit === 'contain' ? 'cover' : 'contain')}
-                            title={imageFit === 'contain' ? t('gallery.controls.original_ratio') : t('gallery.controls.fill_crop')}
+                            title={viewMode === 'masonry' ? t('gallery.controls.original_ratio') : (imageFit === 'contain' ? t('gallery.controls.original_ratio') : t('gallery.controls.fill_crop'))}
                             className="rounded-lg"
                         />
                         <IconButton
@@ -149,10 +194,8 @@ export function Gallery() {
                     <VirtuosoGrid
                         totalCount={memes.length}
                         listClassName={clsx(
-                            'grid gap-4 w-full pb-8',
-                            viewMode === 'grid'
-                                ? 'grid-cols-[repeat(auto-fill,minmax(200px,1fr))]'
-                                : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4'
+                            'grid gap-4 w-full pb-8 justify-start content-start',
+                            'grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
                         )}
                         itemContent={(index) => {
                             const meme = memes[index];

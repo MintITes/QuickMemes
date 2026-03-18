@@ -6,6 +6,7 @@ import { useUiStore } from '../../stores/UiStore';
 import { IconButton } from './IconButton';
 import { importUrls } from '../../services/importService';
 import { useNotificationStore } from '../../stores/NotificationStore';
+import { useTaskStore } from '../../stores/TaskStore';
 
 export function UrlImportDialog() {
     const { t } = useTranslation();
@@ -45,6 +46,7 @@ export function UrlImportDialog() {
         try {
             const task = await importUrls([url.trim()]);
             setImporting(true, task.taskId);
+            useTaskStore.getState().setTask(task);
             addNotification({
                 type: 'info',
                 title: t('import.processing'),

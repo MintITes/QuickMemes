@@ -29,6 +29,33 @@ namespace http  = beast::http;
 
 using WsSendCallback = std::function<void(std::shared_ptr<std::string>)>;
 
+namespace {
+bool hasRecentDatabaseBackup(const std::string &dbPath, std::chrono::hours maxAge) {
+	try {
+		const auto dbFileName = std::filesystem::path(dbPath).filename().string() + ".bak.";
+		const auto now        = std::filesystem::file_time_type::clock::now();
+		const auto parentDir  = std::filesystem::path(dbPath).parent_path();
+
+		if (parentDir.empty() || !std::filesystem::exists(parentDir)) {
+			return false;
+		}
+
+		for (const auto &entry : std::filesystem::directory_iterator(parentDir)) {
+			if (!entry.is_regular_file()) continue;
+			const auto fileName = entry.path().filename().string();
+			if (fileName.rfind(dbFileName, 0) != 0) continue;
+
+			const auto ftime = std::filesystem::last_write_time(entry);
+			if (now >= ftime && std::chrono::duration_cast<std::chrono::hours>(now - ftime) <= maxAge) {
+				return true;
+			}
+		}
+	} catch (...) {}
+
+	return false;
+}
+} // namespace
+
 template <typename Body>
 void applyCorsHeaders(http::response<Body> &res) {
 	res.set(http::field::access_control_allow_origin, "*");
@@ -93,10 +120,16 @@ public:
 	}
 
 	void enqueueMsg(std::shared_ptr<std::string> msg) {
-		std::lock_guard<std::mutex> lock(mtx_);
-		sendQueue_.push_back(msg);
-		if (!isWriting_) {
-			isWriting_ = true;
+		bool shouldStartWrite = false;
+		{
+			std::lock_guard<std::mutex> lock(mtx_);
+			sendQueue_.push_back(msg);
+			if (!isWriting_) {
+				isWriting_       = true;
+				shouldStartWrite = true;
+			}
+		}
+		if (shouldStartWrite) {
 			doWrite();
 		}
 	}
@@ -213,6 +246,7 @@ private:
 			}
 
 			if (authOk) {
+				stream_.expires_never();
 				auto session = std::make_shared<WsSession>(std::move(stream_));
 				session->run(std::move(req_));
 				return;
@@ -439,8 +473,12 @@ bool Server::start(const ServerConfig &config) {
 				return false;
 			}
 		} else if (config.backupEnabled) {
-			auto backupPath = Database::get().backupDatabase();
-			if (!backupPath.empty()) { LOG_INFO("server", "Created startup database backup: " + backupPath); }
+			if (!hasRecentDatabaseBackup(config.dbPath, std::chrono::hours(24))) {
+				auto backupPath = Database::get().backupDatabase();
+				if (!backupPath.empty()) { LOG_INFO("server", "Created startup database backup: " + backupPath); }
+			} else {
+				LOG_INFO("server", "Skipped startup database backup because a recent backup already exists.");
+			}
 		}
 		Database::get().recoverFromCrash();
 	} catch (const std::exception &e) {
