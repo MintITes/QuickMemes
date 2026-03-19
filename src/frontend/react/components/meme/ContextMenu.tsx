@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clipboard, Save, Tags, Maximize2, FolderInput, Trash2, ChevronRight, Folder, RotateCcw } from 'lucide-react';
+import { Clipboard, Save, Tags, Maximize2, FolderInput, Trash2, ChevronRight, Folder, RotateCcw, Tag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../stores/UiStore';
 import { useMemeStore } from '../../stores/MemeStore';
@@ -288,7 +288,7 @@ export function ContextMenu() {
 
             // Decide whether to remove or update in store based on current view
             let shouldRemove = false;
-            if (activeNav === 'untagged') {
+            if (activeNav === 'untagged' && categoryId !== 0) {
                 shouldRemove = true;
             } else if (activeNav.startsWith('category-')) {
                 const currentCatId = parseInt(activeNav.replace('category-', ''));
@@ -296,6 +296,7 @@ export function ContextMenu() {
                     shouldRemove = true;
                 }
             }
+
 
             if (shouldRemove) {
                 removeMemes(idsToProcess);
@@ -458,6 +459,25 @@ export function ContextMenu() {
                                         }}
                                     >
                                         <div className="flex flex-col gap-0.5">
+                                            {/* Uncategorized / Untagged Option */}
+                                            <button
+                                                onClick={() => handleMoveToCategory(0)}
+                                                onMouseEnter={() => setSubMenuFocusedIndex(-1)}
+                                                className={clsx(
+                                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
+                                                    (subMenuFocusedIndex === -1) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
+                                                    (!isMultiSelect && targetMeme.categoryId === 0) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
+                                                )}
+                                                disabled={!isMultiSelect && targetMeme.categoryId === 0}
+                                            >
+                                                <div className="flex items-center gap-3 truncate">
+                                                    <Tag size={14} className="opacity-80 flex-shrink-0" />
+                                                    <span className="truncate">{t('sidebar.untagged')}</span>
+                                                </div>
+                                            </button>
+
+                                            <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+
                                             {categories.map((cat, i) => (
                                                 <button
                                                     key={cat.id}
@@ -470,6 +490,7 @@ export function ContextMenu() {
                                                     )}
                                                     disabled={!isMultiSelect && targetMeme.categoryId === cat.id}
                                                 >
+
                                                     <div className="flex items-center gap-3 truncate">
                                                         <Folder size={14} className="opacity-80 flex-shrink-0" />
                                                         <span className="truncate">{cat.name}</span>
