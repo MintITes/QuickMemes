@@ -103,7 +103,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
         <motion.div
             layout={disableLayoutAnimation ? false : 'position'}
             className={clsx(
-                'flex flex-col cursor-pointer select-none group/card relative',
+                'flex flex-col cursor-pointer select-none group/card relative gpu-transform-opacity',
                 viewMode === 'masonry' && 'mb-4'
             )}
             initial={{ opacity: 0, y: 15 }}
@@ -134,7 +134,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
 
                 {/* Floating More Button - Enhanced visibility on hover */}
                 <div className={clsx(
-                    'absolute bottom-2 right-2 z-30 transition-all duration-300 transform-gpu',
+                    'absolute bottom-2 right-2 z-30 transition-all duration-300 transform-gpu gpu-transform-opacity',
                     isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover/card:opacity-100 group-hover/card:scale-100'
                 )}>
                     <MoreButton
@@ -154,7 +154,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
             {/* Subtle glow effect for selected item */}
             {isSelected && (
                 <div
-                    className="absolute inset-0 z-10 pointer-events-none"
+                    className="absolute inset-0 z-10 pointer-events-none gpu-layer"
                     style={{
                         borderRadius: `${cornerRadius}px`,
                         background: 'radial-gradient(circle at top left, color-mix(in srgb, var(--accent-color), transparent 75%), transparent 56%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent-color), transparent 82%), transparent 62%)',

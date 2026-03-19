@@ -31,7 +31,7 @@ export function MemeCardMedia({
     return (
         <div
             className={clsx(
-                'w-full relative flex items-center justify-center transition-all duration-500 group/media',
+                'w-full relative flex items-center justify-center transition-all duration-500 group/media gpu-layer',
                 viewMode === 'grid' && 'aspect-square'
             )}
             style={{
@@ -49,7 +49,7 @@ export function MemeCardMedia({
             {/* Inner Border / Shadow for depth */}
             <div
                 className={clsx(
-                    'absolute inset-0 z-20 pointer-events-none transition-all duration-300',
+                    'absolute inset-0 z-20 pointer-events-none transition-all duration-300 gpu-transform-opacity',
                     isSelected
                         ? 'opacity-100'
                         : 'opacity-0 group-hover/media:opacity-100'
@@ -63,7 +63,7 @@ export function MemeCardMedia({
             />
 
             <div
-                className="absolute inset-px overflow-hidden bg-white dark:bg-white/5 isolate transform-gpu"
+                className="absolute inset-px overflow-hidden bg-white dark:bg-white/5 isolate transform-gpu gpu-layer"
                 style={{ borderRadius: innerRadiusValue }}
             >
                 {/* Selection Badge */}
@@ -73,7 +73,7 @@ export function MemeCardMedia({
                             initial={{ scale: 0, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0, opacity: 0 }}
-                            className="absolute top-2 left-2 w-5 h-5 text-white rounded-full flex items-center justify-center shadow-lg z-30 transition-colors"
+                            className="absolute top-2 left-2 w-5 h-5 text-white rounded-full flex items-center justify-center shadow-lg z-30 transition-colors gpu-transform-opacity"
                             style={{ backgroundColor: accentColor }}
                         >
                             <Check size={12} strokeWidth={4} />
@@ -92,7 +92,7 @@ export function MemeCardMedia({
                                 key="skeleton"
                                 initial={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
-                                className="absolute inset-0 z-0"
+                                className="absolute inset-0 z-0 gpu-transform-opacity"
                             >
                                 <SkeletonCard viewMode={viewMode} />
                             </motion.div>
@@ -109,7 +109,7 @@ export function MemeCardMedia({
                             animate={{ opacity: isLoading ? 0 : 1, scale: isLoading ? 1.05 : 1 }}
                             onLoad={onImageLoad}
                             className={clsx(
-                                'w-full h-full transition-[transform,filter] duration-700 transform-gpu',
+                                'w-full h-full transition-[transform,filter] duration-700 transform-gpu gpu-filter',
                                 'group-hover/media:scale-[1.04]',
                                 // For masonry, we always want to show the full image without cropping
                                 viewMode === 'masonry' ? 'object-contain' : (imageFit === 'contain' ? 'object-contain p-2' : 'object-cover')
@@ -124,7 +124,7 @@ export function MemeCardMedia({
                 </div>
 
                 {/* Hover Overlay Gradient */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/media:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/media:opacity-100 transition-opacity duration-300 pointer-events-none gpu-transform-opacity" />
 
                 {shouldShowTags && (
                     <div className="absolute left-2 right-12 bottom-2 z-20 flex flex-wrap gap-1 pointer-events-none">

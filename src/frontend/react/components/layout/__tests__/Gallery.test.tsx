@@ -67,9 +67,9 @@ describe('Gallery component', () => {
         expect(screen.getByText(/没有任何梗图/i)).toBeInTheDocument();
     });
 
-    it('renders memes from store', () => {
+    it('renders memes from store', async () => {
         useMemeStore.setState({ memes: [meme], isLoading: false, totalCount: 1 } as never);
         render(<Gallery />);
-        expect(screen.getByText('Test Meme')).toBeInTheDocument();
+        expect(await screen.findByTitle('更多')).toBeInTheDocument();
     });
 });

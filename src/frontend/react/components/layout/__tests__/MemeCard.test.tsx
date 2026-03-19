@@ -40,14 +40,16 @@ describe('MemeCard component', () => {
         useNotificationStore.setState({ notifications: [], activeToasts: [], isPanelOpen: false } as never);
     });
 
-    it('keeps selection when opening details for the already selected card', () => {
+    it('keeps selection when opening card menu for the already selected card', () => {
         const selectMeme = vi.fn();
         const togglePanel = vi.fn();
+        const setContextMenu = vi.fn();
 
         useUiStore.setState({
             selectedMemeIds: [1],
             selectMeme,
             togglePanel,
+            setContextMenu,
         } as never);
 
         render(
@@ -60,9 +62,11 @@ describe('MemeCard component', () => {
             />
         );
 
-        fireEvent.click(screen.getByTitle('查看详情'));
+        fireEvent.click(screen.getByTitle('更多'));
 
         expect(selectMeme).not.toHaveBeenCalled();
-        expect(togglePanel).toHaveBeenCalledWith(true);
+        expect(togglePanel).not.toHaveBeenCalled();
+        expect(setContextMenu).toHaveBeenCalledTimes(1);
+        expect(setContextMenu).toHaveBeenCalledWith(expect.objectContaining({ memeId: 1 }));
     });
 });

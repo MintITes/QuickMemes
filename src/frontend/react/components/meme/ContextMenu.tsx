@@ -50,6 +50,10 @@ function ContextMenuItem({ icon, label, onClick, danger, hasSubMenu, isActive, o
 
 // Main ContextMenu Component
 export function ContextMenu() {
+    const SUBMENU_WIDTH = 200;
+    const SUBMENU_GAP = 6;
+    const VIEWPORT_PADDING = 12;
+
 
     const { t } = useTranslation();
     const menuInfo = useUiStore(state => state.contextMenu);
@@ -66,11 +70,14 @@ export function ContextMenu() {
     const addNotification = useNotificationStore(state => state.addNotification);
 
     const menuRef = useRef<HTMLDivElement>(null);
+    const subMenuRef = useRef<HTMLDivElement>(null);
+    const subMenuAnchorRef = useRef<HTMLDivElement>(null);
     const subMenuTimerRef = useRef<number | null>(null);
 
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [isSubMenuOpen, setIsSubMenuOpen] = useState(false);
     const [subMenuFocusedIndex, setSubMenuFocusedIndex] = useState(-1);
+    const [subMenuCoords, setSubMenuCoords] = useState({ top: 0, left: 0 });
     const isTrashView = activeNav === 'trash';
     const isMultiSelect = selectedMemeIds.length > 1;
 
@@ -114,7 +121,10 @@ export function ContextMenu() {
         if (!menuInfo) return;
 
         const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+            const target = e.target as Node;
+            const isInsideMainMenu = menuRef.current?.contains(target);
+            const isInsideSubMenu = subMenuRef.current?.contains(target);
+            if (!isInsideMainMenu && !isInsideSubMenu) {
                 closeMenu();
             }
         };
@@ -143,6 +153,25 @@ export function ContextMenu() {
             window.removeEventListener('blur', closeMenu);
         };
     }, [menuInfo, closeMenu]);
+
+    useEffect(() => {
+        if (!isSubMenuOpen || !subMenuAnchorRef.current) {
+            return;
+        }
+
+        const anchorRect = subMenuAnchorRef.current.getBoundingClientRect();
+        const estimatedHeight = Math.min(300, (categories.length + 1) * 36 + 12);
+        const maxTop = Math.max(VIEWPORT_PADDING, window.innerHeight - estimatedHeight - VIEWPORT_PADDING);
+        const maxLeft = Math.max(VIEWPORT_PADDING, window.innerWidth - SUBMENU_WIDTH - VIEWPORT_PADDING);
+        const rawLeft = subMenuPosition.side === 'right'
+            ? anchorRect.right + SUBMENU_GAP
+            : anchorRect.left - SUBMENU_WIDTH - SUBMENU_GAP;
+
+        setSubMenuCoords({
+            top: Math.min(Math.max(anchorRect.top, VIEWPORT_PADDING), maxTop),
+            left: Math.min(Math.max(rawLeft, VIEWPORT_PADDING), maxLeft),
+        });
+    }, [isSubMenuOpen, categories.length, subMenuPosition.side]);
 
 
     const handleMouseEnterMenuItem = (index: number, hasSubMenu: boolean) => {
@@ -428,7 +457,7 @@ export function ContextMenu() {
                         />
 
                         {/* SubMenu anchor */}
-                        <div className="relative">
+                        <div ref={subMenuAnchorRef}>
                             <ContextMenuItem
                                 icon={<FolderInput size={16} />}
                                 label={t('gallery.context_menu.move_to')}
@@ -437,70 +466,6 @@ export function ContextMenu() {
                                 onMouseEnter={() => handleMouseEnterMenuItem(4, true)}
                                 onClick={() => executeAction(4)}
                             />
-
-                            {/* SubMenu Rendering */}
-                            <AnimatePresence>
-                                {isSubMenuOpen && categories.length > 0 && (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
-                                        transition={{ duration: 0.15 }}
-                                        className={clsx(
-                                            "absolute top-0 w-[200px] rounded-xl p-1.5 shadow-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-3xl border border-black/10 dark:border-white/10 max-h-[300px] overflow-y-auto scrollbar-hide",
-                                            subMenuPosition.side === 'right' ? "left-full ml-1.5" : "right-full mr-1.5"
-                                        )}
-                                        onMouseEnter={() => {
-                                            if (subMenuTimerRef.current) clearTimeout(subMenuTimerRef.current);
-                                            setIsSubMenuOpen(true);
-                                        }}
-                                        onMouseLeave={() => {
-                                            subMenuTimerRef.current = window.setTimeout(() => setIsSubMenuOpen(false), 300);
-                                        }}
-                                    >
-                                        <div className="flex flex-col gap-0.5">
-                                            {/* Uncategorized / Untagged Option */}
-                                            <button
-                                                onClick={() => handleMoveToCategory(0)}
-                                                onMouseEnter={() => setSubMenuFocusedIndex(-1)}
-                                                className={clsx(
-                                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
-                                                    (subMenuFocusedIndex === -1) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
-                                                    (!isMultiSelect && targetMeme.categoryId === 0) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
-                                                )}
-                                                disabled={!isMultiSelect && targetMeme.categoryId === 0}
-                                            >
-                                                <div className="flex items-center gap-3 truncate">
-                                                    <Tag size={14} className="opacity-80 flex-shrink-0" />
-                                                    <span className="truncate">{t('sidebar.untagged')}</span>
-                                                </div>
-                                            </button>
-
-                                            <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
-
-                                            {categories.map((cat, i) => (
-                                                <button
-                                                    key={cat.id}
-                                                    onClick={() => handleMoveToCategory(cat.id)}
-                                                    onMouseEnter={() => setSubMenuFocusedIndex(i)}
-                                                    className={clsx(
-                                                        "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
-                                                        (subMenuFocusedIndex === i) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
-                                                        (!isMultiSelect && targetMeme.categoryId === cat.id) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
-                                                    )}
-                                                    disabled={!isMultiSelect && targetMeme.categoryId === cat.id}
-                                                >
-
-                                                    <div className="flex items-center gap-3 truncate">
-                                                        <Folder size={14} className="opacity-80 flex-shrink-0" />
-                                                        <span className="truncate">{cat.name}</span>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
                         </div>
 
                         <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
@@ -515,6 +480,65 @@ export function ContextMenu() {
                     </div>
 
                 </motion.div>
+                <AnimatePresence>
+                    {isSubMenuOpen && categories.length > 0 && (
+                        <motion.div
+                            ref={subMenuRef}
+                            initial={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
+                            transition={{ duration: 0.15 }}
+                            className="fixed z-[10000] w-[200px] rounded-xl p-1.5 shadow-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-3xl border border-black/10 dark:border-white/10 max-h-[300px] overflow-y-auto scrollbar-hide"
+                            style={{ top: subMenuCoords.top, left: subMenuCoords.left }}
+                            onMouseEnter={() => {
+                                if (subMenuTimerRef.current) clearTimeout(subMenuTimerRef.current);
+                                setIsSubMenuOpen(true);
+                            }}
+                            onMouseLeave={() => {
+                                subMenuTimerRef.current = window.setTimeout(() => setIsSubMenuOpen(false), 300);
+                            }}
+                        >
+                            <div className="flex flex-col gap-0.5">
+                                <button
+                                    onClick={() => handleMoveToCategory(0)}
+                                    onMouseEnter={() => setSubMenuFocusedIndex(-1)}
+                                    className={clsx(
+                                        "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
+                                        (subMenuFocusedIndex === -1) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
+                                        (!isMultiSelect && targetMeme.categoryId === 0) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
+                                    )}
+                                    disabled={!isMultiSelect && targetMeme.categoryId === 0}
+                                >
+                                    <div className="flex items-center gap-3 truncate">
+                                        <Tag size={14} className="opacity-80 flex-shrink-0" />
+                                        <span className="truncate">{t('sidebar.untagged')}</span>
+                                    </div>
+                                </button>
+
+                                <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+
+                                {categories.map((cat, i) => (
+                                    <button
+                                        key={cat.id}
+                                        onClick={() => handleMoveToCategory(cat.id)}
+                                        onMouseEnter={() => setSubMenuFocusedIndex(i)}
+                                        className={clsx(
+                                            "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
+                                            (subMenuFocusedIndex === i) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
+                                            (!isMultiSelect && targetMeme.categoryId === cat.id) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
+                                        )}
+                                        disabled={!isMultiSelect && targetMeme.categoryId === cat.id}
+                                    >
+                                        <div className="flex items-center gap-3 truncate">
+                                            <Folder size={14} className="opacity-80 flex-shrink-0" />
+                                            <span className="truncate">{cat.name}</span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </AnimatePresence>
         </Portal>
     );

@@ -561,7 +561,7 @@ export function Sidebar() {
         <motion.aside
             animate={{ width: sidebarExpanded ? 256 : 68 }}
             transition={layoutTransition}
-            className="flex-shrink-0 h-full surface-effect flex flex-col p-3 relative select-none no-drag"
+            className="flex-shrink-0 h-full surface-effect gpu-transform flex flex-col p-3 relative select-none no-drag"
         >
             {/* Sidebar Toggle Header */}
             <div className={clsx("flex items-center mb-4 px-1", sidebarExpanded ? "justify-between" : "justify-center")}>
@@ -666,7 +666,7 @@ export function Sidebar() {
 
                     <div
                         className={clsx(
-                            "flex-1 overflow-y-auto pb-4 transition-all duration-300 relative no-scrollbar",
+                            "flex-1 overflow-y-auto pb-4 transition-all duration-300 relative no-scrollbar gpu-layer",
                             !sidebarExpanded && "overflow-hidden hover:overflow-y-auto"
                         )}
                         style={{
@@ -681,7 +681,7 @@ export function Sidebar() {
                                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                                         animate={{ opacity: 1, y: 0, scale: 1 }}
                                         exit={{ opacity: 0, scale: 0.95 }}
-                                        className="px-1 pb-2"
+                                        className="px-1 pb-2 gpu-transform-opacity"
                                     >
                                         <div
                                             className="rounded-2xl border p-2 space-y-2"
@@ -760,7 +760,7 @@ export function Sidebar() {
                                                     animate={{ opacity: 1, x: 0 }}
                                                     exit={{ opacity: 0, scale: 0.95 }}
                                                     transition={{ duration: 0.2, delay: index * 0.03 }}
-                                                    className="relative group/category px-1"
+                                                    className="relative group/category px-1 gpu-transform-opacity"
                                                     data-category-menu-root="true"
                                                 >
                                                     {editingCategoryId === cat.id ? (
@@ -882,7 +882,7 @@ export function Sidebar() {
                                                                                     animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
                                                                                     exit={{ opacity: 0, scale: 0.98, x: -6, y: -2 }}
                                                                                     transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                                                                                    className="fixed z-[9999] flex rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-[color:var(--bg-surface)] shadow-2xl overflow-hidden backdrop-blur-md category-portal-menu"
+                                                                                    className="fixed z-[9999] flex rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-[color:var(--bg-surface)] shadow-2xl overflow-hidden backdrop-blur-md category-portal-menu gpu-transform-opacity"
                                                                                     style={{
                                                                                         top: `${categoryMenu.position.top}px`,
                                                                                         left: `${categoryMenu.position.left}px`,
@@ -996,14 +996,14 @@ export function Sidebar() {
                                                                                                             animate={{ opacity: 1, width: 240 }}
                                                                                                             exit={{ opacity: 0, width: 0 }}
                                                                                                             transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                                                                                                            className="overflow-hidden"
+                                                                                                            className="overflow-hidden gpu-transform-opacity"
                                                                                                         >
                                                                                                             <motion.div
                                                                                                                 initial={{ opacity: 0, x: -12 }}
                                                                                                                 animate={{ opacity: 1, x: 0 }}
                                                                                                                 exit={{ opacity: 0, x: -8 }}
                                                                                                                 transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                                                                                                                className="w-[240px]"
+                                                                                                                className="w-[240px] gpu-transform-opacity"
                                                                                                             >
                                                                                                                 <ColorPicker
                                                                                                                     color={categoryDisplayColor}

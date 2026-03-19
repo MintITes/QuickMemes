@@ -23,7 +23,7 @@ describe('IconButton component', () => {
 
         const button = screen.getByRole('button');
         expect(button).toBeDisabled();
-        expect(button).toHaveClass('opacity-40');
+        expect(button).toHaveClass('opacity-30');
 
         fireEvent.click(button);
         expect(handleClick).not.toHaveBeenCalled();

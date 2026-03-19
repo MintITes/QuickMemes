@@ -69,11 +69,11 @@ export function UrlImportDialog() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
+                    className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden gpu-transform-opacity"
                 >
                     {/* Backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm gpu-layer"
                         onClick={() => toggleUrlImportDialog(false)}
                     />
 
@@ -82,7 +82,7 @@ export function UrlImportDialog() {
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                        className="relative w-[400px] surface-effect shadow-2xl overflow-hidden flex flex-col no-drag"
+                        className="relative w-[400px] surface-effect shadow-2xl overflow-hidden flex flex-col no-drag gpu-transform-opacity"
                         style={{ borderRadius: 'var(--corner-radius)' }}
                         onClick={(e) => e.stopPropagation()}
                     >

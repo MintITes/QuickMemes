@@ -37,15 +37,21 @@ export const useNotificationStore = create<NotificationState>((set) => ({
 
     addNotification: (noti) => {
         const id = Math.random().toString(36).substring(7);
-        const newNotification: AppNotification = {
-            ...noti,
-            id,
-            timestamp: Date.now(),
-            read: false,
-        };
         set((state) => ({
-            notifications: [newNotification, ...state.notifications],
-            activeToasts: [newNotification, ...state.activeToasts]
+            notifications: [{
+                ...noti,
+                id,
+                timestamp: Date.now(),
+                read: state.isPanelOpen,
+            }, ...state.notifications],
+            activeToasts: state.isPanelOpen
+                ? state.activeToasts
+                : [{
+                    ...noti,
+                    id,
+                    timestamp: Date.now(),
+                    read: state.isPanelOpen,
+                }, ...state.activeToasts]
         }));
     },
 

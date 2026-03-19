@@ -51,11 +51,12 @@ describe('wsClient', () => {
     });
 
     it('should connect to WebSocket using config from electronAPI', async () => {
-        connectWebSocket();
+        await connectWebSocket();
 
         expect(window.electronAPI.getBackendConfig).toHaveBeenCalled();
-
-        await vi.runAllTimersAsync();
+        await vi.advanceTimersByTimeAsync(10);
+        expect(lastSocket?.url).toBe('ws://127.0.0.1:57321/ws?token=mock-token');
+        expect(lastSocket?.readyState).toBe(1);
     });
 
     it('should distribute events to subscribers', async () => {
@@ -63,7 +64,7 @@ describe('wsClient', () => {
         const unsubscribe = onEvent('meme:deleted', handler);
 
         await connectWebSocket();
-        await vi.runAllTimersAsync();
+        await vi.advanceTimersByTimeAsync(10);
 
         lastSocket?.mockMessage(JSON.stringify({ event: 'meme:deleted', payload: { id: 1 } }));
         expect(handler).toHaveBeenCalledWith({ id: 1 });

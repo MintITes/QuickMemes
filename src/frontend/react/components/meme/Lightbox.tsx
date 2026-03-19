@@ -212,7 +212,7 @@ export function Lightbox() {
             <AnimatePresence>
                 <div
                     ref={containerRef}
-                    className="fixed inset-0 z-[2000] flex flex-col items-center justify-center outline-none select-none"
+                    className="fixed inset-0 z-[2000] flex flex-col items-center justify-center outline-none select-none gpu-layer"
                     tabIndex={-1}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
@@ -224,10 +224,10 @@ export function Lightbox() {
                             <img
                                 src={src}
                                 alt=""
-                                className="absolute inset-0 w-full h-full object-cover blur-[100px] opacity-40 scale-110 saturate-150 brightness-75 pointer-events-none"
+                                className="absolute inset-0 w-full h-full object-cover blur-[100px] opacity-40 scale-110 saturate-150 brightness-75 pointer-events-none gpu-filter"
                             />
                         )}
-                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-none" />
+                        <div className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-none gpu-layer" />
                     </div>
 
                     {/* Top Bar */}
@@ -249,7 +249,7 @@ export function Lightbox() {
                     {/* Navigation */}
                     {currentIndex > 0 && (
                         <button
-                            className="absolute left-6 p-3 rounded-full bg-black/20 hover:bg-black/50 text-white backdrop-blur-md transition-all z-10 ring-1 ring-white/10 outline-none focus-visible:ring-white pointer-events-auto"
+                            className="absolute left-6 p-3 rounded-full bg-black/20 hover:bg-black/50 text-white backdrop-blur-md transition-all z-10 ring-1 ring-white/10 outline-none focus-visible:ring-white pointer-events-auto gpu-transform-opacity"
                             onClick={goPrev}
                         >
                             <ChevronLeft size={32} />
@@ -257,7 +257,7 @@ export function Lightbox() {
                     )}
                     {currentIndex < memes.length - 1 && (
                         <button
-                            className="absolute right-6 p-3 rounded-full bg-black/20 hover:bg-black/50 text-white backdrop-blur-md transition-all z-10 ring-1 ring-white/10 outline-none focus-visible:ring-white pointer-events-auto"
+                            className="absolute right-6 p-3 rounded-full bg-black/20 hover:bg-black/50 text-white backdrop-blur-md transition-all z-10 ring-1 ring-white/10 outline-none focus-visible:ring-white pointer-events-auto gpu-transform-opacity"
                             onClick={goNext}
                         >
                             <ChevronRight size={32} />
@@ -286,13 +286,13 @@ export function Lightbox() {
                                     y: position.y
                                 }}
                                 transition={{ type: "spring", stiffness: 400, damping: 30, mass: 0.5 }}
-                                className="max-w-full max-h-full object-contain pointer-events-none drop-shadow-2xl"
+                                className="max-w-full max-h-full object-contain pointer-events-none drop-shadow-2xl gpu-filter"
                             />
                         )}
                     </div>
 
                     {/* Bottom Toolbar Area */}
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-8 py-6 flex flex-col items-center pointer-events-none z-10">
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent px-8 py-6 flex flex-col items-center pointer-events-none z-10 gpu-layer">
 
                         {/* Tags */}
                         <div className="flex flex-wrap justify-center gap-2 mb-6 max-w-3xl pointer-events-auto">
@@ -310,7 +310,7 @@ export function Lightbox() {
                         </div>
 
                         {/* Controls */}
-                        <div className="flex items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl pointer-events-auto">
+                        <div className="flex items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl pointer-events-auto gpu-layer">
                             <div className="flex items-center justify-center gap-1 px-2 border-r border-white/10">
                                 <button onClick={handleZoomOut} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white" title="缩小 (-)"><ZoomOut size={18} /></button>
                                 <button onClick={handleResetZoom} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white" title="还原 (0)"><Maximize size={18} /></button>

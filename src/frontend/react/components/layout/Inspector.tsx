@@ -506,7 +506,7 @@ export function Inspector() {
             animate={{ width: inspectorWidth, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={isResizing ? { duration: 0 } : { duration: 0.35, ease: [0.23, 1, 0.32, 1] }}
-            className="flex-shrink-0 h-full surface-effect flex flex-col overflow-hidden relative border-l border-borderColor z-20 shadow-lg"
+            className="flex-shrink-0 h-full surface-effect gpu-transform flex flex-col overflow-hidden relative border-l border-borderColor z-20 shadow-lg"
         >
             <div
                 className={clsx(
@@ -534,12 +534,12 @@ export function Inspector() {
                 </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-gradient-to-b from-transparent to-black/[0.015] dark:to-white/[0.015]">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar bg-gradient-to-b from-transparent to-black/[0.015] dark:to-white/[0.015] gpu-layer">
                 {selectedMemeIds.length === 0 && (
                     <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
-                        className="h-full flex items-center justify-center p-8"
+                        className="h-full flex items-center justify-center p-8 gpu-transform-opacity"
                     >
                         <EmptyState
                             icon={<MousePointer2 size={48} strokeWidth={1.5} className="text-accent/20" />}

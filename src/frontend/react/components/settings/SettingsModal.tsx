@@ -544,7 +544,7 @@ export function SettingsModal() {
                             </div>
 
                             <div className="flex-1 flex min-w-0 overflow-hidden bg-white/40 dark:bg-white/5 shadow-inner select-none relative">
-                                <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                                <div className="flex-1 overflow-y-auto custom-scrollbar p-8 gpu-layer">
                                     <div className="max-w-2xl mx-auto">
                                         {renderContent()}
                                     </div>

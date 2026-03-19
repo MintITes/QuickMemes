@@ -163,10 +163,10 @@ export function Gallery() {
     return (
         <main
             ref={mainRef}
-            className="flex-1 h-full surface-effect flex flex-col relative z-0 overflow-hidden shadow-none box-border transition-[padding] duration-300"
+            className="flex-1 h-full surface-effect gpu-layer flex flex-col relative z-0 overflow-hidden shadow-none box-border transition-[padding] duration-300"
             style={{ '--gallery-item-size': `${galleryItemSize || 200}px` } as React.CSSProperties}
         >
-            <div className="h-12 mx-4 mt-3 mb-2 rounded-xl border border-borderColor flex px-4 items-center justify-between glass-effect z-10 sticky top-3">
+            <div className="h-12 mx-4 mt-3 mb-2 rounded-xl border border-borderColor flex px-4 items-center justify-between glass-effect gpu-layer z-10 sticky top-3">
                 <div className="flex gap-1.5">
                     <IconButton icon={<ArrowLeft size={18} />} size="sm" variant="ghost" title={t('gallery.controls.back')} />
                     <IconButton icon={<ArrowRight size={18} />} size="sm" variant="ghost" disabled title={t('gallery.controls.forward')} />
@@ -220,7 +220,7 @@ export function Gallery() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide gpu-layer">
                 {memes.length === 0 ? renderEmptyState() : (
                     viewMode === 'masonry' ? (
                         <div

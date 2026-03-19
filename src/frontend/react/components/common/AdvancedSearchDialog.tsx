@@ -107,11 +107,11 @@ export function AdvancedSearchDialog() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-hidden"
+                    className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-hidden gpu-transform-opacity"
                 >
                     {/* Backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-[6px]"
+                        className="absolute inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-[6px] gpu-layer"
                         onClick={() => toggleAdvancedSearch(false)}
                     />
 
@@ -121,7 +121,7 @@ export function AdvancedSearchDialog() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        className="relative w-full max-w-[560px] glass-effect surface-effect shadow-2xl flex flex-col no-drag border border-white/20 dark:border-white/5"
+                        className="relative w-full max-w-[560px] glass-effect surface-effect shadow-2xl flex flex-col no-drag border border-white/20 dark:border-white/5 gpu-transform-opacity"
                         style={{ borderRadius: 'var(--corner-radius)' }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -144,7 +144,7 @@ export function AdvancedSearchDialog() {
                         </div>
 
                         {/* Content */}
-                        <div className="px-6 pb-6 space-y-7 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                        <div className="px-6 pb-6 space-y-7 max-h-[70vh] overflow-y-auto custom-scrollbar gpu-layer">
                             {/* Search Box */}
                             <motion.div variants={itemVariants} className="space-y-3">
                                 <label className="flex items-center gap-2 text-xs font-bold text-textPrimary uppercase tracking-widest opacity-60 ml-1">

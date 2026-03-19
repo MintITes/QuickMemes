@@ -140,11 +140,11 @@ export function ImportModal() {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
+                    className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden gpu-transform-opacity"
                 >
                     {/* Backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm gpu-layer"
                         onClick={() => toggleImportModal(false)}
                     />
 
@@ -153,7 +153,7 @@ export function ImportModal() {
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                        className="relative w-[480px] glass-effect surface-effect flex flex-col no-drag"
+                        className="relative w-[480px] glass-effect surface-effect flex flex-col no-drag gpu-transform-opacity"
                         style={{ borderRadius: 'var(--corner-radius)' }}
                     >
                         {/* Header */}
@@ -228,7 +228,7 @@ export function ImportModal() {
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: 'auto', opacity: 1 }}
                                 className={clsx(
-                                    "px-4 py-2 text-[11px] font-bold text-center text-white",
+                                    "px-4 py-2 text-[11px] font-bold text-center text-white gpu-transform-opacity",
                                     importStatus === 'success' ? "bg-green-500" : "bg-red-500"
                                 )}
                             >
