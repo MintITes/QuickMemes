@@ -189,7 +189,7 @@ export const useUiStore = create<UiState>()(
             toggleGlassEffect: (enabled) =>
                 set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),
 
-            setActiveNav: (nav: string) => set({ activeNav: nav }),
+            setActiveNav: (nav: string) => set({ activeNav: nav, selectedMemeIds: [] }),
 
             setPlatformOverride: (platform) => set({ platformOverride: platform }),
 
