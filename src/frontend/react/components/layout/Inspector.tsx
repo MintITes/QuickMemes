@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { useMemeStore } from '../../stores/MemeStore';
 import { useTagStore } from '../../stores/TagStore';
+import { useCategoryStore } from '../../stores/CategoryStore';
 import {
     Image as ImageIcon,
     X,
@@ -77,6 +78,7 @@ function MemeDetails({ meme }: { meme: Meme }) {
     const [copySuccess, setCopySuccess] = useState(false);
     const [isAddingTag, setIsAddingTag] = useState(false);
     const [newTagName, setNewTagName] = useState('');
+    const categories = useCategoryStore((state) => state.categories);
     const tagInputRef = useRef<HTMLInputElement>(null);
     const isSubmittingTagRef = useRef(false);
     const skipTagBlurRef = useRef(false);
@@ -404,6 +406,9 @@ function MemeDetails({ meme }: { meme: Meme }) {
 
                     <span className="text-textSecondary/50 font-medium">大小</span>
                     <span className="text-textSecondary">{formatSize(meme.fileSize)}</span>
+
+                    <span className="text-textSecondary/50 font-medium">分类</span>
+                    <span className="text-textSecondary">{categories.find(c => c.id === meme.categoryId)?.name || t('sidebar.untagged')}</span>
 
                     <span className="text-textSecondary/50 font-medium">添加日期</span>
                     <span className="text-textSecondary">{formatDate(meme.createdAt)}</span>
