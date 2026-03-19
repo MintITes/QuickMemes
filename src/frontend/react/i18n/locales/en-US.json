@@ -243,6 +243,10 @@
                 "label": "Main Storage Path",
                 "desc": "Current root directory where all memes are saved",
                 "change": "Change"
+            },
+            "thumbnail_size": {
+                "label": "Thumbnail Size Limit",
+                "desc": "Max width/height in pixels for generated thumbnails (px)"
             }
         },
         "ocr": {
@@ -250,11 +254,27 @@
             "auto_ocr": {
                 "label": "Background Auto OCR",
                 "desc": "Extract text index in background after importing images"
+            },
+            "apiUrl": {
+                "label": "OCR API URL",
+                "desc": "Custom API endpoint for image text recognition"
+            },
+            "apiKey": {
+                "label": "OCR API Key",
+                "desc": "Authentication key for accessing the OCR service"
             }
         },
         "ai": {
             "title": "AI Vision Analysis",
-            "not_configured": "AI auto-tagging model is not yet configured, please set API Key in future versions"
+            "not_configured": "AI auto-tagging model is not yet configured, please set API Key in future versions",
+            "apiBaseUrl": {
+                "label": "AI API Base URL",
+                "desc": "Custom base URL for the AI vision model interface"
+            },
+            "apiKey": {
+                "label": "AI API Key",
+                "desc": "Authentication key for accessing the AI vision model"
+            }
         },
         "shortcuts": {
             "title": "Shortcut Bindings",

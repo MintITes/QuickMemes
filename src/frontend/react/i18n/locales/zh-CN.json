@@ -243,6 +243,10 @@
                 "label": "主存储路径",
                 "desc": "当前所有梗图保存的根目录",
                 "change": "更改"
+            },
+            "thumbnail_size": {
+                "label": "缩略图尺寸限制",
+                "desc": "生成的缩略图最大宽高像素值 (px)"
             }
         },
         "ocr": {
@@ -250,11 +254,27 @@
             "auto_ocr": {
                 "label": "后台自动 OCR",
                 "desc": "导入图片后自动在后台提取文字索引"
+            },
+            "apiUrl": {
+                "label": "OCR 接口地址",
+                "desc": "配置用于识别图片文本的自定义 API 端点"
+            },
+            "apiKey": {
+                "label": "OCR API 密钥",
+                "desc": "访问 OCR 服务的认证密钥"
             }
         },
         "ai": {
             "title": "AI 视觉分析",
-            "not_configured": "AI 自动打标模型尚未配置，请在后续版本配置 API Key"
+            "not_configured": "AI 自动打标模型尚未配置，请在后续版本配置 API Key",
+            "apiBaseUrl": {
+                "label": "AI API Base URL",
+                "desc": "自定义的 AI 模型接口基础地址"
+            },
+            "apiKey": {
+                "label": "AI API Key",
+                "desc": "访问 AI 视觉模型的认证密钥"
+            }
         },
         "shortcuts": {
             "title": "快捷键绑定",

@@ -8,7 +8,9 @@ interface SliderProps {
     max: number;
     step?: number;
     onChange: (value: number) => void;
+    onAfterChange?: (value: number) => void;
     label?: string;
+
     unit?: string;
     disabled?: boolean;
     className?: string;
@@ -21,6 +23,7 @@ export function Slider({
     max,
     step = 1,
     onChange,
+    onAfterChange,
     label,
     unit = '',
     disabled = false,
@@ -32,6 +35,9 @@ export function Slider({
 
     // High-precision local value for smooth visual tracking
     const [localValue, setLocalValue] = useState(value);
+
+    // Track original value to avoid calling onAfterChange if nothing changed
+    const originalValueRef = useRef(value);
 
     const calculateValueFromEvent = useCallback((clientX: number) => {
         if (!containerRef.current) return localValue;
@@ -56,7 +62,12 @@ export function Slider({
 
         const handleMouseMove = (e: MouseEvent) => handleInteraction(e.clientX);
         const handleTouchMove = (e: TouchEvent) => handleInteraction(e.touches[0].clientX);
-        const handleEnd = () => setIsDragging(false);
+        const handleEnd = () => {
+            setIsDragging(false);
+            if (onAfterChange && value !== originalValueRef.current) {
+                onAfterChange(value);
+            }
+        };
 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('touchmove', handleTouchMove);
@@ -69,25 +80,35 @@ export function Slider({
             window.removeEventListener('mouseup', handleEnd);
             window.removeEventListener('touchend', handleEnd);
         };
-    }, [isDragging, handleInteraction]);
+    }, [isDragging, handleInteraction, onAfterChange, value]);
+
+    useEffect(() => {
+        if (!isDragging) {
+            originalValueRef.current = value;
+        }
+    }, [isDragging, value]);
+
 
     const displayedValue = isDragging ? localValue : value;
     const percentage = ((displayedValue - min) / (max - min)) * 100;
 
     return (
         <div className={clsx("space-y-2 select-none", className, disabled && "opacity-50 pointer-events-none")}>
-            <div className="flex justify-between items-center px-1">
-                {label && (
-                    <span className="text-xs font-medium opacity-60">
-                        {label} ({value}{unit})
-                    </span>
-                )}
-                {warning && !disabled && (
-                    <span className="text-orange-500 font-bold text-[10px] animate-pulse">
-                        {warning}
-                    </span>
-                )}
-            </div>
+            {(label || (warning && !disabled)) && (
+                <div className="flex justify-between items-center px-1">
+                    {label && (
+                        <span className="text-xs font-medium opacity-60">
+                            {label} ({value}{unit})
+                        </span>
+                    )}
+                    {warning && !disabled && (
+                        <span className="text-orange-500 font-bold text-[10px] animate-pulse">
+                            {warning}
+                        </span>
+                    )}
+                </div>
+            )}
+
 
             <div
                 ref={containerRef}

@@ -107,6 +107,8 @@ let backendSession: BackendSession = {
     lastExitCode: null,
     lastError: null,
 };
+let backendLifecycleChain = Promise.resolve();
+let configPatchChain = Promise.resolve<SetConfigResult | null>(null);
 
 const RESTART_REQUIRED_KEYS = new Set([
     'backendPort',
@@ -404,20 +406,23 @@ async function stopBackend() {
 
     await new Promise<void>((resolve) => {
         let settled = false;
+        let forceKillTimer: NodeJS.Timeout | null = null;
         const finish = () => {
             if (settled) {
                 return;
             }
             settled = true;
+            if (forceKillTimer) {
+                clearTimeout(forceKillTimer);
+            }
             resolve();
         };
 
         proc.once('exit', () => finish());
         proc.kill('SIGTERM');
-        setTimeout(() => {
+        forceKillTimer = setTimeout(() => {
             if (!settled) {
                 proc.kill('SIGKILL');
-                finish();
             }
         }, 2_000);
     });
@@ -452,6 +457,9 @@ async function startBackend() {
         process.stderr.write(`[backend] ${chunk}`);
     });
     proc.once('exit', (code) => {
+        if (backendSession.process !== proc) {
+            return;
+        }
         backendSession.process = null;
         backendSession.ready = false;
         backendSession.starting = false;
@@ -462,6 +470,9 @@ async function startBackend() {
         emitBackendStatus();
     });
     proc.once('error', (error) => {
+        if (backendSession.process !== proc) {
+            return;
+        }
         backendSession.lastError = error.message;
         emitBackendStatus();
     });
@@ -480,6 +491,12 @@ async function startBackend() {
 
 async function restartBackend() {
     await startBackend();
+}
+
+function queueBackendLifecycle<T>(task: () => Promise<T>): Promise<T> {
+    const run = backendLifecycleChain.then(task, task);
+    backendLifecycleChain = run.then(() => undefined, () => undefined);
+    return run;
 }
 
 async function patchBackendConfig(config: AppConfig, changedKeys: string[]) {
@@ -522,25 +539,31 @@ async function patchBackendConfig(config: AppConfig, changedKeys: string[]) {
 }
 
 async function applyConfigPatch(patch: Partial<AppConfig>): Promise<SetConfigResult> {
-    const prev = currentConfig ?? loadConfig();
-    const next = normalizeConfig(deepMerge(prev, patch));
-    const changedKeys = getChangedKeys(prev, next, patch);
-    const restartRequired = changedKeys.some((key) => RESTART_REQUIRED_KEYS.has(key));
+    const run = async () => {
+        const prev = currentConfig ?? loadConfig();
+        const next = normalizeConfig(deepMerge(prev, patch));
+        const changedKeys = getChangedKeys(prev, next, patch);
+        const restartRequired = changedKeys.some((key) => RESTART_REQUIRED_KEYS.has(key));
 
-    saveConfig(next);
+        saveConfig(next);
 
-    let hotPatched = false;
-    if (!restartRequired) {
-        hotPatched = await patchBackendConfig(next, changedKeys);
-    } else {
-        await restartBackend();
-    }
+        let hotPatched = false;
+        if (!restartRequired) {
+            hotPatched = await patchBackendConfig(next, changedKeys);
+        } else {
+            await queueBackendLifecycle(() => restartBackend());
+        }
 
-    return {
-        config: next,
-        restartRequired,
-        hotPatched,
+        return {
+            config: next,
+            restartRequired,
+            hotPatched,
+        };
     };
+
+    const queued = configPatchChain.then(run, run);
+    configPatchChain = queued.then(() => null, () => null);
+    return queued;
 }
 
 function getIconPath() {
@@ -775,7 +798,7 @@ app.whenReady().then(async () => {
     createTray();
 
     try {
-        await startBackend();
+        await queueBackendLifecycle(() => startBackend());
     } catch (error) {
         console.error('Failed to start backend:', error);
     }
@@ -797,5 +820,5 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', async () => {
-    await stopBackend();
+    await queueBackendLifecycle(() => stopBackend());
 });
