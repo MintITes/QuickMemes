@@ -10,7 +10,7 @@ import {
     Tray,
 } from 'electron';
 import type { OpenDialogOptions, SaveDialogOptions } from 'electron';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { randomUUID } from 'crypto';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import * as fs from 'fs';
@@ -95,6 +95,7 @@ const DEFAULT_PORT = 57321;
 const HEALTH_ENDPOINT = '/api/health';
 const HEALTH_TIMEOUT_MS = 12_000;
 const HEALTH_INTERVAL_MS = 250;
+const CLIPBOARD_CACHE_DIR = 'quickmemes-clipboard';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -688,6 +689,30 @@ async function writeClipboardImageFromMeme(memeId: number) {
 
     if (buffer.length === 0) {
         throw new Error('接收到的图片数据为空');
+    }
+
+    if (contentType === 'image/gif') {
+        const tempDir = path.join(app.getPath('temp'), CLIPBOARD_CACHE_DIR);
+        fs.mkdirSync(tempDir, { recursive: true });
+
+        const filePath = path.join(tempDir, `${memeId}-${randomUUID()}.gif`);
+        fs.writeFileSync(filePath, buffer);
+
+        const fileUrl = pathToFileURL(filePath).toString();
+        const html = `<html><body><img src="${fileUrl}"></body></html>`;
+        clipboard.write({
+            html,
+            text: fileUrl,
+        });
+        console.log(`[Electron] GIF HTML reference written to clipboard: ${filePath}`);
+
+        fetch(`http://${config.bindAddress}:${config.backendPort}/api/meme/${memeId}/use`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${backendSession.token}`,
+            },
+        }).catch(err => console.warn(`[Electron] Usage tracking failed: ${err.message}`));
+        return;
     }
 
     const image = nativeImage.createFromBuffer(buffer);
