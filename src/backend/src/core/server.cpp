@@ -36,9 +36,7 @@ bool hasRecentDatabaseBackup(const std::string &dbPath, std::chrono::hours maxAg
 		const auto now        = std::filesystem::file_time_type::clock::now();
 		const auto parentDir  = std::filesystem::path(dbPath).parent_path();
 
-		if (parentDir.empty() || !std::filesystem::exists(parentDir)) {
-			return false;
-		}
+		if (parentDir.empty() || !std::filesystem::exists(parentDir)) { return false; }
 
 		for (const auto &entry : std::filesystem::directory_iterator(parentDir)) {
 			if (!entry.is_regular_file()) continue;
@@ -46,9 +44,7 @@ bool hasRecentDatabaseBackup(const std::string &dbPath, std::chrono::hours maxAg
 			if (fileName.rfind(dbFileName, 0) != 0) continue;
 
 			const auto ftime = std::filesystem::last_write_time(entry);
-			if (now >= ftime && std::chrono::duration_cast<std::chrono::hours>(now - ftime) <= maxAge) {
-				return true;
-			}
+			if (now >= ftime && std::chrono::duration_cast<std::chrono::hours>(now - ftime) <= maxAge) { return true; }
 		}
 	} catch (...) {}
 
@@ -56,8 +52,7 @@ bool hasRecentDatabaseBackup(const std::string &dbPath, std::chrono::hours maxAg
 }
 } // namespace
 
-template <typename Body>
-void applyCorsHeaders(http::response<Body> &res) {
+template <typename Body> void applyCorsHeaders(http::response<Body> &res) {
 	res.set(http::field::access_control_allow_origin, "*");
 	res.set(http::field::access_control_allow_methods, "GET, POST, PUT, PATCH, DELETE, OPTIONS");
 	res.set(http::field::access_control_allow_headers, "Authorization, Content-Type");
@@ -78,9 +73,9 @@ public:
 
 	template <class Body, class Allocator> void run(http::request<Body, http::basic_fields<Allocator>> req) {
 		beast::websocket::stream_base::timeout opt{
-		    std::chrono::seconds(30),          // handshake_timeout
+		    std::chrono::seconds(30),              // handshake_timeout
 		    beast::websocket::stream_base::none(), // idle_timeout disabled for one-way push clients
-		    true                               // keep_alive_pings
+		    true                                   // keep_alive_pings
 		};
 		ws_.set_option(opt);
 
@@ -129,9 +124,7 @@ public:
 				shouldStartWrite = true;
 			}
 		}
-		if (shouldStartWrite) {
-			doWrite();
-		}
+		if (shouldStartWrite) { doWrite(); }
 	}
 
 	void doWrite() {

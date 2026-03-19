@@ -575,11 +575,11 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	auto    nowT = std::time(nullptr);
 	std::tm tm{};
 #ifdef _WIN32
-    localtime_s(&tm, &nowT);
+	localtime_s(&tm, &nowT);
 #else
-    localtime_r(&nowT, &tm);
+	localtime_r(&nowT, &tm);
 #endif
-	
+
 	char dirStr[16];
 	std::strftime(dirStr, sizeof(dirStr), "%Y-%m", &tm);
 	std::string relDir  = std::string(dirStr) + "/";

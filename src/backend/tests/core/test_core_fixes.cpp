@@ -96,18 +96,18 @@ TEST_F(CoreFixesTest, Server_StartBackup_DoesNotCreateDuplicateRecentBackups) {
 	db->shutdown();
 
 	ServerConfig config;
-	config.bindAddress            = "127.0.0.1";
-	config.port                   = 0;
-	config.authToken              = "test-token";
-	config.storagePath            = tempDir_->getSubPath("storage");
-	config.dbPath                 = tempDir_->getSubPath("server-startup.db");
-	config.logDir                 = tempDir_->getSubPath("logs");
-	config.logLevel               = "info";
-	config.workerCount            = 1;
-	config.maxQueueSize           = 16;
-	config.thumbnailEnabled       = false;
-	config.backupEnabled          = true;
-	config.backupRetentionDays    = 30;
+	config.bindAddress             = "127.0.0.1";
+	config.port                    = 0;
+	config.authToken               = "test-token";
+	config.storagePath             = tempDir_->getSubPath("storage");
+	config.dbPath                  = tempDir_->getSubPath("server-startup.db");
+	config.logDir                  = tempDir_->getSubPath("logs");
+	config.logLevel                = "info";
+	config.workerCount             = 1;
+	config.maxQueueSize            = 16;
+	config.thumbnailEnabled        = false;
+	config.backupEnabled           = true;
+	config.backupRetentionDays     = 30;
 	config.recycleBinRetentionDays = 30;
 
 	std::filesystem::create_directories(config.storagePath);
@@ -118,9 +118,7 @@ TEST_F(CoreFixesTest, Server_StartBackup_DoesNotCreateDuplicateRecentBackups) {
 		for (const auto &entry : std::filesystem::directory_iterator(tempDir_->getPath())) {
 			if (!entry.is_regular_file()) continue;
 			const auto fileName = entry.path().filename().string();
-			if (fileName.rfind("server-startup.db.bak.", 0) == 0) {
-				++count;
-			}
+			if (fileName.rfind("server-startup.db.bak.", 0) == 0) { ++count; }
 		}
 		return count;
 	};

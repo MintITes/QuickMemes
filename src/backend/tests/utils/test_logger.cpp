@@ -40,10 +40,10 @@ TEST_F(LoggerTest, LogWrite_AboveMinLevel_WritesToFile) {
 	auto    now   = std::chrono::system_clock::now();
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
 	std::tm tm{};
-	#ifdef _WIN32
-    localtime_s(&tm, &timeT);
+#ifdef _WIN32
+	localtime_s(&tm, &timeT);
 #else
-    localtime_r(&timeT, &tm);
+	localtime_r(&timeT, &tm);
 #endif
 	std::ostringstream date;
 	date << std::put_time(&tm, "%Y-%m-%d");
@@ -69,9 +69,9 @@ TEST_F(LoggerTest, LogWrite_BelowMinLevel_IgnoresLog) {
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
 	std::tm tm{};
 #ifdef _WIN32
-    localtime_s(&tm, &timeT);
+	localtime_s(&tm, &timeT);
 #else
-    localtime_r(&timeT, &tm);
+	localtime_r(&timeT, &tm);
 #endif
 	std::ostringstream date;
 	date << std::put_time(&tm, "%Y-%m-%d");

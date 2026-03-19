@@ -244,8 +244,8 @@ void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 			res.status = 200;
 			res.body   = makeSuccessResponse(nlohmann::json{
-			      {   "success",                        true},
-			      {"lastUsedAt", static_cast<int64_t>(nowMs)}
+			    {   "success",                        true},
+			    {"lastUsedAt", static_cast<int64_t>(nowMs)}
             });
 		} else {
 			res.status = 404;
@@ -648,7 +648,7 @@ void handleDeleteTrashPurge(const HttpRequestProxy &req, HttpResponseProxy &res)
 
 		int            deleted = Database::get().purgeDeletedMemes(retentionDays);
 		nlohmann::json data    = {
-            {"purged", deleted}
+		    {"purged", deleted}
         };
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
@@ -958,7 +958,7 @@ void handlePostAdminRebuildEmbeddings(const HttpRequestProxy &req, HttpResponseP
 	}
 	std::string    taskId = TaskQueue::get().submitRebuildTask();
 	nlohmann::json data   = {
-        {"taskId", taskId}
+	    {"taskId", taskId}
     };
 	res.status = 200; // Standardized to 200 OK
 	res.body   = makeSuccessResponse(data);

@@ -31,4 +31,3 @@
 
 // nlohmann/json (linked by all targets)
 #include <nlohmann/json.hpp>
-

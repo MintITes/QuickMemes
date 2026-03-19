@@ -351,8 +351,8 @@ private:
 	 */
 	SearchSql buildSearchSql(const SearchQuery &query);
 
-	std::unique_ptr<SQLite::Database> db_;      ///< SQLiteCpp 数据库实例
-	std::string                       dbPath_;  ///< 数据库文件路径
+	std::unique_ptr<SQLite::Database> db_;     ///< SQLiteCpp 数据库实例
+	std::string                       dbPath_; ///< 数据库文件路径
 #if defined(__MINGW32__) || defined(__MINGW64__)
 	mutable std::mutex dbMutex_; ///< MinGW shared_mutex 实现不稳定，回退到互斥锁
 #else

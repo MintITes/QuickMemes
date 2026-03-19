@@ -66,15 +66,15 @@ TEST_F(MemeDbTest, UpdateCategory_PartialPatch_UpdatesFields) {
 
 TEST_F(MemeDbTest, UpdateCategory_Position_ReordersCategories) {
 	Category first;
-	first.name  = "First";
-	first.color = "#111111";
-	first.uuid  = "u-first";
+	first.name            = "First";
+	first.color           = "#111111";
+	first.uuid            = "u-first";
 	const int64_t firstId = db->insertCategory(first);
 
 	Category second;
-	second.name  = "Second";
-	second.color = "#222222";
-	second.uuid  = "u-second";
+	second.name            = "Second";
+	second.color           = "#222222";
+	second.uuid            = "u-second";
 	const int64_t secondId = db->insertCategory(second);
 
 	CategoryPatch patch;
@@ -156,7 +156,7 @@ TEST_F(MemeDbTest, SearchByCategory_FiltersCorrectly) {
 	db->updateMemeCategory(m2id, id2);
 	// m3 remains fully uncategorized (no category, no tags, no OCR)
 	Tag tag;
-	tag.name = "has-tag";
+	tag.name      = "has-tag";
 	int64_t tagId = db->insertTag(tag);
 	ASSERT_TRUE(db->addMemeTag(m5id, tagId));
 

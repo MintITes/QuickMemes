@@ -27,8 +27,8 @@ extern "C" int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_
 
 namespace {
 static std::string generateUuidV4() {
-	thread_local std::random_device rd;
-	thread_local std::mt19937_64   gen(rd());
+	thread_local std::random_device    rd;
+	thread_local std::mt19937_64       gen(rd());
 	std::uniform_int_distribution<int> hexDist(0, 15);
 	std::uniform_int_distribution<int> variantDist(8, 11);
 
@@ -808,15 +808,9 @@ bool Database::updateCategory(int64_t id, const CategoryPatch &patch) {
 	try {
 		std::string sql = "UPDATE categories SET updated_at = ?";
 
-		if (patch.name) {
-			sql += ", name = ?";
-		}
-		if (patch.color) {
-			sql += ", color = ?";
-		}
-		if (patch.position) {
-			sql += ", position = ?";
-		}
+		if (patch.name) { sql += ", name = ?"; }
+		if (patch.color) { sql += ", color = ?"; }
+		if (patch.position) { sql += ", position = ?"; }
 		sql += " WHERE id = ?";
 
 		SQLite::Statement stmt(*db_, sql);
@@ -865,11 +859,10 @@ bool Database::deleteCategory(int64_t id) {
 std::vector<Category> Database::getCategories() {
 	std::shared_lock lock(dbMutex_);
 	try {
-		SQLite::Statement stmt(
-		    *db_,
-		    "SELECT id, uuid, name, color, position, created_at, updated_at "
-		    "FROM categories "
-		    "ORDER BY position ASC, created_at ASC, id ASC");
+		SQLite::Statement     stmt(*db_,
+		                           "SELECT id, uuid, name, color, position, created_at, updated_at "
+		                           "FROM categories "
+		                           "ORDER BY position ASC, created_at ASC, id ASC");
 		std::vector<Category> results;
 		while (stmt.executeStep()) {
 			Category c;

@@ -24,7 +24,7 @@ TEST_F(IntegrationTest, FullFlow_HandledRequest_TriggersWs) {
 	// 1. Setup mock session in WsPusher
 	std::string receivedPayload;
 	auto        mockCb = [&](std::shared_ptr<std::string> msg) {
-        receivedPayload = *msg;
+		receivedPayload = *msg;
 	};
 	WsSendCallback cb = mockCb;
 	WsPusher::get().addSession(&cb);

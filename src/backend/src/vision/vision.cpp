@@ -150,9 +150,9 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 	nlohmann::json requestBody;
 	requestBody["model"]      = config_.visionModel;
 	requestBody["messages"]   = nlohmann::json::array({
-        {{"role", "system"},{"content", systemPrompt}                    },
-        {  {"role", "user"},
-         {"content",
+	    {{"role", "system"},{"content", systemPrompt}                      },
+	    {  {"role", "user"},
+	     {"content",
          nlohmann::json::array(
          {{{"type", "image_url"}, {"image_url", {{"url", "data:image/jpeg;base64," + imageBase64}}}},
          {{"type", "text"}, {"text", userText}}})}}
