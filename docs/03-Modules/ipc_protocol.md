@@ -313,6 +313,15 @@ RuntimeConfigPatch {
  - **可能错误**：`ERR_NOT_FOUND`
  
  ---
+
+### `POST /api/meme/:id/ocr` — 手动触发 Meme OCR
+
+- **描述**：手动为指定 Meme 重新触发一次 OCR 识别，异步执行，完成后更新 `ocrText` 与 `ocrStatus`
+- **路径参数**：`id`：Meme ID（`int64`）
+- **成功响应**：`ApiResponse<{ taskId: string }>` — 后台任务 ID
+- **可能错误**：`ERR_NOT_FOUND`、`ERR_OCR_NOT_READY`
+
+---
  
  ### `DELETE /api/meme/:id` — 软删除 Meme
 

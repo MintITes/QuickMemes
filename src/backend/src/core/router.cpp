@@ -120,6 +120,16 @@ Router::Router()
 	                               handlePostMemeUse});
 
 	impl->dynamicRoutes.push_back({[](const std::string &key) {
+		                               const std::string p = "POST /api/meme/";
+		                               if (key.compare(0, p.size(), p) != 0) return false;
+		                               auto   rest = key.substr(p.size());
+		                               size_t pos  = rest.find('/');
+		                               return pos != std::string::npos &&
+		                                      (rest.substr(pos) == "/ocr" || rest.substr(pos) == "/ocr/");
+	                               },
+	                               handlePostMemeOcr});
+
+	impl->dynamicRoutes.push_back({[](const std::string &key) {
 		                               const std::string p = "DELETE /api/tags/";
 		                               if (key.compare(0, p.size(), p) != 0) return false;
 		                               auto rest = key.substr(p.size());

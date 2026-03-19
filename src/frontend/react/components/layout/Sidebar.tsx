@@ -13,11 +13,25 @@ import { Portal } from '../common/Portal';
 import { ColorPicker } from '../common/ColorPicker';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import type { DragEndEvent } from '@dnd-kit/core';
+import type { DraggableAttributes } from '@dnd-kit/core';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-function SortableItem({ id, children }: { id: number, children: (props: { attributes: any, listeners: any, setNodeRef: (node: HTMLElement | null) => void, style: React.CSSProperties, isDragging: boolean }) => React.ReactNode }) {
+function SortableItem({
+    id,
+    children,
+}: {
+    id: number;
+    children: (props: {
+        attributes: DraggableAttributes;
+        listeners: SyntheticListenerMap | undefined;
+        setNodeRef: (node: HTMLElement | null) => void;
+        style: React.CSSProperties;
+        isDragging: boolean;
+    }) => React.ReactNode;
+}) {
     const {
         attributes,
         listeners,

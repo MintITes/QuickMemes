@@ -10,6 +10,7 @@ void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handleGetMeme(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handlePutMeme(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res);
+void handlePostMemeOcr(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handlePostTags(const HttpRequestProxy &req, HttpResponseProxy &res);

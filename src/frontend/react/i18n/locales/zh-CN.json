@@ -161,6 +161,8 @@
         "loading_asset": "正在加载资源",
         "no_tags": "尚未添加标签",
         "ocr_placeholder": "描述这张梗图，或等待 OCR 识别...",
+        "ocr_trigger": "重新触发 OCR",
+        "ocr_started": "OCR 任务已启动",
         "source_placeholder": "粘贴来源链接...",
         "no_selection": "未选中",
         "no_selection_desc": "选择一个或多个梗图以查看详情和操作。",

@@ -17,6 +17,7 @@ public:
 	void shutdown();
 
 	std::string        submitImportTask(const ImportRequest &request);
+	std::string        submitMemeOcrTask(int64_t memeId);
 	std::string        submitRebuildTask();
 	std::string        submitThumbnailTask(int64_t memeId);
 	bool               cancelTask(const std::string &taskId);

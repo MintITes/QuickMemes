@@ -257,6 +257,36 @@ void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	}
 }
 
+void handlePostMemeOcr(const HttpRequestProxy &req, HttpResponseProxy &res) {
+	try {
+		std::regex  re(R"(^/api/memes?/(\d+)/ocr/?$)");
+		std::smatch match;
+		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
+			throw std::invalid_argument("ID not found in path");
+		}
+		int64_t id = std::stoll(match[1].str());
+
+		if (!VisionModule::get().isOcrAvailable()) {
+			res.status = 503;
+			res.body   = makeErrorResponse(ERR_OCR_NOT_READY, "OCR unavailable");
+			return;
+		}
+
+		std::string taskId = TaskQueue::get().submitMemeOcrTask(id);
+		nlohmann::json data = {
+		    {"taskId", taskId}
+        };
+		res.status = 200;
+		res.body   = makeSuccessResponse(data);
+	} catch (const ApiException &e) {
+		res.status = (e.code() == ERR_NOT_FOUND) ? 404 : (e.code() == ERR_OCR_NOT_READY ? 503 : 400);
+		res.body   = makeErrorResponse(e.code(), e.what());
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
+		res.status = 400;
+		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
+	}
+}
+
 void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		std::regex  re(R"(^/api/memes?/(\d+)/file/?$)");

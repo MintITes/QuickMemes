@@ -38,6 +38,22 @@ TEST_F(MemeDbTest, SearchMemes_NameKeywordSupportsPartialMatch) {
 	EXPECT_EQ(results.items[0].fileHash, "hash_search_name_partial");
 }
 
+TEST_F(MemeDbTest, SearchMemes_OcrKeywordSupportsPartialMatch) {
+	MemeEntry meme;
+	meme.fileHash = "hash_search_ocr_partial";
+	meme.filePath = getSubPath("ocr_partial.png");
+	meme.mimeType = "image/png";
+	meme.ocrText   = "识别到的中文文本";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword    = "中文文";
+	auto results = db->searchMemes(q);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_ocr_partial");
+}
+
 TEST_F(MemeDbTest, SearchMemes_TagKeyword_ReturnsMatchingResults) {
 	MemeEntry meme;
 	meme.fileHash  = "hash_search_tag_1";

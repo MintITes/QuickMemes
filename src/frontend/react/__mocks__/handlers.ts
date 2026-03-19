@@ -9,5 +9,8 @@ export const handlers = [
     http.post('http://127.0.0.1:57321/api/memes/search', () =>
         HttpResponse.json({ success: true, data: { items: [], total: 0 }, error: '', code: 0 })
     ),
+    http.post('http://127.0.0.1:57321/api/meme/:id/ocr', ({ params }) =>
+        HttpResponse.json({ success: true, data: { taskId: `ocr-${params.id}` }, error: '', code: 0 })
+    ),
     http.get('http://127.0.0.1:57321/api/memes/trash', () => HttpResponse.json({ success: true, data: [], error: '', code: 0 })),
 ];

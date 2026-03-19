@@ -12,6 +12,7 @@ import {
     Trash2,
     Download,
     MousePointer2,
+    Play,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
@@ -19,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 import type { Meme } from '../../types';
 import { EmptyState } from '../common/EmptyState';
 import { getFileUrl, revokeAssetUrl } from '../../services/assetService';
-import { updateMeme as updateMemeRemote } from '../../services/memeService';
+import { updateMeme as updateMemeRemote, triggerMemeOcr } from '../../services/memeService';
 import { addTagToMeme, createTag, fetchTags, removeTagFromMeme } from '../../services/tagService';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { HttpError } from '../../api/httpClient';
@@ -124,6 +125,23 @@ function MemeDetails({ meme }: { meme: Meme }) {
             upsertMeme(updated);
         } catch (error) {
             upsertMeme(meme);
+            addNotification({
+                type: 'error',
+                title: t('common.save_failed'),
+                description: error instanceof Error ? error.message : String(error),
+            });
+        }
+    };
+
+    const handleTriggerOcr = async () => {
+        try {
+            await triggerMemeOcr(meme.id);
+            addNotification({
+                type: 'success',
+                title: t('inspector.ocr_started'),
+                description: meme.name,
+            });
+        } catch (error) {
             addNotification({
                 type: 'error',
                 title: t('common.save_failed'),
@@ -306,9 +324,16 @@ function MemeDetails({ meme }: { meme: Meme }) {
                     onBlur={() => void persistPatch({ description: editingDescription })}
                 />
                 <button
+                    onClick={handleTriggerOcr}
+                    className="absolute bottom-3 right-1 p-1.5 bg-white/80 dark:bg-black/80 rounded-md shadow-sm border border-black/5 dark:border-white/10 opacity-0 group-hover/desc:opacity-100 transition-opacity text-textSecondary hover:text-accent backdrop-blur-md active:scale-90"
+                    title={t('inspector.ocr_trigger')}
+                >
+                    <Play size={12} fill="currentColor" />
+                </button>
+                <button
                     onClick={handleCopyOcr}
                     disabled={!meme.ocrText}
-                    className="absolute top-2 right-2 p-1.5 bg-white/80 dark:bg-black/80 rounded-md shadow-sm border border-black/5 dark:border-white/10 opacity-0 group-hover/desc:opacity-100 transition-opacity disabled:opacity-0 text-textSecondary hover:text-accent backdrop-blur-md"
+                    className="absolute top-2 right-1 p-1.5 bg-white/80 dark:bg-black/80 rounded-md shadow-sm border border-black/5 dark:border-white/10 opacity-0 group-hover/desc:opacity-100 transition-opacity disabled:opacity-0 text-textSecondary hover:text-accent backdrop-blur-md"
                     title="Copy text"
                 >
                     {copySuccess ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}

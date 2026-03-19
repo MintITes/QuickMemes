@@ -1,5 +1,5 @@
 import { sendHttpRequest } from '../api/httpClient';
-import type { Meme, SearchQuery, SearchResult } from '../types';
+import type { Meme, SearchQuery, SearchResult, TaskHandle } from '../types';
 import type { SearchQuery as UiSearchQuery } from '../stores/UiStore';
 
 function getTimeRange(dateRange: UiSearchQuery['dateRange']) {
@@ -102,6 +102,10 @@ export async function updateMeme(id: number, patch: Partial<Pick<Meme, 'name' | 
     return sendHttpRequest<Meme>('PUT', `/api/meme/${id}`, patch);
 }
 
+export async function triggerMemeOcr(id: number) {
+    return sendHttpRequest<TaskHandle>('POST', `/api/meme/${id}/ocr`);
+}
+
 export async function moveMemesToCategory(memeIds: number[], categoryId: number) {
     return sendHttpRequest<{ succeeded: number; failed: number }>('POST', '/api/memes/batch/category', { memeIds, categoryId });
 }
@@ -109,4 +113,3 @@ export async function moveMemesToCategory(memeIds: number[], categoryId: number)
 export async function exportMemes(memeIds: number[], destDir: string) {
     return sendHttpRequest<{ succeeded: number; failed: number; errors: string[] }>('POST', '/api/export', { memeIds, destDir });
 }
-

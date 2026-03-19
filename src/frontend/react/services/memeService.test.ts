@@ -1,7 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { buildBackendSearchQuery } from './memeService';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildBackendSearchQuery, triggerMemeOcr } from './memeService';
+
+const sendHttpRequestMock = vi.fn();
+
+vi.mock('../api/httpClient', () => ({
+    sendHttpRequest: (...args: unknown[]) => sendHttpRequestMock(...args),
+}));
 
 describe('memeService', () => {
+    beforeEach(() => {
+        sendHttpRequestMock.mockReset();
+        sendHttpRequestMock.mockResolvedValue({ taskId: 'ocr-1' });
+    });
+
     it('maps untagged nav to backend uncategorized filter', () => {
         const query = buildBackendSearchQuery(
             {
@@ -16,5 +27,11 @@ describe('memeService', () => {
         );
 
         expect(query.categoryId).toBe(-1);
+    });
+
+    it('uses the backend manual OCR route', async () => {
+        await triggerMemeOcr(42);
+
+        expect(sendHttpRequestMock).toHaveBeenCalledWith('POST', '/api/meme/42/ocr');
     });
 });

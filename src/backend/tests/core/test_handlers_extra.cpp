@@ -8,9 +8,18 @@
 #include "core/handlers.hpp"
 #include "core/task_queue.hpp"
 #include "db/database.hpp"
+#include "vision/vision.hpp"
 
+#include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
+#include <thread>
+
+using ::testing::_;
+using ::testing::NiceMock;
+using ::testing::Return;
 
 namespace quickmemes { namespace testing {
 
@@ -20,14 +29,24 @@ protected:
 		MemeDbTest::SetUp();
 		tempDir_ = std::make_unique<TestDirectory>();
 		TaskQueue::get().initialize(1, 100, tempDir_->getSubPath("storage"));
+
+		mockHttp_ = std::make_shared<NiceMock<MockHttpClient>>();
+		VisionConfig config;
+		config.ocrProvider = "PaddleOCR";
+		config.ocrApiKey   = "ocr-key";
+		config.ocrApiUrl   = "https://ocr.example.com";
+		VisionModule::get().setHttpClient(mockHttp_);
+		VisionModule::get().initialize(config);
 	}
 
 	void TearDown() override {
+		VisionModule::get().shutdown();
 		TaskQueue::get().shutdown();
 		tempDir_.reset();
 		MemeDbTest::TearDown();
 	}
 	std::unique_ptr<TestDirectory> tempDir_;
+	std::shared_ptr<NiceMock<MockHttpClient>> mockHttp_;
 };
 
 /**
@@ -134,6 +153,59 @@ TEST_F(HandlersExtraTest, TrashManagement_Workflow_Success) {
 	handleGetMemesTrash(req, res);
 	auto jFinal = nlohmann::json::parse(res.body);
 	EXPECT_EQ(jFinal["data"]["total"].get<int>(), 0);
+}
+
+TEST_F(HandlersExtraTest, ManualOcr_ByMemeId_UpdatesDatabaseAndReturnsTaskId) {
+	tempDir_->createSubDirs("storage/2026-03");
+	auto imagePath = tempDir_->getSubPath("storage/2026-03/sample.ppm");
+	std::ofstream ofs(imagePath, std::ios::binary);
+	ofs << "P6\n1 1\n255\n";
+	const unsigned char pixel[] = {255, 255, 255};
+	ofs.write(reinterpret_cast<const char *>(pixel), sizeof(pixel));
+	ofs.close();
+
+	MemeEntry meme;
+	meme.fileHash = "manual-ocr-hash";
+	meme.filePath = "2026-03/sample.ppm";
+	meme.mimeType = "image/jpeg";
+	int64_t memeId = db->insertMeme(meme);
+
+	EXPECT_CALL(*mockHttp_,
+	            post("https://ocr.example.com/ocr",
+	                 ::testing::HasSubstr("Authorization: token ocr-key"),
+	                 ::testing::AllOf(::testing::HasSubstr("\"fileType\":1"),
+	                                  ::testing::HasSubstr("\"file\":\""),
+	                                  ::testing::HasSubstr("\"visualize\":false")),
+	                 _))
+	    .WillOnce(Return(R"({"errorCode":0,"errorMsg":"Success","result":{"ocrResults":[{"prunedResult":{"res":{"rec_texts":["manual","ocr"]}}}]}})"));
+
+	HttpRequestProxy req;
+	req.path        = "/api/meme/" + std::to_string(memeId) + "/ocr";
+	req.method      = "POST";
+	req.header_auth = "Bearer test-token";
+	HttpResponseProxy res;
+
+	handlePostMemeOcr(req, res);
+
+	EXPECT_EQ(res.status, 200);
+	auto resp = nlohmann::json::parse(res.body);
+	EXPECT_TRUE(resp["success"].get<bool>());
+	EXPECT_FALSE(resp["data"]["taskId"].get<std::string>().empty());
+
+	bool updated = false;
+	for (int i = 0; i < 40; ++i) {
+		auto current = db->getMeme(memeId);
+		if (current.ocrStatus == ProcessingStatus::DONE && current.ocrText == "manual\nocr") {
+			updated = true;
+			break;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	}
+
+	EXPECT_TRUE(updated);
+	auto updatedMeme = db->getMeme(memeId);
+	EXPECT_EQ(updatedMeme.ocrStatus, ProcessingStatus::DONE);
+	EXPECT_EQ(updatedMeme.ocrText, "manual\nocr");
 }
 
 }} // namespace quickmemes::testing

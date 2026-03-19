@@ -1221,12 +1221,15 @@ SearchSql Database::buildSearchSql(const SearchQuery &query) {
 
 	if (!query.keyword.empty()) {
 		res.whereClauses.push_back(
-		    "(m.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH ?) OR lower(m.name) LIKE lower(?) OR EXISTS ("
+		    "(m.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH ?) OR lower(m.name) LIKE lower(?) OR "
+		    "lower(m.description) LIKE lower(?) OR lower(m.ocr_text) LIKE lower(?) OR EXISTS ("
 		    "SELECT 1 FROM meme_tags mt_keyword "
 		    "JOIN tags t_keyword ON t_keyword.id = mt_keyword.tag_id "
 		    "WHERE mt_keyword.meme_id = m.id AND lower(t_keyword.name) LIKE lower(?)"
 		    "))");
 		res.params.push_back(query.keyword);
+		res.params.push_back("%" + query.keyword + "%");
+		res.params.push_back("%" + query.keyword + "%");
 		res.params.push_back("%" + query.keyword + "%");
 		res.params.push_back("%" + query.keyword + "%");
 	}

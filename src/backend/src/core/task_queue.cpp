@@ -158,6 +158,13 @@ std::string generateUUIDv4() {
 	thread_local boost::uuids::random_generator generator;
 	return boost::uuids::to_string(generator());
 }
+
+std::string buildStoredFilePath(const std::string &storageRoot, const std::string &filePath) {
+	std::string root = storageRoot;
+	if (root.empty()) root = "storage";
+	if (root.back() != '/') root += '/';
+	return root + filePath;
+}
 } // namespace
 
 struct TaskState {
@@ -308,6 +315,90 @@ std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 			} catch (...) { markItemDone(state, pipeline.taskId, false, "Unknown pipeline error"); }
 		});
 	}
+
+	return taskId;
+}
+
+std::string TaskQueue::submitMemeOcrTask(int64_t memeId) {
+	if (!impl_->aiPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
+
+	if (impl_->currentPending >= impl_->maxQueueSize) { throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full"); }
+
+	std::string taskId = "ocr-" + std::to_string(memeId) + "-" + generateUUIDv4();
+	auto        state  = std::make_shared<TaskState>();
+	state->totalItems  = 1;
+
+	{
+		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
+		impl_->activeTasks[taskId] = state;
+	}
+
+	impl_->currentPending++;
+	boost::asio::post(*impl_->aiPool, [this, memeId, taskId, state]() {
+		if (state->cancelled) {
+			markItemDone(state, taskId, false, "Cancelled");
+			return;
+		}
+
+		try {
+			LOG_INFO("queue", "Manual OCR task started for meme: " + std::to_string(memeId));
+			WsEvent progEvent;
+			progEvent.event   = "task:progress";
+			progEvent.payload = {
+			    {"taskId",       taskId},
+			    {"status", "processing"},
+			    {"memeId",       memeId}
+            };
+			WsPusher::get().broadcast(progEvent);
+
+			auto meme = Database::get().getMeme(memeId);
+			if (meme.deletedAt > 0) {
+				throw ApiException(ERR_INVALID_PARAMS, "Cannot OCR a deleted meme");
+			}
+
+			std::string actualPath = buildStoredFilePath(impl_->storagePath, meme.filePath);
+			if (!std::filesystem::exists(actualPath)) {
+				throw ApiException(ERR_NOT_FOUND, "Source file not found for meme " + std::to_string(memeId));
+			}
+
+			VisionModule &vision = VisionModule::get();
+			if (!vision.isOcrAvailable()) {
+				throw ApiException(ERR_OCR_NOT_READY, "OCR service unavailable");
+			}
+
+			auto res = vision.recognize(actualPath);
+			ProcessingStatus ocrStatus = res.success ? ProcessingStatus::DONE : ProcessingStatus::FAILED;
+			std::string      ocrText   = res.success ? res.fullText : "";
+
+			Database::get().updateMemeProcessing(memeId, ocrStatus, meme.aiStatus, ocrText, meme.description);
+
+			auto updatedMeme = Database::get().getMeme(memeId);
+			WsPusher::get().broadcast({"meme:updated", updatedMeme});
+
+			if (!res.success) {
+				throw ApiException(ERR_OCR_FAILED, res.error.empty() ? "OCR failed" : res.error);
+			}
+
+			markItemDone(state, taskId, true, "");
+		} catch (const ApiException &e) {
+			LOG_ERROR("queue", "Manual OCR task failed: " + std::string(e.what()));
+			try {
+				auto meme = Database::get().getMeme(memeId);
+				Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, meme.aiStatus, "", meme.description);
+			} catch (...) {}
+			markItemDone(state, taskId, false, e.what());
+		} catch (const std::exception &e) {
+			LOG_ERROR("queue", "Manual OCR task failed: " + std::string(e.what()));
+			try {
+				auto meme = Database::get().getMeme(memeId);
+				Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, meme.aiStatus, "", meme.description);
+			} catch (...) {}
+			markItemDone(state, taskId, false, "OCR task error: " + std::string(e.what()));
+		} catch (...) {
+			LOG_ERROR("queue", "Manual OCR task failed: unknown error");
+			markItemDone(state, taskId, false, "Unknown OCR task error");
+		}
+	});
 
 	return taskId;
 }

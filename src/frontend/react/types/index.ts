@@ -106,6 +106,10 @@ export interface ImportTask {
     createdAt: number;
 }
 
+export interface TaskHandle {
+    taskId: string;
+}
+
 export interface RuntimeConfigPatch {
     aiApiKey?: string;
     aiApiBaseUrl?: string;

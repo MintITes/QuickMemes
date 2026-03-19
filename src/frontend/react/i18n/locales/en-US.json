@@ -161,6 +161,8 @@
         "loading_asset": "Loading Asset",
         "no_tags": "No tags assigned.",
         "ocr_placeholder": "Describe this meme or wait for OCR...",
+        "ocr_trigger": "Retrigger OCR",
+        "ocr_started": "OCR task started",
         "source_placeholder": "Paste source URL...",
         "no_selection": "No selection",
         "no_selection_desc": "Select one or more memes to see details and actions.",
