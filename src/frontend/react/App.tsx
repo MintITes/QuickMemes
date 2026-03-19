@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { MainShell } from './components/layout/MainShell';
 import { useUiStore } from './stores/UiStore';
 import i18n from './i18n/config';
@@ -235,7 +235,9 @@ function App() {
 
             void searchMemes(buildBackendSearchQuery(searchQuery, activeNav))
                 .then((result) => {
-                    setMemes(result.items.map((item) => item.meme), result.total);
+                    startTransition(() => {
+                        setMemes(result.items.map((item) => item.meme), result.total);
+                    });
                 })
                 .catch(() => {
                     // Keep the optimistic timestamp update if the background refresh fails.
@@ -295,14 +297,18 @@ function App() {
                 if (activeNav === 'trash') {
                     const result = await fetchTrashMemes();
                     if (!cancelled) {
-                        setMemes(result.items.map((item) => item.meme), result.total);
+                        startTransition(() => {
+                            setMemes(result.items.map((item) => item.meme), result.total);
+                        });
                     }
                     return;
                 }
 
                 const result = await searchMemes(buildBackendSearchQuery(searchQuery, activeNav));
                 if (!cancelled) {
-                    setMemes(result.items.map((item) => item.meme), result.total);
+                    startTransition(() => {
+                        setMemes(result.items.map((item) => item.meme), result.total);
+                    });
                 }
             } catch (error) {
                 if (!cancelled) {
@@ -315,7 +321,9 @@ function App() {
                         title: '加载失败',
                         description: message,
                     });
-                    setMemes([], 0);
+                    startTransition(() => {
+                        setMemes([], 0);
+                    });
                 }
             } finally {
                 if (!cancelled) {

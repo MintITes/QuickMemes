@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
 import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore, PanelLeft, PanelLeftClose, Plus, MoreHorizontal, Pencil } from 'lucide-react';
@@ -21,6 +21,10 @@ interface CategoryMenuState {
 }
 
 const CATEGORY_MENU_VIEWPORT_PADDING = 12;
+
+const parseActiveCategoryId = (activeNav: string) => (
+    activeNav.startsWith('category-') ? Number(activeNav.replace('category-', '')) : null
+);
 
 const clampCategoryMenuPosition = (
     position: { top: number; left: number },
@@ -59,12 +63,19 @@ export function Sidebar() {
     const categoryIconPreviewColorsRef = useRef(new Map<number, string>());
     const categoryColorRequestSeqRef = useRef(new Map<number, number>());
     const categoryMenuRef = useRef<HTMLDivElement | null>(null);
+    const previousActiveCategoryIdRef = useRef<number | null>(parseActiveCategoryId(activeNav));
+    const activeNavRef = useRef(activeNav);
 
     const PRESET_COLORS = [
         '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
         '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
         '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#2563eb'
     ];
+
+    const categoriesById = useMemo(
+        () => new Map(categories.map((category) => [category.id, category])),
+        [categories]
+    );
 
     const getNavClass = (id: string) => {
         const isActive = activeNav === id;
@@ -98,7 +109,7 @@ export function Sidebar() {
         const handleGlobalAction = () => {
             if (categoryMenu.panel === 'customColor') {
                 categoryIconPreviewColorsRef.current.delete(categoryMenu.categoryId);
-                const category = categories.find((entry) => entry.id === categoryMenu.categoryId);
+                const category = categoriesById.get(categoryMenu.categoryId);
                 if (category) {
                     const iconNode = categoryIconRefs.current.get(category.id);
                     if (iconNode) {
@@ -122,7 +133,7 @@ export function Sidebar() {
         return () => {
             window.removeEventListener('scroll', handleScroll, true);
         };
-    }, [categoryMenu, categories, activeNav]);
+    }, [categoryMenu, categoriesById, activeNav]);
 
     useEffect(() => {
         if (!categoryMenu || !categoryMenuRef.current) {
@@ -223,7 +234,7 @@ export function Sidebar() {
             if (!target.closest('[data-category-menu-root="true"], .category-portal-menu')) {
                 if (categoryMenu.panel === 'customColor') {
                     categoryIconPreviewColorsRef.current.delete(categoryMenu.categoryId);
-                    const category = categories.find((entry) => entry.id === categoryMenu.categoryId);
+                    const category = categoriesById.get(categoryMenu.categoryId);
                     if (category) {
                         const iconNode = categoryIconRefs.current.get(category.id);
                         if (iconNode) {
@@ -239,7 +250,7 @@ export function Sidebar() {
             if (event.key === 'Escape') {
                 if (categoryMenu.panel === 'customColor') {
                     categoryIconPreviewColorsRef.current.delete(categoryMenu.categoryId);
-                    const category = categories.find((entry) => entry.id === categoryMenu.categoryId);
+                    const category = categoriesById.get(categoryMenu.categoryId);
                     if (category) {
                         const iconNode = categoryIconRefs.current.get(category.id);
                         if (iconNode) {
@@ -258,7 +269,7 @@ export function Sidebar() {
             document.removeEventListener('mousedown', handlePointerDown);
             document.removeEventListener('keydown', handleEsc);
         };
-    }, [categoryMenu, categories, activeNav]);
+    }, [categoryMenu, categoriesById, activeNav]);
 
     useEffect(() => {
         if (categoryMenu && !categories.some((category) => category.id === categoryMenu.categoryId)) {
@@ -286,11 +297,15 @@ export function Sidebar() {
 
     const clearCategoryIconPreview = (categoryId: number) => {
         categoryIconPreviewColorsRef.current.delete(categoryId);
-        const category = categories.find((entry) => entry.id === categoryId);
+        const category = categoriesById.get(categoryId);
         if (category) {
             syncCategoryIconPreview(category);
         }
     };
+
+    useEffect(() => {
+        activeNavRef.current = activeNav;
+    }, [activeNav]);
 
     useEffect(() => {
         categories.forEach((category) => {
@@ -303,10 +318,43 @@ export function Sidebar() {
             applyCategoryIconStyle(
                 iconNode,
                 previewColor || getCategoryBaseColor(category),
-                activeNav === `category-${category.id}`
+                activeNavRef.current === `category-${category.id}`
             );
         });
-    }, [categories, activeNav]);
+        previousActiveCategoryIdRef.current = parseActiveCategoryId(activeNavRef.current);
+    }, [categories]);
+
+    useEffect(() => {
+        const nextActiveCategoryId = parseActiveCategoryId(activeNav);
+        const previousActiveCategoryId = previousActiveCategoryIdRef.current;
+
+        if (previousActiveCategoryId === nextActiveCategoryId) {
+            return;
+        }
+
+        const syncCategoryIcon = (categoryId: number | null) => {
+            if (categoryId === null) {
+                return;
+            }
+
+            const category = categoriesById.get(categoryId);
+            if (!category) {
+                return;
+            }
+
+            const previewColor = categoryIconPreviewColorsRef.current.get(category.id);
+            const iconNode = categoryIconRefs.current.get(category.id);
+            if (!iconNode) {
+                return;
+            }
+
+            applyCategoryIconStyle(iconNode, previewColor || getCategoryBaseColor(category), nextActiveCategoryId === category.id);
+        };
+
+        syncCategoryIcon(previousActiveCategoryId);
+        syncCategoryIcon(nextActiveCategoryId);
+        previousActiveCategoryIdRef.current = nextActiveCategoryId;
+    }, [activeNav, categoriesById]);
 
     const closeCategoryMenu = () => {
         if (categoryMenu?.panel === 'customColor') {

@@ -69,6 +69,17 @@ export function ContextMenu() {
     const categories = useCategoryStore(state => state.categories);
     const addNotification = useNotificationStore(state => state.addNotification);
 
+    const visibleCategories = useMemo(() => {
+        const seenIds = new Set<number>();
+        return categories.filter((category) => {
+            if (!Number.isInteger(category.id) || category.id <= 0 || seenIds.has(category.id)) {
+                return false;
+            }
+            seenIds.add(category.id);
+            return true;
+        });
+    }, [categories]);
+
     const menuRef = useRef<HTMLDivElement>(null);
     const subMenuRef = useRef<HTMLDivElement>(null);
     const subMenuAnchorRef = useRef<HTMLDivElement>(null);
@@ -160,7 +171,7 @@ export function ContextMenu() {
         }
 
         const anchorRect = subMenuAnchorRef.current.getBoundingClientRect();
-        const estimatedHeight = Math.min(300, (categories.length + 1) * 36 + 12);
+        const estimatedHeight = Math.min(300, (visibleCategories.length + 1) * 36 + 12);
         const maxTop = Math.max(VIEWPORT_PADDING, window.innerHeight - estimatedHeight - VIEWPORT_PADDING);
         const maxLeft = Math.max(VIEWPORT_PADDING, window.innerWidth - SUBMENU_WIDTH - VIEWPORT_PADDING);
         const rawLeft = subMenuPosition.side === 'right'
@@ -171,7 +182,7 @@ export function ContextMenu() {
             top: Math.min(Math.max(anchorRect.top, VIEWPORT_PADDING), maxTop),
             left: Math.min(Math.max(rawLeft, VIEWPORT_PADDING), maxLeft),
         });
-    }, [isSubMenuOpen, categories.length, subMenuPosition.side]);
+    }, [isSubMenuOpen, visibleCategories.length, subMenuPosition.side]);
 
 
     const handleMouseEnterMenuItem = (index: number, hasSubMenu: boolean) => {
@@ -356,9 +367,12 @@ export function ContextMenu() {
 
         const handleKeyDown = (e: KeyboardEvent) => {
             const menuLength = 6; // Number of items in main menu
-            const subMenuLength = categories.length;
+            const subMenuLength = visibleCategories.length;
 
             if (isSubMenuOpen) {
+                if (subMenuLength === 0) {
+                    return;
+                }
                 // Navigating SubMenu
                 if (e.key === 'ArrowDown') {
                     e.preventDefault();
@@ -374,7 +388,10 @@ export function ContextMenu() {
                     setIsSubMenuOpen(false);
                 } else if (e.key === 'Enter' && subMenuFocusedIndex >= 0) {
                     e.preventDefault();
-                    handleMoveToCategory(categories[subMenuFocusedIndex].id);
+                    const focusedCategory = visibleCategories[subMenuFocusedIndex];
+                    if (focusedCategory) {
+                        handleMoveToCategory(focusedCategory.id);
+                    }
                 }
             } else {
                 // Navigating MainMenu
@@ -402,143 +419,141 @@ export function ContextMenu() {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [menuInfo, isSubMenuOpen, focusedIndex, subMenuFocusedIndex, categories, subMenuPosition, selectedMemeIds, isTrashView]);
+    }, [menuInfo, isSubMenuOpen, focusedIndex, subMenuFocusedIndex, visibleCategories, subMenuPosition, selectedMemeIds, isTrashView]);
 
     if (!menuInfo || !targetMeme) return null;
 
     return (
         <Portal>
-            <AnimatePresence>
-                <motion.div
-                    ref={menuRef}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.15, ease: "easeOut" }}
-                    className="fixed z-[9999] w-[220px] rounded-xl p-1.5 shadow-2xl bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-black/10 dark:border-white/10 ring-1 ring-black/5 dark:ring-white/5"
-                    style={{ left: position.left, top: position.top }}
-                    onContextMenu={(e) => e.preventDefault()}
-                >
-                    <div className="flex flex-col gap-0.5">
-                        {!isMultiSelect && (
-                            <>
-                                <ContextMenuItem
-                                    icon={<Clipboard size={16} />}
-                                    label={t('gallery.context_menu.copy')}
-                                    isActive={focusedIndex === 0}
-                                    onMouseEnter={() => handleMouseEnterMenuItem(0, false)}
-                                    onClick={() => executeAction(0)}
-                                />
-                                <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
-                                <ContextMenuItem
-                                    icon={<Tags size={16} />}
-                                    label={t('gallery.context_menu.edit_tags')}
-                                    isActive={focusedIndex === 2}
-                                    onMouseEnter={() => handleMouseEnterMenuItem(2, false)}
-                                    onClick={() => executeAction(2)}
-                                />
-                                <ContextMenuItem
-                                    icon={<Maximize2 size={16} />}
-                                    label={t('gallery.context_menu.view_original')}
-                                    isActive={focusedIndex === 3}
-                                    onMouseEnter={() => handleMouseEnterMenuItem(3, false)}
-                                    onClick={() => executeAction(3)}
-                                />
-                                <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
-                            </>
-                        )}
-
-                        <ContextMenuItem
-                            icon={<Save size={16} />}
-                            label={t('gallery.context_menu.export')}
-                            isActive={focusedIndex === 1}
-                            onMouseEnter={() => handleMouseEnterMenuItem(1, false)}
-                            onClick={() => executeAction(1)}
-                        />
-
-                        {/* SubMenu anchor */}
-                        <div ref={subMenuAnchorRef}>
+            <motion.div
+                ref={menuRef}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="fixed z-[9999] w-[220px] rounded-xl p-1.5 shadow-2xl bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-black/10 dark:border-white/10 ring-1 ring-black/5 dark:ring-white/5"
+                style={{ left: position.left, top: position.top }}
+                onContextMenu={(e) => e.preventDefault()}
+            >
+                <div className="flex flex-col gap-0.5">
+                    {!isMultiSelect && (
+                        <>
                             <ContextMenuItem
-                                icon={<FolderInput size={16} />}
-                                label={t('gallery.context_menu.move_to')}
-                                hasSubMenu
-                                isActive={focusedIndex === 4 || isSubMenuOpen}
-                                onMouseEnter={() => handleMouseEnterMenuItem(4, true)}
-                                onClick={() => executeAction(4)}
+                                icon={<Clipboard size={16} />}
+                                label={t('gallery.context_menu.copy')}
+                                isActive={focusedIndex === 0}
+                                onMouseEnter={() => handleMouseEnterMenuItem(0, false)}
+                                onClick={() => executeAction(0)}
                             />
-                        </div>
+                            <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+                            <ContextMenuItem
+                                icon={<Tags size={16} />}
+                                label={t('gallery.context_menu.edit_tags')}
+                                isActive={focusedIndex === 2}
+                                onMouseEnter={() => handleMouseEnterMenuItem(2, false)}
+                                onClick={() => executeAction(2)}
+                            />
+                            <ContextMenuItem
+                                icon={<Maximize2 size={16} />}
+                                label={t('gallery.context_menu.view_original')}
+                                isActive={focusedIndex === 3}
+                                onMouseEnter={() => handleMouseEnterMenuItem(3, false)}
+                                onClick={() => executeAction(3)}
+                            />
+                            <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+                        </>
+                    )}
 
-                        <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+                    <ContextMenuItem
+                        icon={<Save size={16} />}
+                        label={t('gallery.context_menu.export')}
+                        isActive={focusedIndex === 1}
+                        onMouseEnter={() => handleMouseEnterMenuItem(1, false)}
+                        onClick={() => executeAction(1)}
+                    />
+
+                    {/* SubMenu anchor */}
+                    <div ref={subMenuAnchorRef}>
                         <ContextMenuItem
-                            icon={isTrashView ? <RotateCcw size={16} /> : <Trash2 size={16} />}
-                            label={isTrashView ? t('gallery.context_menu.restore') : t('gallery.context_menu.move_to_trash')}
-                            danger={!isTrashView}
-                            isActive={focusedIndex === 5}
-                            onMouseEnter={() => handleMouseEnterMenuItem(5, false)}
-                            onClick={() => executeAction(5)}
+                            icon={<FolderInput size={16} />}
+                            label={t('gallery.context_menu.move_to')}
+                            hasSubMenu
+                            isActive={focusedIndex === 4 || isSubMenuOpen}
+                            onMouseEnter={() => handleMouseEnterMenuItem(4, true)}
+                            onClick={() => executeAction(4)}
                         />
                     </div>
 
-                </motion.div>
-                <AnimatePresence>
-                    {isSubMenuOpen && categories.length > 0 && (
-                        <motion.div
-                            ref={subMenuRef}
-                            initial={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
-                            transition={{ duration: 0.15 }}
-                            className="fixed z-[10000] w-[200px] rounded-xl p-1.5 shadow-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-3xl border border-black/10 dark:border-white/10 max-h-[300px] overflow-y-auto scrollbar-hide"
-                            style={{ top: subMenuCoords.top, left: subMenuCoords.left }}
-                            onMouseEnter={() => {
-                                if (subMenuTimerRef.current) clearTimeout(subMenuTimerRef.current);
-                                setIsSubMenuOpen(true);
-                            }}
-                            onMouseLeave={() => {
-                                subMenuTimerRef.current = window.setTimeout(() => setIsSubMenuOpen(false), 300);
-                            }}
-                        >
-                            <div className="flex flex-col gap-0.5">
+                    <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+                    <ContextMenuItem
+                        icon={isTrashView ? <RotateCcw size={16} /> : <Trash2 size={16} />}
+                        label={isTrashView ? t('gallery.context_menu.restore') : t('gallery.context_menu.move_to_trash')}
+                        danger={!isTrashView}
+                        isActive={focusedIndex === 5}
+                        onMouseEnter={() => handleMouseEnterMenuItem(5, false)}
+                        onClick={() => executeAction(5)}
+                    />
+                </div>
+
+            </motion.div>
+            <AnimatePresence>
+                {isSubMenuOpen && visibleCategories.length > 0 && (
+                    <motion.div
+                        ref={subMenuRef}
+                        initial={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: subMenuPosition.side === 'right' ? -10 : 10 }}
+                        transition={{ duration: 0.15 }}
+                        className="fixed z-[10000] w-[200px] rounded-xl p-1.5 shadow-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-3xl border border-black/10 dark:border-white/10 max-h-[300px] overflow-y-auto scrollbar-hide"
+                        style={{ top: subMenuCoords.top, left: subMenuCoords.left }}
+                        onMouseEnter={() => {
+                            if (subMenuTimerRef.current) clearTimeout(subMenuTimerRef.current);
+                            setIsSubMenuOpen(true);
+                        }}
+                        onMouseLeave={() => {
+                            subMenuTimerRef.current = window.setTimeout(() => setIsSubMenuOpen(false), 300);
+                        }}
+                    >
+                        <div className="flex flex-col gap-0.5">
+                            <button
+                                onClick={() => handleMoveToCategory(0)}
+                                onMouseEnter={() => setSubMenuFocusedIndex(-1)}
+                                className={clsx(
+                                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
+                                    (subMenuFocusedIndex === -1) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
+                                    (!isMultiSelect && targetMeme.categoryId === 0) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
+                                )}
+                                disabled={!isMultiSelect && targetMeme.categoryId === 0}
+                            >
+                                <div className="flex items-center gap-3 truncate">
+                                    <Tag size={14} className="opacity-80 flex-shrink-0" />
+                                    <span className="truncate">{t('sidebar.untagged')}</span>
+                                </div>
+                            </button>
+
+                            <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+
+                            {visibleCategories.map((cat, i) => (
                                 <button
-                                    onClick={() => handleMoveToCategory(0)}
-                                    onMouseEnter={() => setSubMenuFocusedIndex(-1)}
+                                    key={`category-${cat.id}`}
+                                    onClick={() => handleMoveToCategory(cat.id)}
+                                    onMouseEnter={() => setSubMenuFocusedIndex(i)}
                                     className={clsx(
                                         "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
-                                        (subMenuFocusedIndex === -1) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
-                                        (!isMultiSelect && targetMeme.categoryId === 0) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
+                                        (subMenuFocusedIndex === i) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
+                                        (!isMultiSelect && targetMeme.categoryId === cat.id) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
                                     )}
-                                    disabled={!isMultiSelect && targetMeme.categoryId === 0}
+                                    disabled={!isMultiSelect && targetMeme.categoryId === cat.id}
                                 >
                                     <div className="flex items-center gap-3 truncate">
-                                        <Tag size={14} className="opacity-80 flex-shrink-0" />
-                                        <span className="truncate">{t('sidebar.untagged')}</span>
+                                        <Folder size={14} className="opacity-80 flex-shrink-0" />
+                                        <span className="truncate">{cat.name}</span>
                                     </div>
                                 </button>
-
-                                <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
-
-                                {categories.map((cat, i) => (
-                                    <button
-                                        key={cat.id}
-                                        onClick={() => handleMoveToCategory(cat.id)}
-                                        onMouseEnter={() => setSubMenuFocusedIndex(i)}
-                                        className={clsx(
-                                            "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
-                                            (subMenuFocusedIndex === i) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
-                                            (!isMultiSelect && targetMeme.categoryId === cat.id) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
-                                        )}
-                                        disabled={!isMultiSelect && targetMeme.categoryId === cat.id}
-                                    >
-                                        <div className="flex items-center gap-3 truncate">
-                                            <Folder size={14} className="opacity-80 flex-shrink-0" />
-                                            <span className="truncate">{cat.name}</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
             </AnimatePresence>
         </Portal>
     );
