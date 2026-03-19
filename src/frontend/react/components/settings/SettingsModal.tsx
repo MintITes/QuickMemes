@@ -73,11 +73,8 @@ export function SettingsModal() {
     }, [isSettingsOpen]);
 
     useEffect(() => {
-        if (!config) {
-            return;
-        }
-        setThumbnailMaxSizeDraft(config.thumbnail.maxSize);
-    }, [config?.thumbnail.maxSize]);
+        setThumbnailMaxSizeDraft(config?.thumbnail.maxSize ?? null);
+    }, [config]);
 
     const savePatch = async (patch: Partial<AppConfig>) => {
         if (!savedConfig || !hasPatchChanges(savedConfig, patch)) {

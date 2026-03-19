@@ -1055,7 +1055,7 @@ export function Sidebar() {
                         <span className={clsx(
                             "absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold no-drag transition-all duration-300",
                             // Currently hardcoded to 0, use gray style. If > 0, use accent style.
-                            false ? "bg-accent text-white shadow-lg shadow-accent/20" : "bg-black/[0.06] dark:bg-white/[0.1] text-textSecondary"
+                            "bg-black/[0.06] dark:bg-white/[0.1] text-textSecondary"
                         )}>
                             0
                         </span>

@@ -309,7 +309,7 @@ export function ContextMenu() {
                 title: t('gallery.context_menu.move_success'),
                 description: isMultiSelect ? t('gallery.context_menu.n_items', { count: idsToProcess.length }) : targetMeme.name,
             });
-        } catch (error) {
+        } catch {
             addNotification({
                 type: 'error',
                 title: t('gallery.context_menu.move_failed'),
