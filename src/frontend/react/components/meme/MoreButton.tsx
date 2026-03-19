@@ -28,11 +28,17 @@ export function MoreButton({ memeId, isVisible, title }: MoreButtonProps) {
 
         if (buttonRef.current) {
             const rect = buttonRef.current.getBoundingClientRect();
-            // Position menu slightly below the button
             setContextMenu({
                 memeId,
-                x: rect.right - 220, // Align right edge of menu to right edge of button
-                y: rect.bottom + 8
+                x: rect.right,
+                y: rect.bottom,
+                anchorRect: {
+                    left: rect.left,
+                    top: rect.top,
+                    right: rect.right,
+                    bottom: rect.bottom,
+                },
+                preferredPlacements: ['right', 'left', 'top', 'bottom'],
             });
         }
     };

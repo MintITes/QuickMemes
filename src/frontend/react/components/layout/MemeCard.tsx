@@ -16,11 +16,12 @@ interface MemeCardProps {
     viewMode: 'grid' | 'masonry' | 'list';
     imageFit: 'contain' | 'cover';
     showTags: boolean;
+    disableLayoutAnimation?: boolean;
 }
 
-export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags }: MemeCardProps) {
+export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disableLayoutAnimation = false }: MemeCardProps) {
     const { t } = useTranslation();
-    const { selectMeme, setContextMenu, setLightboxMemeId, cornerRadius } = useUiStore();
+    const { selectMeme, setContextMenu, setLightboxMemeId, cornerRadius, selectedMemeIds } = useUiStore();
 
     const [src, setSrc] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -84,7 +85,13 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags }: Mem
 
     const handleContextMenu = (e: React.MouseEvent) => {
         e.preventDefault();
-        selectMeme(meme.id, false);
+
+        // If not already selected, select only this one.
+        // If already part of a multi-selection, keep it.
+        if (!selectedMemeIds.includes(meme.id)) {
+            selectMeme(meme.id, false);
+        }
+
         setContextMenu({
             memeId: meme.id,
             x: e.clientX,
@@ -94,7 +101,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags }: Mem
 
     return (
         <motion.div
-            layout="position"
+            layout={disableLayoutAnimation ? false : 'position'}
             className={clsx(
                 'flex flex-col cursor-pointer select-none group/card relative',
                 viewMode === 'masonry' && 'mb-4'
@@ -107,7 +114,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags }: Mem
             onDoubleClick={handleDoubleClick}
             onContextMenu={handleContextMenu}
             transition={{
-                layout: { type: "spring", stiffness: 350, damping: 30, mass: 0.8 },
+                layout: disableLayoutAnimation ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 30, mass: 0.8 },
                 opacity: { duration: 0.25 },
                 y: { type: "spring", stiffness: 400, damping: 25 },
                 scale: { duration: 0.1 }
@@ -121,6 +128,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags }: Mem
                     isSelected={isSelected}
                     viewMode={viewMode}
                     imageFit={imageFit}
+                    showTags={showTags}
                     onImageLoad={() => setIsLoading(false)}
                 />
 
@@ -146,10 +154,11 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags }: Mem
             {/* Subtle glow effect for selected item */}
             {isSelected && (
                 <div
-                    className="absolute -inset-1 z-[-1] blur-xl opacity-20 pointer-events-none"
+                    className="absolute inset-0 z-10 pointer-events-none"
                     style={{
-                        backgroundColor: 'var(--accent-color)',
-                        borderRadius: `${cornerRadius + 4}px`
+                        borderRadius: `${cornerRadius}px`,
+                        background: 'radial-gradient(circle at top left, color-mix(in srgb, var(--accent-color), transparent 75%), transparent 56%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent-color), transparent 82%), transparent 62%)',
+                        boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(--accent-color), transparent 45%)`
                     }}
                 />
             )}

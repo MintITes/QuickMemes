@@ -138,8 +138,16 @@
             "view_original": "查看原图",
             "move_to": "移动到",
             "move_to_trash": "移入回收站",
+            "restore": "恢复",
+            "restore_success": "已恢复",
             "trash_undo": "撤销",
-            "trash_success": "已移入回收站"
+            "trash_success": "已移入回收站",
+            "export_title": "选择导出目录",
+            "export_success": "导出成功",
+            "export_result": "成功: {{success}}, 失败: {{failed}}",
+            "move_success": "移动成功",
+            "move_failed": "移动失败",
+            "n_items": "{{count}} 个项目"
         }
     },
     "inspector": {

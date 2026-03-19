@@ -144,11 +144,7 @@ void Database::shutdown() {
 }
 
 int64_t Database::insertMeme(const MemeEntry &meme) {
-#if defined(__MINGW32__) || defined(__MINGW64__)
 	std::unique_lock lock(dbMutex_);
-#else
-	std::shared_lock lock(dbMutex_);
-#endif
 	try {
 		SQLite::Transaction txn(*db_);
 

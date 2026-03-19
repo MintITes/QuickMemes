@@ -138,8 +138,16 @@
             "view_original": "View original",
             "move_to": "Move to",
             "move_to_trash": "Move to trash",
+            "restore": "Restore",
+            "restore_success": "Restored",
             "trash_undo": "Undo",
-            "trash_success": "Moved to trash"
+            "trash_success": "Moved to trash",
+            "export_title": "Select Export Directory",
+            "export_success": "Export Successful",
+            "export_result": "Succeeded: {{success}}, Failed: {{failed}}",
+            "move_success": "Moved Successfully",
+            "move_failed": "Move Failed",
+            "n_items": "{{count}} items"
         }
     },
     "inspector": {

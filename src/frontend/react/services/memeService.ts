@@ -47,7 +47,7 @@ export function buildBackendSearchQuery(
     const categoryId =
         activeNav === 'untagged' ? -1 :
             activeNav.startsWith('category-') ? Number(activeNav.replace('category-', '')) :
-            uiQuery.categoryId ?? 0;
+                uiQuery.categoryId ?? 0;
 
     return {
         keyword: uiQuery.matchMode === 'regex' ? '' : uiQuery.keyword,
@@ -77,6 +77,23 @@ export async function fetchTrashMemes() {
     return sendHttpRequest<SearchResult>('GET', '/api/memes/trash');
 }
 
+export async function moveMemeToTrash(id: number) {
+    return sendHttpRequest<null>('DELETE', `/api/meme/${id}`);
+}
+
+export async function moveMemesToTrash(ids: number[]) {
+    return sendHttpRequest<{ succeeded: number; failed: number }>('DELETE', '/api/memes/batch', { ids });
+}
+
+export async function restoreMemeFromTrash(id: number) {
+    return sendHttpRequest<Meme>('POST', `/api/meme/${id}/restore`);
+}
+
+export async function restoreMemesFromTrash(ids: number[]) {
+    // Backend doesn't have a batch restore yet, so we call individually.
+    return Promise.all(ids.map(id => restoreMemeFromTrash(id)));
+}
+
 export async function getMeme(id: number) {
     return sendHttpRequest<Meme>('GET', `/api/meme/${id}`);
 }
@@ -84,3 +101,12 @@ export async function getMeme(id: number) {
 export async function updateMeme(id: number, patch: Partial<Pick<Meme, 'name' | 'description' | 'sourceName' | 'sourceUrl' | 'categoryId' | 'tagIds'>>) {
     return sendHttpRequest<Meme>('PUT', `/api/meme/${id}`, patch);
 }
+
+export async function moveMemesToCategory(memeIds: number[], categoryId: number) {
+    return sendHttpRequest<{ succeeded: number; failed: number }>('POST', '/api/memes/batch/category', { memeIds, categoryId });
+}
+
+export async function exportMemes(memeIds: number[], destDir: string) {
+    return sendHttpRequest<{ succeeded: number; failed: number; errors: string[] }>('POST', '/api/export', { memeIds, destDir });
+}
+

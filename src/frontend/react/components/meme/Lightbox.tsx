@@ -21,6 +21,7 @@ export function Lightbox() {
     const tags = useTagStore(state => state.tags);
     const addNotification = useNotificationStore(state => state.addNotification);
     const selectMeme = useUiStore(state => state.selectMeme);
+    const selectedMemeIds = useUiStore(state => state.selectedMemeIds);
     const togglePanel = useUiStore(state => state.togglePanel);
 
     const [src, setSrc] = useState<string | null>(null);
@@ -139,10 +140,12 @@ export function Lightbox() {
 
     const handleEditTags = useCallback(() => {
         if (!meme) return;
-        selectMeme(meme.id, false);
+        if (selectedMemeIds.length !== 1 || selectedMemeIds[0] !== meme.id) {
+            selectMeme(meme.id, false);
+        }
         togglePanel(true);
         close();
-    }, [meme, selectMeme, togglePanel, close]);
+    }, [meme, selectedMemeIds, selectMeme, togglePanel, close]);
 
     // Keyboard Shortcuts
     useEffect(() => {
@@ -200,6 +203,9 @@ export function Lightbox() {
     const handleMouseUp = () => setIsDragging(false);
 
     if (!lightboxMemeId || !meme) return null;
+
+    const lightboxLabeledButtonClass = "p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white flex items-center justify-center gap-2 whitespace-nowrap";
+    const disabledLabeledButtonClass = "p-2 rounded-xl transition-colors outline-none flex items-center justify-center gap-2 text-white/30 cursor-not-allowed whitespace-nowrap";
 
     return (
         <Portal>
@@ -304,18 +310,32 @@ export function Lightbox() {
                         </div>
 
                         {/* Controls */}
-                        <div className="flex items-center gap-4 bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl pointer-events-auto">
-                            <div className="flex items-center gap-1 px-2 border-r border-white/10">
+                        <div className="flex items-center bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl pointer-events-auto">
+                            <div className="flex items-center justify-center gap-1 px-2 border-r border-white/10">
                                 <button onClick={handleZoomOut} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white" title="缩小 (-)"><ZoomOut size={18} /></button>
                                 <button onClick={handleResetZoom} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white" title="还原 (0)"><Maximize size={18} /></button>
                                 <button onClick={handleZoomIn} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white" title="放大 (+)"><ZoomIn size={18} /></button>
                             </div>
-                            <div className="flex items-center gap-1 px-2 border-r border-white/10">
-                                <button onClick={handleCopy} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white flex items-center gap-2" title="复制 (Ctrl+C)"><Clipboard size={18} /><span className="text-sm">复制</span></button>
-                                <button onClick={handleExport} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white flex items-center gap-2" title="导出"><Download size={18} /><span className="text-sm">导出</span></button>
+                            <div className="flex items-center justify-center gap-1 px-2 border-r border-white/10">
+                                <button onClick={handleCopy} className={lightboxLabeledButtonClass} title="复制 (Ctrl+C)">
+                                    <Clipboard size={18} />
+                                    <span className="text-sm whitespace-nowrap">复制</span>
+                                </button>
+                                <button onClick={handleExport} className={lightboxLabeledButtonClass} title="导出">
+                                    <Download size={18} />
+                                    <span className="text-sm whitespace-nowrap">导出</span>
+                                </button>
                             </div>
-                            <div className="flex items-center gap-1 px-2">
-                                <button onClick={handleEditTags} className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors outline-none focus-visible:ring-1 focus-visible:ring-white flex items-center gap-2" title="编辑详情"><TagsIcon size={18} /><span className="text-sm">编辑</span></button>
+                            <div className="flex items-center justify-center px-2">
+                                <button
+                                    disabled
+                                    aria-disabled="true"
+                                    className={disabledLabeledButtonClass}
+                                    title="编辑详情"
+                                >
+                                    <TagsIcon size={18} />
+                                    <span className="text-sm whitespace-nowrap">编辑</span>
+                                </button>
                             </div>
                         </div>
                     </div>

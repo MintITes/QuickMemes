@@ -23,6 +23,19 @@ export interface BrowsingHistoryItem {
     timestamp: number;
 }
 
+export interface ContextMenuState {
+    memeId: number;
+    x: number;
+    y: number;
+    anchorRect?: {
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    };
+    preferredPlacements?: Array<'right' | 'left' | 'top' | 'bottom'>;
+}
+
 export interface UiState {
     isPanelOpen: boolean;
     isImporting: boolean;
@@ -51,7 +64,7 @@ export interface UiState {
     searchHistory: SearchHistoryItem[];
     browsingHistory: BrowsingHistoryItem[];
     isAdvancedSearchOpen: boolean;
-    contextMenu: { memeId: number, x: number, y: number } | null;
+    contextMenu: ContextMenuState | null;
     lightboxMemeId: number | null;
 
     // Actions
@@ -83,7 +96,7 @@ export interface UiState {
     clearSearchHistory: () => void;
     addBrowsingHistory: (meme: { id: number, categoryId?: number, tagIds: number[] }) => void;
     toggleAdvancedSearch: (isOpen?: boolean) => void;
-    setContextMenu: (menu: { memeId: number, x: number, y: number } | null) => void;
+    setContextMenu: (menu: ContextMenuState | null) => void;
     setLightboxMemeId: (id: number | null) => void;
 }
 

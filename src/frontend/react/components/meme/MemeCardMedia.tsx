@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { SkeletonCard } from '../common/SkeletonCard';
 import type { Meme } from '../../types';
 import { useUiStore } from '../../stores/UiStore';
+import { useTagStore } from '../../stores/TagStore';
 
 interface MemeCardMediaProps {
     meme: Meme;
@@ -12,16 +13,20 @@ interface MemeCardMediaProps {
     isSelected: boolean;
     viewMode: 'grid' | 'masonry' | 'list';
     imageFit: 'contain' | 'cover';
+    showTags: boolean;
     onImageLoad: () => void;
 }
 
 export function MemeCardMedia({
-    meme, src, isLoading, isSelected, viewMode, imageFit, onImageLoad
+    meme, src, isLoading, isSelected, viewMode, imageFit, showTags, onImageLoad
 }: MemeCardMediaProps) {
     const { cornerRadius, accentColor } = useUiStore();
+    const tags = useTagStore((state) => state.tags);
+    const memeTags = tags.filter((entry) => meme.tagIds.includes(entry.id));
 
     const radiusValue = `${cornerRadius}px`;
     const innerRadiusValue = `${Math.max(0, cornerRadius - 1)}px`;
+    const shouldShowTags = showTags && memeTags.length > 0;
 
     return (
         <div
@@ -35,9 +40,9 @@ export function MemeCardMedia({
                     : undefined,
                 minHeight: viewMode === 'masonry' && (!meme.width || !meme.height) ? '150px' : undefined,
                 borderRadius: radiusValue,
-                // Add a subtle lift and shadow on the whole media container
+                // Keep the selection stroke inside the card bounds so edge items do not get clipped.
                 boxShadow: isSelected
-                    ? `0 0 0 2px ${accentColor}, 0 8px 20px -4px ${accentColor}40`
+                    ? `inset 0 0 0 2px ${accentColor}, 0 8px 20px -4px ${accentColor}40`
                     : '0 2px 8px -2px rgba(0,0,0,0.05), 0 4px 12px -4px rgba(0,0,0,0.1)'
             }}
         >
@@ -120,6 +125,27 @@ export function MemeCardMedia({
 
                 {/* Hover Overlay Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/media:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+                {shouldShowTags && (
+                    <div className="absolute left-2 right-12 bottom-2 z-20 flex flex-wrap gap-1 pointer-events-none">
+                        {memeTags.map((tagEntry) => (
+                            <span
+                                key={tagEntry.id}
+                                className="relative inline-flex max-w-full items-center overflow-hidden rounded-md px-2 py-0.5"
+                                title={tagEntry.name}
+                            >
+                                <span
+                                    aria-hidden="true"
+                                    className="absolute inset-0 rounded-md"
+                                    style={{ backgroundColor: accentColor }}
+                                />
+                                <span className="relative truncate text-[10px] font-bold whitespace-nowrap text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
+                                    {tagEntry.name}
+                                </span>
+                            </span>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

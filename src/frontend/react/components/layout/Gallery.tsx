@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMemeStore } from '../../stores/MemeStore';
 import { VirtuosoGrid } from 'react-virtuoso';
 import {
@@ -43,6 +43,8 @@ export function Gallery() {
     } = useUiStore();
 
     const mainRef = useRef<HTMLElement>(null);
+    const zoomAnimationTimerRef = useRef<number | null>(null);
+    const [isZoomResizing, setIsZoomResizing] = useState(false);
 
     useEffect(() => {
         const el = mainRef.current;
@@ -52,6 +54,14 @@ export function Gallery() {
             if (e.ctrlKey || e.metaKey) {
                 // Prevent browser zoom
                 e.preventDefault();
+                setIsZoomResizing(true);
+                if (zoomAnimationTimerRef.current) {
+                    window.clearTimeout(zoomAnimationTimerRef.current);
+                }
+                zoomAnimationTimerRef.current = window.setTimeout(() => {
+                    setIsZoomResizing(false);
+                    zoomAnimationTimerRef.current = null;
+                }, 140);
                 const delta = e.deltaY > 0 ? 1 : -1;
                 // Faster zooming when holding shift, otherwise 20px step
                 const step = e.shiftKey ? 50 : 20;
@@ -66,7 +76,12 @@ export function Gallery() {
 
         // Needs to be passive: false to prevent default
         el.addEventListener('wheel', handleWheel, { passive: false });
-        return () => el.removeEventListener('wheel', handleWheel);
+        return () => {
+            el.removeEventListener('wheel', handleWheel);
+            if (zoomAnimationTimerRef.current) {
+                window.clearTimeout(zoomAnimationTimerRef.current);
+            }
+        };
     }, []);
 
     const renderEmptyState = () => {
@@ -125,6 +140,22 @@ export function Gallery() {
                     onClick: () => toggleImportModal(true),
                     icon: <ImagePlus size={16} />,
                 }}
+            />
+        );
+    };
+
+    const renderMemeCard = (meme: typeof memes[number]) => {
+        const isSelected = selectedMemeIds.includes(meme.id);
+
+        return (
+            <MemeCard
+                key={meme.id}
+                meme={meme}
+                isSelected={isSelected}
+                viewMode={viewMode}
+                imageFit={imageFit}
+                showTags={showTags}
+                disableLayoutAnimation={isZoomResizing}
             />
         );
     };
@@ -189,33 +220,39 @@ export function Gallery() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide">
                 {memes.length === 0 ? renderEmptyState() : (
-                    <VirtuosoGrid
-                        totalCount={memes.length}
-                        listClassName={clsx(
-                            'grid gap-4 w-full pb-8 justify-start content-start',
-                            'grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
-                        )}
-                        itemContent={(index) => {
-                            const meme = memes[index];
-                            if (!meme) {
-                                return null;
-                            }
-                            const isSelected = selectedMemeIds.includes(meme.id);
+                    viewMode === 'masonry' ? (
+                        <div
+                            className="w-full pb-8"
+                            style={{
+                                columnWidth: `${galleryItemSize || 200}px`,
+                                columnGap: '16px',
+                            }}
+                        >
+                            {memes.map((meme) => (
+                                <div key={meme.id} className="break-inside-avoid">
+                                    {renderMemeCard(meme)}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <VirtuosoGrid
+                            totalCount={memes.length}
+                            listClassName={clsx(
+                                'grid gap-4 w-full pb-8 justify-start content-start',
+                                'grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
+                            )}
+                            itemContent={(index) => {
+                                const meme = memes[index];
+                                if (!meme) {
+                                    return null;
+                                }
 
-                            return (
-                                <MemeCard
-                                    key={meme.id}
-                                    meme={meme}
-                                    isSelected={isSelected}
-                                    viewMode={viewMode}
-                                    imageFit={imageFit}
-                                    showTags={showTags}
-                                />
-                            );
-                        }}
-                    />
+                                return renderMemeCard(meme);
+                            }}
+                        />
+                    )
                 )}
             </div>
         </main>

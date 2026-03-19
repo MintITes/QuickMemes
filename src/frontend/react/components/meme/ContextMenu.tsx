@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clipboard, Save, Tags, Maximize2, FolderInput, Trash2, ChevronRight, Folder } from 'lucide-react';
+import { Clipboard, Save, Tags, Maximize2, FolderInput, Trash2, ChevronRight, Folder, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '../../stores/UiStore';
 import { useMemeStore } from '../../stores/MemeStore';
@@ -8,6 +8,8 @@ import { useCategoryStore } from '../../stores/CategoryStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import clsx from 'clsx';
 import { Portal } from '../common/Portal';
+import { resolveContextMenuPosition } from './contextMenuPosition';
+import { moveMemeToTrash, restoreMemeFromTrash, moveMemesToTrash, restoreMemesFromTrash, exportMemes, moveMemesToCategory, updateMeme as updateMemeService } from '../../services/memeService';
 
 // ContextMenuItem
 interface ContextMenuItemProps {
@@ -48,13 +50,17 @@ function ContextMenuItem({ icon, label, onClick, danger, hasSubMenu, isActive, o
 
 // Main ContextMenu Component
 export function ContextMenu() {
+
     const { t } = useTranslation();
     const menuInfo = useUiStore(state => state.contextMenu);
     const setContextMenu = useUiStore(state => state.setContextMenu);
     const setLightboxMemeId = useUiStore(state => state.setLightboxMemeId);
     const selectMeme = useUiStore(state => state.selectMeme);
+    const selectedMemeIds = useUiStore(state => state.selectedMemeIds);
+    const activeNav = useUiStore(state => state.activeNav);
     const togglePanel = useUiStore(state => state.togglePanel);
     const updateMeme = useMemeStore(state => state.updateMeme);
+    const removeMemes = useMemeStore(state => state.removeMemes);
     const memes = useMemeStore(state => state.memes);
     const categories = useCategoryStore(state => state.categories);
     const addNotification = useNotificationStore(state => state.addNotification);
@@ -65,38 +71,36 @@ export function ContextMenu() {
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [isSubMenuOpen, setIsSubMenuOpen] = useState(false);
     const [subMenuFocusedIndex, setSubMenuFocusedIndex] = useState(-1);
+    const isTrashView = activeNav === 'trash';
+    const isMultiSelect = selectedMemeIds.length > 1;
 
     // Calculate smart positioning
     const { position, subMenuPosition } = useMemo(() => {
         if (!menuInfo) return { position: { top: 0, left: 0 }, subMenuPosition: { side: 'right' as const } };
 
-        let left = menuInfo.x;
-        let top = menuInfo.y;
         const menuWidth = 220;
-        const menuHeight = 260; // Approximate
+        const menuHeight = isMultiSelect ? 160 : 260; // Shorter for multi-select
         const subMenuWidth = 200;
         const padding = 12;
-
-        // Horizontal clamping
-        if (left + menuWidth + padding > window.innerWidth) {
-            left = window.innerWidth - menuWidth - padding;
-        }
+        const resolvedPosition = resolveContextMenuPosition(
+            menuInfo,
+            { width: window.innerWidth, height: window.innerHeight },
+            { width: menuWidth, height: menuHeight },
+            padding
+        );
+        const left = resolvedPosition.left;
+        const top = resolvedPosition.top;
 
         let subMenuSide: 'left' | 'right' = 'right';
         if (left + menuWidth + subMenuWidth + padding > window.innerWidth) {
             subMenuSide = 'left';
         }
 
-        // Vertical clamping
-        if (top + menuHeight + padding > window.innerHeight) {
-            top = Math.max(padding, window.innerHeight - menuHeight - padding);
-        }
-
         return {
             position: { left, top },
             subMenuPosition: { side: subMenuSide }
         };
-    }, [menuInfo]);
+    }, [menuInfo, isMultiSelect]);
 
     const closeMenu = useCallback(() => {
         setContextMenu(null);
@@ -166,8 +170,11 @@ export function ContextMenu() {
     const executeAction = async (index: number) => {
         if (!targetMeme) return;
 
+        const idsToProcess = isMultiSelect ? selectedMemeIds : [targetMeme.id];
+
         switch (index) {
             case 0: // Copy
+                if (isMultiSelect) break; // Disabled in UI, but safety check
                 try {
                     await window.electronAPI.writeClipboardImageFromMeme(targetMeme.id);
                     addNotification({
@@ -180,42 +187,138 @@ export function ContextMenu() {
                 }
                 break;
             case 1: // Export
-                addNotification({ type: 'info', title: t('common.not_implemented') || 'Not implemented yet' });
+                try {
+                    const destDir = await window.electronAPI.openDirectoryDialog({
+                        title: t('gallery.context_menu.export_title') || 'Select Export Directory'
+                    });
+                    if (!destDir) break;
+
+                    const result = await exportMemes(idsToProcess, destDir);
+                    addNotification({
+                        type: result.failed === 0 ? 'success' : 'info',
+                        title: t('gallery.context_menu.export_success'),
+                        description: t('gallery.context_menu.export_result', {
+                            success: result.succeeded,
+                            failed: result.failed
+                        }),
+                    });
+                } catch (error) {
+                    addNotification({
+                        type: 'error',
+                        title: t('common.export_failed'),
+                        description: error instanceof Error ? error.message : String(error)
+                    });
+                }
                 break;
             case 2: // Edit tags
-                selectMeme(targetMeme.id);
+                if (isMultiSelect) break;
+                if (selectedMemeIds.length !== 1 || selectedMemeIds[0] !== targetMeme.id) {
+                    selectMeme(targetMeme.id);
+                }
                 togglePanel(true);
                 break;
             case 3: // View original
+                if (isMultiSelect) break;
                 setLightboxMemeId(targetMeme.id);
                 break;
             case 4: // Move to (Handled by submenu hover)
                 setIsSubMenuOpen(!isSubMenuOpen);
                 return; // Do not close menu yet
-            case 5: // Move to trash
-                // TODO: Implement real API call to delete/trash meme
-                addNotification({
-                    type: 'success',
-                    title: t('gallery.context_menu.trash_success'),
-                    action: {
-                        label: t('gallery.context_menu.trash_undo'),
-                        onClick: () => {
-                            // TODO: Implement undo API call
-                            addNotification({ type: 'info', title: t('common.not_implemented') || 'Not implemented yet' });
+            case 5:
+                if (isTrashView) {
+                    try {
+                        if (isMultiSelect) {
+                            await restoreMemesFromTrash(selectedMemeIds);
+                            removeMemes(selectedMemeIds);
+                        } else {
+                            await restoreMemeFromTrash(targetMeme.id);
+                            removeMemes([targetMeme.id]);
                         }
+                        addNotification({
+                            type: 'success',
+                            title: t('gallery.context_menu.restore_success'),
+                            description: isMultiSelect ? t('gallery.context_menu.n_items', { count: selectedMemeIds.length }) : targetMeme.name,
+                        });
+                    } catch (error) {
+                        addNotification({
+                            type: 'error',
+                            title: t('gallery.context_menu.restore'),
+                            description: error instanceof Error ? error.message : String(error),
+                        });
                     }
-                });
+                    break;
+                }
+
+                try {
+                    if (isMultiSelect) {
+                        await moveMemesToTrash(selectedMemeIds);
+                        removeMemes(selectedMemeIds);
+                    } else {
+                        await moveMemeToTrash(targetMeme.id);
+                        removeMemes([targetMeme.id]);
+                    }
+                    addNotification({
+                        type: 'success',
+                        title: t('gallery.context_menu.trash_success'),
+                        description: isMultiSelect ? t('gallery.context_menu.n_items', { count: selectedMemeIds.length }) : targetMeme.name,
+                    });
+                } catch (error) {
+                    addNotification({
+                        type: 'error',
+                        title: t('gallery.context_menu.move_to_trash'),
+                        description: error instanceof Error ? error.message : String(error),
+                    });
+                }
                 break;
         }
 
         if (index !== 4) closeMenu();
     };
 
-    const handleMoveToCategory = (categoryId: number) => {
+    const handleMoveToCategory = async (categoryId: number) => {
         if (!targetMeme) return;
-        updateMeme(targetMeme.id, { categoryId });
+        const idsToProcess = isMultiSelect ? selectedMemeIds : [targetMeme.id];
+
+        try {
+            if (isMultiSelect) {
+                await moveMemesToCategory(idsToProcess, categoryId);
+            } else {
+                await updateMemeService(targetMeme.id, { categoryId });
+            }
+
+            // Decide whether to remove or update in store based on current view
+            let shouldRemove = false;
+            if (activeNav === 'untagged') {
+                shouldRemove = true;
+            } else if (activeNav.startsWith('category-')) {
+                const currentCatId = parseInt(activeNav.replace('category-', ''));
+                if (currentCatId !== categoryId) {
+                    shouldRemove = true;
+                }
+            }
+
+            if (shouldRemove) {
+                removeMemes(idsToProcess);
+            } else {
+                idsToProcess.forEach(id => updateMeme(id, { categoryId }));
+            }
+
+            addNotification({
+                type: 'success',
+                title: t('gallery.context_menu.move_success'),
+                description: isMultiSelect ? t('gallery.context_menu.n_items', { count: idsToProcess.length }) : targetMeme.name,
+            });
+        } catch (error) {
+            addNotification({
+                type: 'error',
+                title: t('gallery.context_menu.move_failed'),
+            });
+        }
         closeMenu();
     };
+
+
+
 
     // Handle Keyboard Navigation
     useEffect(() => {
@@ -269,7 +372,7 @@ export function ContextMenu() {
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [menuInfo, isSubMenuOpen, focusedIndex, subMenuFocusedIndex, categories, subMenuPosition]);
+    }, [menuInfo, isSubMenuOpen, focusedIndex, subMenuFocusedIndex, categories, subMenuPosition, selectedMemeIds, isTrashView]);
 
     if (!menuInfo || !targetMeme) return null;
 
@@ -287,13 +390,34 @@ export function ContextMenu() {
                     onContextMenu={(e) => e.preventDefault()}
                 >
                     <div className="flex flex-col gap-0.5">
-                        <ContextMenuItem
-                            icon={<Clipboard size={16} />}
-                            label={t('gallery.context_menu.copy')}
-                            isActive={focusedIndex === 0}
-                            onMouseEnter={() => handleMouseEnterMenuItem(0, false)}
-                            onClick={() => executeAction(0)}
-                        />
+                        {!isMultiSelect && (
+                            <>
+                                <ContextMenuItem
+                                    icon={<Clipboard size={16} />}
+                                    label={t('gallery.context_menu.copy')}
+                                    isActive={focusedIndex === 0}
+                                    onMouseEnter={() => handleMouseEnterMenuItem(0, false)}
+                                    onClick={() => executeAction(0)}
+                                />
+                                <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+                                <ContextMenuItem
+                                    icon={<Tags size={16} />}
+                                    label={t('gallery.context_menu.edit_tags')}
+                                    isActive={focusedIndex === 2}
+                                    onMouseEnter={() => handleMouseEnterMenuItem(2, false)}
+                                    onClick={() => executeAction(2)}
+                                />
+                                <ContextMenuItem
+                                    icon={<Maximize2 size={16} />}
+                                    label={t('gallery.context_menu.view_original')}
+                                    isActive={focusedIndex === 3}
+                                    onMouseEnter={() => handleMouseEnterMenuItem(3, false)}
+                                    onClick={() => executeAction(3)}
+                                />
+                                <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
+                            </>
+                        )}
+
                         <ContextMenuItem
                             icon={<Save size={16} />}
                             label={t('gallery.context_menu.export')}
@@ -301,22 +425,6 @@ export function ContextMenu() {
                             onMouseEnter={() => handleMouseEnterMenuItem(1, false)}
                             onClick={() => executeAction(1)}
                         />
-                        <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
-                        <ContextMenuItem
-                            icon={<Tags size={16} />}
-                            label={t('gallery.context_menu.edit_tags')}
-                            isActive={focusedIndex === 2}
-                            onMouseEnter={() => handleMouseEnterMenuItem(2, false)}
-                            onClick={() => executeAction(2)}
-                        />
-                        <ContextMenuItem
-                            icon={<Maximize2 size={16} />}
-                            label={t('gallery.context_menu.view_original')}
-                            isActive={focusedIndex === 3}
-                            onMouseEnter={() => handleMouseEnterMenuItem(3, false)}
-                            onClick={() => executeAction(3)}
-                        />
-                        <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
 
                         {/* SubMenu anchor */}
                         <div className="relative">
@@ -358,9 +466,9 @@ export function ContextMenu() {
                                                     className={clsx(
                                                         "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors outline-none",
                                                         (subMenuFocusedIndex === i) ? "bg-black/5 dark:bg-white/10" : "hover:bg-black/5 dark:hover:bg-white/10",
-                                                        targetMeme.categoryId === cat.id ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
+                                                        (!isMultiSelect && targetMeme.categoryId === cat.id) ? "opacity-50 cursor-not-allowed" : "cursor-default text-textPrimary"
                                                     )}
-                                                    disabled={targetMeme.categoryId === cat.id}
+                                                    disabled={!isMultiSelect && targetMeme.categoryId === cat.id}
                                                 >
                                                     <div className="flex items-center gap-3 truncate">
                                                         <Folder size={14} className="opacity-80 flex-shrink-0" />
@@ -376,14 +484,15 @@ export function ContextMenu() {
 
                         <div className="h-px bg-black/5 dark:bg-white/10 my-0.5" />
                         <ContextMenuItem
-                            icon={<Trash2 size={16} />}
-                            label={t('gallery.context_menu.move_to_trash')}
-                            danger
+                            icon={isTrashView ? <RotateCcw size={16} /> : <Trash2 size={16} />}
+                            label={isTrashView ? t('gallery.context_menu.restore') : t('gallery.context_menu.move_to_trash')}
+                            danger={!isTrashView}
                             isActive={focusedIndex === 5}
                             onMouseEnter={() => handleMouseEnterMenuItem(5, false)}
                             onClick={() => executeAction(5)}
                         />
                     </div>
+
                 </motion.div>
             </AnimatePresence>
         </Portal>
