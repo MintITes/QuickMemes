@@ -23,7 +23,8 @@
   - [logger.md](./03-Modules/logger.md) - 前后端统一的日志记录设计。
   - [persistence.md](./03-Modules/persistence.md) - 基于 SQLite 和 sqlite-vec 的持久化方案。
   - [vision.md](./03-Modules/vision.md) - 关于 OCR 与 AI 服务集成的视觉分析设计方案。
-  - [api/FreeOCRApi.md](./03-Modules/api/FreeOCRApi.md) - OCR.Space 免费 OCR API 的参数、响应与接入说明。
+  - [PP_OCRApi.md](./03-Modules/api/PP_OCRApi.md) - PP-OCRv5 服务化部署 API、参数、响应与错误码说明。
+  - [api/OCR_SpaceApi.md](./03-Modules/api/OCR_SpaceApi.md) - OCR.Space 免费 OCR API 的参数、响应与接入说明。
 
 - **[04-UI-UX (界面交互与视觉设计)](./04-UI-UX/)**  
   包含了整个 UI 界面的各项规范与设计细则：
