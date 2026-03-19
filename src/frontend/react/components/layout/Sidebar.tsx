@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
-import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore, PanelLeft, PanelLeftClose, Plus, MoreHorizontal, Pencil } from 'lucide-react';
+import { LayoutList, Tag, Trash2, Clock, Star, Folder, ArchiveRestore, PanelLeft, PanelLeftClose, Plus, MoreHorizontal, Pencil, GripVertical } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,30 @@ import { useNotificationStore } from '../../stores/NotificationStore';
 import type { Category } from '../../types';
 import { Portal } from '../common/Portal';
 import { ColorPicker } from '../common/ColorPicker';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { restrictToVerticalAxis, restrictToParentElement } from '@dnd-kit/modifiers';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+function SortableItem({ id, children }: { id: number, children: (props: { attributes: any, listeners: any, setNodeRef: (node: HTMLElement | null) => void, style: React.CSSProperties, isDragging: boolean }) => React.ReactNode }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        ...(isDragging ? { zIndex: 50, position: 'relative' as const } : {})
+    };
+
+    return <>{children({ attributes, listeners, setNodeRef, style, isDragging })}</>;
+}
 
 type CategoryMenuPanel = 'actions' | 'confirmDelete' | 'customColor';
 
@@ -71,6 +95,42 @@ export function Sidebar() {
         '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
         '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#2563eb'
     ];
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (active.id !== over?.id && over) {
+            const oldIndex = categories.findIndex((c) => c.id === active.id);
+            const newIndex = categories.findIndex((c) => c.id === over.id);
+
+            const newCategories = arrayMove(categories, oldIndex, newIndex);
+            const updatedCategories = newCategories.map((c, i) => ({ ...c, position: i }));
+
+            setCategories(updatedCategories);
+
+            try {
+                await updateCategoryRequest(active.id as number, { position: newIndex });
+            } catch (error) {
+                addNotification({
+                    type: 'error',
+                    title: '分类排序失败',
+                    description: error instanceof Error ? error.message : String(error),
+                });
+                refreshCategoriesInBackground();
+            }
+        }
+    };
 
     const categoriesById = useMemo(
         () => new Map(categories.map((category) => [category.id, category])),
@@ -790,295 +850,329 @@ export function Sidebar() {
                                 <div className="px-3 py-2 text-sm text-textSecondary italic opacity-50">{t('common.categories')}</div>
                             ) : (
                                 <div className="flex flex-col space-y-0.5">
-                                    <AnimatePresence mode="popLayout">
-                                        {categories.map((cat, index) => {
-                                            const navId = `category-${cat.id}`;
-                                            const isActive = activeNav === navId;
-                                            const isPending = pendingCategoryActionId === cat.id;
-                                            const isMenuOpen = categoryMenu?.categoryId === cat.id;
-                                            const isDeleteConfirmOpen = isMenuOpen && categoryMenu.panel === 'confirmDelete';
-                                            const isCustomColorPickerOpen = isMenuOpen && categoryMenu.panel === 'customColor';
-                                            const categoryDisplayColor = getCategoryBaseColor(cat);
+                                    <DndContext
+                                        sensors={sensors}
+                                        collisionDetection={closestCenter}
+                                        onDragEnd={handleDragEnd}
+                                        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                                    >
+                                        <SortableContext
+                                            items={categories.map(c => c.id)}
+                                            strategy={verticalListSortingStrategy}
+                                        >
+                                            <AnimatePresence mode="popLayout">
+                                                {categories.map((cat, index) => {
+                                                    const navId = `category-${cat.id}`;
+                                                    const isActive = activeNav === navId;
+                                                    const isPending = pendingCategoryActionId === cat.id;
+                                                    const isMenuOpen = categoryMenu?.categoryId === cat.id;
+                                                    const isDeleteConfirmOpen = isMenuOpen && categoryMenu.panel === 'confirmDelete';
+                                                    const isCustomColorPickerOpen = isMenuOpen && categoryMenu.panel === 'customColor';
+                                                    const categoryDisplayColor = getCategoryBaseColor(cat);
 
-                                            return (
-                                                <motion.div
-                                                    key={cat.id}
-                                                    layout
-                                                    initial={{ opacity: 0, x: -10 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    exit={{ opacity: 0, scale: 0.95 }}
-                                                    transition={{ duration: 0.2, delay: index * 0.03 }}
-                                                    className="relative group/category px-1 gpu-transform-opacity"
-                                                    data-category-menu-root="true"
-                                                >
-                                                    {editingCategoryId === cat.id ? (
-                                                        <div className="pb-2">
-                                                            <div
-                                                                className="rounded-2xl border p-2 space-y-2"
-                                                                style={categoryComposerStyle}
-                                                            >
-                                                                <input
-                                                                    type="text"
-                                                                    value={editingCategoryName}
-                                                                    onChange={(event) => setEditingCategoryName(event.target.value)}
-                                                                    onBlur={() => void handleSubmitRenameCategory(cat)}
-                                                                    onKeyDown={(event) => {
-                                                                        if (event.key === 'Enter') {
-                                                                            event.preventDefault();
-                                                                            void handleSubmitRenameCategory(cat);
-                                                                        }
-                                                                        if (event.key === 'Escape') {
-                                                                            setEditingCategoryId(null);
-                                                                            setEditingCategoryName('');
-                                                                        }
-                                                                    }}
-                                                                    autoFocus
-                                                                    className="w-full h-10 rounded-xl border px-3 text-sm text-textPrimary placeholder:text-textSecondary/60 outline-none transition-all duration-300"
-                                                                    style={categoryInputStyle}
-                                                                />
-                                                                <div className="flex items-center justify-end gap-2">
-                                                                    <button
-                                                                        type="button"
-                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                        onClick={() => {
-                                                                            setEditingCategoryId(null);
-                                                                            setEditingCategoryName('');
-                                                                        }}
-                                                                        disabled={isPending}
-                                                                        className="h-8 px-3 rounded-lg text-xs font-semibold text-textSecondary hover:text-textPrimary hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                                    return (
+                                                        <SortableItem key={cat.id} id={cat.id}>
+                                                            {(sortableProps) => (
+                                                                <div ref={sortableProps.setNodeRef} style={sortableProps.style}>
+                                                                    <motion.div
+                                                                        layout
+                                                                        initial={{ opacity: 0, x: -10 }}
+                                                                        animate={{ opacity: 1, x: 0 }}
+                                                                        exit={{ opacity: 0, scale: 0.95 }}
+                                                                        transition={{ duration: 0.2, delay: index * 0.03 }}
+                                                                        className={clsx("relative group/category px-1 gpu-transform-opacity", sortableProps.isDragging && "z-50")}
+                                                                        data-category-menu-root="true"
                                                                     >
-                                                                        取消
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                        onClick={() => void handleSubmitRenameCategory(cat)}
-                                                                        disabled={isPending}
-                                                                        className="h-8 px-3 rounded-lg text-xs font-bold text-white bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                                                                    >
-                                                                        {isPending ? '保存中...' : '保存'}
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <button
-                                                                onClick={() => setActiveNav(navId)}
-                                                                className={clsx(getNavClass(navId), sidebarExpanded && "pr-10")}
-                                                                title={!sidebarExpanded ? cat.name : undefined}
-                                                            >
-                                                                {renderActiveIndicator(navId)}
-                                                                <span className="flex w-[16px] shrink-0 justify-center">
-                                                                    <Folder
-                                                                        size={18}
-                                                                        ref={(node) => {
-                                                                            if (node) {
-                                                                                categoryIconRefs.current.set(cat.id, node);
-                                                                                const previewColor = categoryIconPreviewColorsRef.current.get(cat.id);
-                                                                                applyCategoryIconStyle(node, previewColor || categoryDisplayColor, isActive);
-                                                                                return;
-                                                                            }
-
-                                                                            categoryIconRefs.current.delete(cat.id);
-                                                                        }}
-                                                                        className={clsx(
-                                                                            "transition-all duration-300",
-                                                                            isActive ? "scale-110 opacity-100" : "opacity-60 group-hover/category:opacity-100"
-                                                                        )}
-                                                                        style={{
-                                                                            color: categoryDisplayColor || 'var(--accent-color)',
-                                                                            fill: categoryDisplayColor ? `color-mix(in srgb, ${categoryDisplayColor}, transparent 85%)` : 'transparent',
-                                                                            filter: isActive ? `drop-shadow(0 0 4px ${categoryDisplayColor || 'var(--accent-color)'}80)` : 'none'
-                                                                        }}
-                                                                    />
-                                                                </span>
-                                                                {renderNavLabel(cat.name)}
-                                                            </button>
-
-                                                            {sidebarExpanded && (
-                                                                <>
-                                                                    <button
-                                                                        type="button"
-                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                        onClick={(event) => {
-                                                                            event.stopPropagation();
-                                                                            const rect = event.currentTarget.getBoundingClientRect();
-                                                                            handleToggleCategoryMenu(cat.id, {
-                                                                                top: rect.top,
-                                                                                left: rect.right + 8
-                                                                            });
-                                                                        }}
-                                                                        aria-label={`${cat.name} 分类菜单`}
-                                                                        aria-haspopup="menu"
-                                                                        aria-expanded={isMenuOpen}
-                                                                        className={clsx(
-                                                                            "absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 no-drag z-20",
-                                                                            isMenuOpen
-                                                                                ? "opacity-100 bg-black/5 dark:bg-white/10 text-textPrimary"
-                                                                                : "opacity-0 group-hover/category:opacity-100 text-textSecondary hover:text-textPrimary hover:bg-black/5 dark:hover:bg-white/5"
-                                                                        )}
-                                                                    >
-                                                                        <MoreHorizontal size={14} />
-                                                                    </button>
-                                                                    <Portal>
-                                                                        <AnimatePresence>
-                                                                            {isMenuOpen && categoryMenu && (
-                                                                                <motion.div
-                                                                                    ref={categoryMenuRef}
-                                                                                    initial={{ opacity: 0, scale: 0.96, x: -8, y: -4 }}
-                                                                                    animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-                                                                                    exit={{ opacity: 0, scale: 0.98, x: -6, y: -2 }}
-                                                                                    transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                                                                                    className="fixed z-[9999] flex rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-[color:var(--bg-surface)] shadow-2xl overflow-hidden backdrop-blur-md category-portal-menu gpu-transform-opacity"
-                                                                                    style={{
-                                                                                        top: `${categoryMenu.position.top}px`,
-                                                                                        left: `${categoryMenu.position.left}px`,
-                                                                                        width: 'auto'
-                                                                                    }}
+                                                                        {editingCategoryId === cat.id ? (
+                                                                            <div className="pb-2">
+                                                                                <div
+                                                                                    className="rounded-2xl border p-2 space-y-2"
+                                                                                    style={categoryComposerStyle}
                                                                                 >
-                                                                                    <AnimatePresence mode="wait">
-                                                                                        {isDeleteConfirmOpen ? (
-                                                                                            <motion.div
-                                                                                                key="confirm"
-                                                                                                initial={{ opacity: 0, x: 16 }}
-                                                                                                animate={{ opacity: 1, x: 0 }}
-                                                                                                exit={{ opacity: 0, x: -12 }}
-                                                                                                transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                                                                                                className="flex flex-col gap-2 p-2.5 w-48"
-                                                                                            >
-                                                                                                <div className="text-[11px] leading-4 text-textSecondary font-medium px-1">
-                                                                                                    确认删除“<span className="text-textPrimary font-bold">{cat.name}</span>”？该操作不可撤销。
-                                                                                                </div>
-                                                                                                <div className="flex flex-col gap-1">
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                                                        onClick={() => void handleDeleteCategory(cat)}
-                                                                                                        className="w-full flex items-center justify-center h-8 rounded-xl bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
-                                                                                                    >
-                                                                                                        确定删除
-                                                                                                    </button>
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                                                        onClick={() => openCategoryMenuPanel(cat.id, 'actions')}
-                                                                                                        className="w-full flex items-center justify-center h-8 rounded-xl text-textSecondary hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold transition-colors"
-                                                                                                    >
-                                                                                                        取消
-                                                                                                    </button>
-                                                                                                </div>
-                                                                                            </motion.div>
-                                                                                        ) : (
-                                                                                            <div className="flex">
-                                                                                                <motion.div
-                                                                                                    key="menu"
-                                                                                                    initial={{ opacity: 0, x: -12 }}
-                                                                                                    animate={{ opacity: 1, x: 0 }}
-                                                                                                    exit={{ opacity: 0, x: 10 }}
-                                                                                                    transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                                                                                                    className={clsx(
-                                                                                                        "flex flex-col gap-0.5 p-1.5 w-48",
-                                                                                                        isCustomColorPickerOpen && "border-r border-black/[0.05] dark:border-white/[0.05]"
-                                                                                                    )}
-                                                                                                >
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                                                        onClick={() => handleStartRenameCategory(cat)}
-                                                                                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-sm text-textPrimary hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
-                                                                                                    >
-                                                                                                        <Pencil size={14} className="text-textSecondary" />
-                                                                                                        <span>重命名</span>
-                                                                                                    </button>
-                                                                                                    <div className="h-px bg-black/[0.05] dark:bg-white/[0.05] mx-2 my-1" />
-                                                                                                    <div className="px-3 py-2">
-                                                                                                        <div className="text-[10px] uppercase tracking-wider text-textSecondary opacity-50 mb-2 font-bold">分类颜色</div>
-                                                                                                        <div className="grid grid-cols-6 gap-1.5">
-                                                                                                            {PRESET_COLORS.map(c => (
-                                                                                                                <button
-                                                                                                                    key={c}
-                                                                                                                    type="button"
-                                                                                                                    onClick={() => void handlePickCategoryColor(cat, c)}
-                                                                                                                    className={clsx(
-                                                                                                                        "w-5 h-5 rounded-full border border-black/10 dark:border-white/10 transition-transform hover:scale-125 active:scale-95",
-                                                                                                                        categoryDisplayColor === c && "ring-2 ring-accent ring-offset-2 ring-offset-[color:var(--bg-surface)]"
-                                                                                                                    )}
-                                                                                                                    style={{ backgroundColor: c }}
-                                                                                                                    title={c}
-                                                                                                                />
-                                                                                                            ))}
-                                                                                                            <button
-                                                                                                                type="button"
-                                                                                                                onClick={(e) => {
-                                                                                                                    e.stopPropagation();
-                                                                                                                    handleOpenCustomCategoryColorPicker(cat);
-                                                                                                                }}
-                                                                                                                aria-label={`自定义 ${cat.name} 颜色`}
-                                                                                                                className={clsx(
-                                                                                                                    "w-5 h-5 rounded-full border border-dashed border-textSecondary/40 flex items-center justify-center transition-all hover:scale-125 text-textSecondary",
-                                                                                                                    isCustomColorPickerOpen && "bg-accent/10 border-accent/40 text-accent scale-110"
-                                                                                                                )}
-                                                                                                                title="自定义颜色"
-                                                                                                            >
-                                                                                                                <Plus size={10} />
-                                                                                                            </button>
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                    <div className="h-px bg-black/[0.05] dark:bg-white/[0.05] mx-2 my-1" />
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onMouseDown={(event) => event.preventDefault()}
-                                                                                                        onClick={() => handleRequestDeleteCategory(cat.id)}
-                                                                                                        className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-sm text-red-500 hover:bg-red-500/[0.08] transition-colors"
-                                                                                                    >
-                                                                                                        <Trash2 size={14} />
-                                                                                                        <span>删除分类</span>
-                                                                                                    </button>
-                                                                                                </motion.div>
+                                                                                    <input
+                                                                                        type="text"
+                                                                                        value={editingCategoryName}
+                                                                                        onChange={(event) => setEditingCategoryName(event.target.value)}
+                                                                                        onBlur={() => void handleSubmitRenameCategory(cat)}
+                                                                                        onKeyDown={(event) => {
+                                                                                            if (event.key === 'Enter') {
+                                                                                                event.preventDefault();
+                                                                                                void handleSubmitRenameCategory(cat);
+                                                                                            }
+                                                                                            if (event.key === 'Escape') {
+                                                                                                setEditingCategoryId(null);
+                                                                                                setEditingCategoryName('');
+                                                                                            }
+                                                                                        }}
+                                                                                        autoFocus
+                                                                                        className="w-full h-10 rounded-xl border px-3 text-sm text-textPrimary placeholder:text-textSecondary/60 outline-none transition-all duration-300"
+                                                                                        style={categoryInputStyle}
+                                                                                    />
+                                                                                    <div className="flex items-center justify-end gap-2">
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                            onClick={() => {
+                                                                                                setEditingCategoryId(null);
+                                                                                                setEditingCategoryName('');
+                                                                                            }}
+                                                                                            disabled={isPending}
+                                                                                            className="h-8 px-3 rounded-lg text-xs font-semibold text-textSecondary hover:text-textPrimary hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                                                                        >
+                                                                                            取消
+                                                                                        </button>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                            onClick={() => void handleSubmitRenameCategory(cat)}
+                                                                                            disabled={isPending}
+                                                                                            className="h-8 px-3 rounded-lg text-xs font-bold text-white bg-accent hover:bg-accent/90 shadow-md shadow-accent/20 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                                        >
+                                                                                            {isPending ? '保存中...' : '保存'}
+                                                                                        </button>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => setActiveNav(navId)}
+                                                                                    className={clsx(
+                                                                                        getNavClass(navId),
+                                                                                        sidebarExpanded && "pr-10",
+                                                                                        sortableProps.isDragging && "bg-black/[0.03] dark:bg-white/[0.03] text-textPrimary shadow-sm"
+                                                                                    )}
+                                                                                    title={!sidebarExpanded ? cat.name : undefined}
+                                                                                >
+                                                                                    {renderActiveIndicator(navId)}
+                                                                                    <span className="flex w-[16px] shrink-0 justify-center">
+                                                                                        <Folder
+                                                                                            size={18}
+                                                                                            ref={(node) => {
+                                                                                                if (node) {
+                                                                                                    categoryIconRefs.current.set(cat.id, node);
+                                                                                                    const previewColor = categoryIconPreviewColorsRef.current.get(cat.id);
+                                                                                                    applyCategoryIconStyle(node, previewColor || categoryDisplayColor, isActive);
+                                                                                                    return;
+                                                                                                }
 
-                                                                                                <AnimatePresence>
-                                                                                                    {isCustomColorPickerOpen && (
-                                                                                                        <motion.div
-                                                                                                            initial={{ opacity: 0, width: 0 }}
-                                                                                                            animate={{ opacity: 1, width: 240 }}
-                                                                                                            exit={{ opacity: 0, width: 0 }}
-                                                                                                            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-                                                                                                            className="overflow-hidden gpu-transform-opacity"
-                                                                                                        >
-                                                                                                            <motion.div
-                                                                                                                initial={{ opacity: 0, x: -12 }}
-                                                                                                                animate={{ opacity: 1, x: 0 }}
-                                                                                                                exit={{ opacity: 0, x: -8 }}
-                                                                                                                transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
-                                                                                                                className="w-[240px] gpu-transform-opacity"
-                                                                                                            >
-                                                                                                                <ColorPicker
-                                                                                                                    color={categoryDisplayColor}
-                                                                                                                    onPreviewChange={(color) => {
-                                                                                                                        handlePreviewCustomCategoryColor(cat, color);
-                                                                                                                    }}
-                                                                                                                    onCommit={(color) => void handleCommitCustomCategoryColor(cat, color)}
-                                                                                                                />
-                                                                                                            </motion.div>
-                                                                                                        </motion.div>
-                                                                                                    )}
-                                                                                                </AnimatePresence>
-                                                                                            </div>
-                                                                                        )}
-                                                                                    </AnimatePresence>
-                                                                                </motion.div>
-                                                                            )}
-                                                                        </AnimatePresence>
-                                                                    </Portal>
-                                                                </>
+                                                                                                categoryIconRefs.current.delete(cat.id);
+                                                                                            }}
+                                                                                            className={clsx(
+                                                                                                "transition-all duration-300",
+                                                                                                isActive ? "scale-110 opacity-100" : "opacity-60 group-hover/category:opacity-100"
+                                                                                            )}
+                                                                                            style={{
+                                                                                                color: categoryDisplayColor || 'var(--accent-color)',
+                                                                                                fill: categoryDisplayColor ? `color-mix(in srgb, ${categoryDisplayColor}, transparent 85%)` : 'transparent',
+                                                                                                filter: isActive ? `drop-shadow(0 0 4px ${categoryDisplayColor || 'var(--accent-color)'}80)` : 'none'
+                                                                                            }}
+                                                                                        />
+                                                                                    </span>
+                                                                                    {renderNavLabel(cat.name)}
+                                                                                </button>
+
+                                                                                {sidebarExpanded && (
+                                                                                    <>
+                                                                                        <div
+                                                                                            {...sortableProps.attributes}
+                                                                                            {...sortableProps.listeners}
+                                                                                            className={clsx(
+                                                                                                "absolute right-10 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 cursor-grab active:cursor-grabbing z-20 outline-none",
+                                                                                                isMenuOpen
+                                                                                                    ? "opacity-100 text-textSecondary"
+                                                                                                    : "opacity-0 group-hover/category:opacity-100 text-textSecondary hover:text-textPrimary hover:bg-black/5 dark:hover:bg-white/5"
+                                                                                            )}
+                                                                                            title="拖动排序"
+                                                                                        >
+                                                                                            <GripVertical size={14} />
+                                                                                        </div>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                            onClick={(event) => {
+                                                                                                event.stopPropagation();
+                                                                                                const rect = event.currentTarget.getBoundingClientRect();
+                                                                                                handleToggleCategoryMenu(cat.id, {
+                                                                                                    top: rect.top,
+                                                                                                    left: rect.right + 8
+                                                                                                });
+                                                                                            }}
+                                                                                            aria-label={`${cat.name} 分类菜单`}
+                                                                                            aria-haspopup="menu"
+                                                                                            aria-expanded={isMenuOpen}
+                                                                                            className={clsx(
+                                                                                                "absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 no-drag z-20",
+                                                                                                isMenuOpen
+                                                                                                    ? "opacity-100 bg-black/5 dark:bg-white/10 text-textPrimary"
+                                                                                                    : "opacity-0 group-hover/category:opacity-100 text-textSecondary hover:text-textPrimary hover:bg-black/5 dark:hover:bg-white/5"
+                                                                                            )}
+                                                                                        >
+                                                                                            <MoreHorizontal size={14} />
+                                                                                        </button>
+                                                                                        <Portal>
+                                                                                            <AnimatePresence>
+                                                                                                {isMenuOpen && categoryMenu && (
+                                                                                                    <motion.div
+                                                                                                        ref={categoryMenuRef}
+                                                                                                        initial={{ opacity: 0, scale: 0.96, x: -8, y: -4 }}
+                                                                                                        animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                                                                                                        exit={{ opacity: 0, scale: 0.98, x: -6, y: -2 }}
+                                                                                                        transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                                                                                                        className="fixed z-[9999] flex rounded-2xl border border-black/[0.08] dark:border-white/[0.08] bg-[color:var(--bg-surface)] shadow-2xl overflow-hidden backdrop-blur-md category-portal-menu gpu-transform-opacity"
+                                                                                                        style={{
+                                                                                                            top: `${categoryMenu.position.top}px`,
+                                                                                                            left: `${categoryMenu.position.left}px`,
+                                                                                                            width: 'auto'
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <AnimatePresence mode="wait">
+                                                                                                            {isDeleteConfirmOpen ? (
+                                                                                                                <motion.div
+                                                                                                                    key="confirm"
+                                                                                                                    initial={{ opacity: 0, x: 16 }}
+                                                                                                                    animate={{ opacity: 1, x: 0 }}
+                                                                                                                    exit={{ opacity: 0, x: -12 }}
+                                                                                                                    transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+                                                                                                                    className="flex flex-col gap-2 p-2.5 w-48"
+                                                                                                                >
+                                                                                                                    <div className="text-[11px] leading-4 text-textSecondary font-medium px-1">
+                                                                                                                        确认删除“<span className="text-textPrimary font-bold">{cat.name}</span>”？该操作不可撤销。
+                                                                                                                    </div>
+                                                                                                                    <div className="flex flex-col gap-1">
+                                                                                                                        <button
+                                                                                                                            type="button"
+                                                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                                                            onClick={() => void handleDeleteCategory(cat)}
+                                                                                                                            className="w-full flex items-center justify-center h-8 rounded-xl bg-red-500 text-white text-xs font-bold hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                                                                                                                        >
+                                                                                                                            确定删除
+                                                                                                                        </button>
+                                                                                                                        <button
+                                                                                                                            type="button"
+                                                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                                                            onClick={() => openCategoryMenuPanel(cat.id, 'actions')}
+                                                                                                                            className="w-full flex items-center justify-center h-8 rounded-xl text-textSecondary hover:bg-black/5 dark:hover:bg-white/5 text-xs font-semibold transition-colors"
+                                                                                                                        >
+                                                                                                                            取消
+                                                                                                                        </button>
+                                                                                                                    </div>
+                                                                                                                </motion.div>
+                                                                                                            ) : (
+                                                                                                                <div className="flex">
+                                                                                                                    <motion.div
+                                                                                                                        key="menu"
+                                                                                                                        initial={{ opacity: 0, x: -12 }}
+                                                                                                                        animate={{ opacity: 1, x: 0 }}
+                                                                                                                        exit={{ opacity: 0, x: 10 }}
+                                                                                                                        transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+                                                                                                                        className={clsx(
+                                                                                                                            "flex flex-col gap-0.5 p-1.5 w-48",
+                                                                                                                            isCustomColorPickerOpen && "border-r border-black/[0.05] dark:border-white/[0.05]"
+                                                                                                                        )}
+                                                                                                                    >
+                                                                                                                        <button
+                                                                                                                            type="button"
+                                                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                                                            onClick={() => handleStartRenameCategory(cat)}
+                                                                                                                            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-sm text-textPrimary hover:bg-black/[0.04] dark:hover:bg-white/[0.04] transition-colors"
+                                                                                                                        >
+                                                                                                                            <Pencil size={14} className="text-textSecondary" />
+                                                                                                                            <span>重命名</span>
+                                                                                                                        </button>
+                                                                                                                        <div className="h-px bg-black/[0.05] dark:bg-white/[0.05] mx-2 my-1" />
+                                                                                                                        <div className="px-3 py-2">
+                                                                                                                            <div className="text-[10px] uppercase tracking-wider text-textSecondary opacity-50 mb-2 font-bold">分类颜色</div>
+                                                                                                                            <div className="grid grid-cols-6 gap-1.5">
+                                                                                                                                {PRESET_COLORS.map(c => (
+                                                                                                                                    <button
+                                                                                                                                        key={c}
+                                                                                                                                        type="button"
+                                                                                                                                        onClick={() => void handlePickCategoryColor(cat, c)}
+                                                                                                                                        className={clsx(
+                                                                                                                                            "w-5 h-5 rounded-full border border-black/10 dark:border-white/10 transition-transform hover:scale-125 active:scale-95",
+                                                                                                                                            categoryDisplayColor === c && "ring-2 ring-accent ring-offset-2 ring-offset-[color:var(--bg-surface)]"
+                                                                                                                                        )}
+                                                                                                                                        style={{ backgroundColor: c }}
+                                                                                                                                        title={c}
+                                                                                                                                    />
+                                                                                                                                ))}
+                                                                                                                                <button
+                                                                                                                                    type="button"
+                                                                                                                                    onClick={(e) => {
+                                                                                                                                        e.stopPropagation();
+                                                                                                                                        handleOpenCustomCategoryColorPicker(cat);
+                                                                                                                                    }}
+                                                                                                                                    aria-label={`自定义 ${cat.name} 颜色`}
+                                                                                                                                    className={clsx(
+                                                                                                                                        "w-5 h-5 rounded-full border border-dashed border-textSecondary/40 flex items-center justify-center transition-all hover:scale-125 text-textSecondary",
+                                                                                                                                        isCustomColorPickerOpen && "bg-accent/10 border-accent/40 text-accent scale-110"
+                                                                                                                                    )}
+                                                                                                                                    title="自定义颜色"
+                                                                                                                                >
+                                                                                                                                    <Plus size={10} />
+                                                                                                                                </button>
+                                                                                                                            </div>
+                                                                                                                        </div>
+                                                                                                                        <div className="h-px bg-black/[0.05] dark:bg-white/[0.05] mx-2 my-1" />
+                                                                                                                        <button
+                                                                                                                            type="button"
+                                                                                                                            onMouseDown={(event) => event.preventDefault()}
+                                                                                                                            onClick={() => handleRequestDeleteCategory(cat.id)}
+                                                                                                                            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-left text-sm text-red-500 hover:bg-red-500/[0.08] transition-colors"
+                                                                                                                        >
+                                                                                                                            <Trash2 size={14} />
+                                                                                                                            <span>删除分类</span>
+                                                                                                                        </button>
+                                                                                                                    </motion.div>
+
+                                                                                                                    <AnimatePresence>
+                                                                                                                        {isCustomColorPickerOpen && (
+                                                                                                                            <motion.div
+                                                                                                                                initial={{ opacity: 0, width: 0 }}
+                                                                                                                                animate={{ opacity: 1, width: 240 }}
+                                                                                                                                exit={{ opacity: 0, width: 0 }}
+                                                                                                                                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                                                                                                                                className="overflow-hidden gpu-transform-opacity"
+                                                                                                                            >
+                                                                                                                                <motion.div
+                                                                                                                                    initial={{ opacity: 0, x: -12 }}
+                                                                                                                                    animate={{ opacity: 1, x: 0 }}
+                                                                                                                                    exit={{ opacity: 0, x: -8 }}
+                                                                                                                                    transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+                                                                                                                                    className="w-[240px] gpu-transform-opacity"
+                                                                                                                                >
+                                                                                                                                    <ColorPicker
+                                                                                                                                        color={categoryDisplayColor}
+                                                                                                                                        onPreviewChange={(color) => {
+                                                                                                                                            handlePreviewCustomCategoryColor(cat, color);
+                                                                                                                                        }}
+                                                                                                                                        onCommit={(color) => void handleCommitCustomCategoryColor(cat, color)}
+                                                                                                                                    />
+                                                                                                                                </motion.div>
+                                                                                                                            </motion.div>
+                                                                                                                        )}
+                                                                                                                    </AnimatePresence>
+                                                                                                                </div>
+                                                                                                            )}
+                                                                                                        </AnimatePresence>
+                                                                                                    </motion.div>
+                                                                                                )}
+                                                                                            </AnimatePresence>
+                                                                                        </Portal>
+                                                                                    </>
+                                                                                )}
+                                                                            </>
+                                                                        )}
+                                                                    </motion.div>
+                                                                </div>
                                                             )}
-                                                        </>
-                                                    )}
-                                                </motion.div>
-                                            );
-                                        })}
-                                    </AnimatePresence>
+                                                        </SortableItem>
+                                                    );
+                                                })}
+                                            </AnimatePresence>
+                                        </SortableContext>
+                                    </DndContext>
                                 </div>
                             )}
                         </div>
