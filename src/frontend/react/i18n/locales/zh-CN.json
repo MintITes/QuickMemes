@@ -262,11 +262,17 @@
             "apiKey": {
                 "label": "OCR API 密钥",
                 "desc": "访问 OCR 服务的认证密钥"
+            },
+            "provider": {
+                "label": "OCR 提供商",
+                "desc": "云端 OCR 提供商标识 (当前支持 PaddleOCR 与 OcrSpace)",
+                "none": "关闭"
             }
         },
         "ai": {
             "title": "AI 视觉分析",
             "not_configured": "AI 自动打标模型尚未配置，请在后续版本配置 API Key",
+            "todo": "此功能暂不可用，还未完善，之后版本再完善...",
             "apiBaseUrl": {
                 "label": "AI API Base URL",
                 "desc": "自定义的 AI 模型接口基础地址"

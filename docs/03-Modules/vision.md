@@ -34,7 +34,7 @@
 
 **负责的事情：**
 - 封装对云端第三方 OCR API 和 LLM / VLM API 的 HTTPS 请求发送和响应解析
-- **OCR 文字识别（核心）**：通过云端 OCR API 识别图像中的文字内容（具体 API 提供商待适配，当前保留占位接口）
+- **OCR 文字识别（核心）**：通过云端 OCR API 识别图像中的文字内容，当前已接入 `PaddleOCR` 服务化接口，并保留 `OcrSpace` 兼容实现
 - **图像分析（核心）**：通过视觉模型分析图片内容，生成描述文本和推荐 Tags
 - **词向量转换（核心）**：通过 Embedding 模型将 OCR 文本 / AI 描述 / Tags / 用户搜索关键词转换为语义向量，供 sqlite-vec 进行相似度搜索
 - 检查服务可用性（网络连通 + 配置有效性）
@@ -65,7 +65,7 @@ graph TD
         OCR_FUNC[" OCR 文字识别
         recognize()
         ─────────────────
-        云端 OCR API（占位）
+        PaddleOCR / OcrSpace
         → fullText"]
 
         ANALYZE[" 图像分析
@@ -92,7 +92,7 @@ graph TD
     end
 
     CLOUD(("云端 API
-    OCR API（待适配）
+    PaddleOCR / OcrSpace
     OpenAI Compatible
     /chat/completions
     /embeddings"))
@@ -121,8 +121,8 @@ VisionConfig {
     timeoutSeconds  : int     // 单次 API 请求超时秒数（默认 30）
     maxRetries      : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
     ocrApiKey       : string  // 云端 OCR API 密钥（可为空，空则 OCR 降级为空文本）
-    ocrApiUrl       : string  // 云端 OCR API 地址（待适配具体提供商）
-    ocrProvider     : string  // 云端 OCR 提供商标识（如 "baidu" / "tencent" / "google"，占位字段）
+    ocrApiUrl       : string  // 云端 OCR API 地址
+    ocrProvider     : string  // 云端 OCR 提供商标识（当前支持 "PaddleOCR" 与 "OcrSpace"）
 }
 ```
 
@@ -208,12 +208,13 @@ recognize(imagePath: string): OcrResult
 - **描述**：
   1. 检查 OCR 配置是否有效（`ocrApiKey` / `ocrApiUrl` 非空），无效则返回降级结果（空文本）
   2. 读取图像文件并编码为 Base64
-  3. 根据 `ocrProvider` 构建对应云端 OCR API 的请求格式（当前为占位实现，返回降级结果）
+  3. 根据 `ocrProvider` 构建对应云端 OCR API 的请求格式
   4. 发送请求（含重试逻辑），解析响应
   5. 提取识别文本，拼接为 `fullText`
   6. 返回 `OcrResult`
-
-  > **当前状态**：占位接口。`recognize()` 内部目前直接返回降级结果 `OcrResult { fullText: "", success: true, error: "" }`。
+- 当前支持的 provider：
+  - `PaddleOCR`：对接 `POST /ocr`，请求头使用 `Authorization: token <access token>`
+  - `OcrSpace`：对接 `POST /parse/image`，请求头使用 `apikey: <api key>`
 - **输入**：`imagePath`：图像文件绝对路径
 - **输出**：`OcrResult`
 
@@ -279,7 +280,7 @@ isOcrAvailable(): bool
 - **描述**：检查云端 OCR 服务当前是否可用，条件为：
   1. `VisionConfig.ocrApiKey` 非空
   2. `VisionConfig.ocrApiUrl` 非空
-  3. `VisionConfig.ocrProvider` 非空
+  3. `VisionConfig.ocrProvider` 非空且为支持的 provider
 - **输入**：无
 - **输出**：满足以上条件为 `true`
 

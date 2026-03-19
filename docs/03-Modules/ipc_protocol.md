@@ -217,7 +217,7 @@ RuntimeConfigPatch {
     aiMaxRetries?      : int     // AI API 失败重试次数（可选）
     ocrApiKey?         : string  // 云端 OCR API 密钥（可选）
     ocrApiUrl?         : string  // 云端 OCR API 地址（可选）
-    ocrProvider?       : string  // 云端 OCR 提供商（可选）
+    ocrProvider?       : string  // 云端 OCR 提供商（可选，当前支持 "PaddleOCR" 与 "OcrSpace"）
     logMinLevel?       : string  // 最低日志输出等级（可选）
 }
 

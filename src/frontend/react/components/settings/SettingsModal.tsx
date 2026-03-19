@@ -306,7 +306,7 @@ export function SettingsModal() {
                                         type="text"
                                         readOnly
                                         value={config?.storagePath ?? ''}
-                                        className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text"
+                                        className="flex-1 bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-1.5 text-sm text-textSecondary outline-none select-text themed-input-focus"
                                     />
                                     <button
                                         className="px-4 py-1.5 bg-white/10 hover:bg-white/20 transition-colors rounded-lg text-sm"
@@ -343,11 +343,37 @@ export function SettingsModal() {
                     <div className="space-y-6">
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ocr.title')}</h3>
                         <div className="space-y-4">
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div>
+                                    <div className="font-medium text-sm">{t('settings.ocr.provider.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.ocr.provider.desc')}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {[
+                                        { id: '', label: t('settings.ocr.provider.none') },
+                                        { id: 'PaddleOCR', label: 'PaddleOCR' },
+                                        { id: 'OcrSpace', label: 'OcrSpace' }
+                                    ].map((p) => (
+                                        <button
+                                            key={p.id}
+                                            className={clsx(
+                                                "px-3 py-1 text-sm rounded-lg transition-colors border",
+                                                (config?.ocr.provider ?? '') === p.id
+                                                    ? "bg-accent text-white border-accent"
+                                                    : "border-white/10 opacity-70 hover:bg-white/10"
+                                            )}
+                                            onClick={() => void saveOcrField('provider', p.id)}
+                                        >
+                                            {p.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div className="font-medium text-sm mb-1">{t('settings.ocr.apiUrl.label')}</div>
                                 <div className="text-xs opacity-60 mb-3">{t('settings.ocr.apiUrl.desc')}</div>
                                 <input
-                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
                                     value={config?.ocr.apiUrl ?? ''}
                                     onChange={(e) => setConfig((prev) => prev ? { ...prev, ocr: { ...prev.ocr, apiUrl: e.target.value } } : prev)}
                                     onBlur={(e) => void saveOcrField('apiUrl', e.target.value)}
@@ -357,7 +383,7 @@ export function SettingsModal() {
                                 <div className="font-medium text-sm mb-1">{t('settings.ocr.apiKey.label')}</div>
                                 <div className="text-xs opacity-60 mb-3">{t('settings.ocr.apiKey.desc')}</div>
                                 <input
-                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
                                     value={config?.ocr.apiKey ?? ''}
                                     onChange={(e) => setConfig((prev) => prev ? { ...prev, ocr: { ...prev.ocr, apiKey: e.target.value } } : prev)}
                                     onBlur={(e) => void saveOcrField('apiKey', e.target.value)}
@@ -370,12 +396,18 @@ export function SettingsModal() {
                 return (
                     <div className="space-y-6">
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ai.title')}</h3>
-                        <div className="space-y-4">
+
+                        <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-sm mb-4">
+                            {t('settings.ai.todo')}
+                        </div>
+
+                        <div className="space-y-4 opacity-50 grayscale pointer-events-none">
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div className="font-medium text-sm mb-1">{t('settings.ai.apiBaseUrl.label')}</div>
                                 <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiBaseUrl.desc')}</div>
                                 <input
-                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    disabled
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
                                     value={config?.vision.apiBaseUrl ?? ''}
                                     onChange={(e) => setConfig((prev) => prev ? { ...prev, vision: { ...prev.vision, apiBaseUrl: e.target.value } } : prev)}
                                     onBlur={(e) => void saveVisionField('apiBaseUrl', e.target.value)}
@@ -385,7 +417,8 @@ export function SettingsModal() {
                                 <div className="font-medium text-sm mb-1">{t('settings.ai.apiKey.label')}</div>
                                 <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiKey.desc')}</div>
                                 <input
-                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm"
+                                    disabled
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
                                     value={config?.vision.apiKey ?? ''}
                                     onChange={(e) => setConfig((prev) => prev ? { ...prev, vision: { ...prev.vision, apiKey: e.target.value } } : prev)}
                                     onBlur={(e) => void saveVisionField('apiKey', e.target.value)}

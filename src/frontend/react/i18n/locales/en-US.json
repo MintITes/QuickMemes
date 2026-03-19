@@ -262,11 +262,17 @@
             "apiKey": {
                 "label": "OCR API Key",
                 "desc": "Authentication key for accessing the OCR service"
+            },
+            "provider": {
+                "label": "OCR Provider",
+                "desc": "Cloud OCR provider identifier (currently supports PaddleOCR and OcrSpace)",
+                "none": "None"
             }
         },
         "ai": {
             "title": "AI Vision Analysis",
             "not_configured": "AI auto-tagging model is not yet configured, please set API Key in future versions",
+            "todo": "This feature is currently unavailable, it's not yet perfected and will be completed in a future version...",
             "apiBaseUrl": {
                 "label": "AI API Base URL",
                 "desc": "Custom base URL for the AI vision model interface"

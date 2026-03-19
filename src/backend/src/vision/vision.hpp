@@ -96,7 +96,7 @@ public:
 	/**
 	 * @brief 执行文本识别 (OCR)
 	 *
-	 * 根据配置调用本地库或云端 OCR API。
+	 * 根据配置调用云端 OCR API。
 	 *
 	 * @param imagePath std::string 目标图像或缩略图绝对路径
 	 * @return OcrResult 包含全文及成功标识

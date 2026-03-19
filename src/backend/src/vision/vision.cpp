@@ -11,10 +11,15 @@
 #include "error_codes.hpp"
 #include "utils/logger.hpp"
 
+#include <cctype>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <iomanip>
+#include <filesystem>
 #include <nlohmann/json.hpp>
+#include <sstream>
+#include <string_view>
 #include <thread>
 
 // stb_image 用于图像加载和缩放
@@ -54,6 +59,236 @@ static void stbiWriteCallback(void *context, void *data, int size) {
 	vec->insert(vec->end(), bytes, bytes + size);
 }
 
+static std::string toLowerCopy(std::string value) {
+	std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	return value;
+}
+
+static std::string trimCopy(std::string value) {
+	auto ltrim = [](std::string &s) {
+		s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); }));
+	};
+	auto rtrim = [](std::string &s) {
+		s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(),
+		        s.end());
+	};
+	ltrim(value);
+	rtrim(value);
+	return value;
+}
+
+static bool isGifImage(const std::string &imagePath) {
+	auto ext = toLowerCopy(std::filesystem::path(imagePath).extension().string());
+	return ext == ".gif";
+}
+
+static bool isPdfFile(const std::string &imagePath) {
+	auto ext = toLowerCopy(std::filesystem::path(imagePath).extension().string());
+	return ext == ".pdf";
+}
+
+static std::string normalizeOcrProvider(const std::string &provider) {
+	return toLowerCopy(trimCopy(provider));
+}
+
+static bool isPaddleOcrProvider(const std::string &provider) {
+	auto normalized = normalizeOcrProvider(provider);
+	return normalized == "paddleocr" || normalized == "paddle_ocr" || normalized == "pp-ocr" || normalized == "pp_ocr";
+}
+
+static bool isOcrSpaceProvider(const std::string &provider) {
+	return normalizeOcrProvider(provider) == "ocrspace";
+}
+
+static std::string urlEncode(std::string_view value) {
+	std::ostringstream encoded;
+	encoded << std::uppercase << std::hex;
+	for (unsigned char c : value) {
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ||
+		    c == '.' || c == '~') {
+			encoded << static_cast<char>(c);
+		} else if (c == ' ') {
+			encoded << '+';
+		} else {
+			encoded << '%' << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+		}
+	}
+	return encoded.str();
+}
+
+static std::string normalizePaddleOcrUrl(const std::string &ocrApiUrl) {
+	auto pathEnd = ocrApiUrl.find_first_of("?#");
+	auto path    = pathEnd == std::string::npos ? ocrApiUrl : ocrApiUrl.substr(0, pathEnd);
+	if (path.size() >= 4 && path.compare(path.size() - 4, 4, "/ocr") == 0) {
+		return ocrApiUrl;
+	}
+	if (path.size() >= 5 && path.compare(path.size() - 5, 5, "/ocr/") == 0) {
+		return ocrApiUrl;
+	}
+	if (!ocrApiUrl.empty() && ocrApiUrl.back() == '/') {
+		return ocrApiUrl + "ocr";
+	}
+	return ocrApiUrl + "/ocr";
+}
+
+static std::string normalizeOcrSpaceUrl(const std::string &ocrApiUrl) {
+	if (ocrApiUrl.find("/parse/imageurl") != std::string::npos) {
+		return std::string(ocrApiUrl).replace(ocrApiUrl.find("/parse/imageurl"), std::string("/parse/imageurl").size(),
+		                                      "/parse/image");
+	}
+	if (ocrApiUrl.find("/parse/image") != std::string::npos) {
+		return ocrApiUrl;
+	}
+	if (!ocrApiUrl.empty() && ocrApiUrl.back() == '/') {
+		return ocrApiUrl + "parse/image";
+	}
+	return ocrApiUrl + "/parse/image";
+}
+
+static std::string jsonValueToString(const nlohmann::json &value) {
+	if (value.is_null()) { return ""; }
+	if (value.is_string()) { return value.get<std::string>(); }
+	if (value.is_array()) {
+		std::string joined;
+		for (const auto &item : value) {
+			if (item.is_string()) {
+				if (!joined.empty()) { joined += ", "; }
+				joined += item.get<std::string>();
+			}
+		}
+		return joined;
+	}
+	return value.dump();
+}
+
+static std::string buildOcrSpaceRequestBody(const std::string &base64Image) {
+	std::ostringstream body;
+	body << "base64Image=" << urlEncode("data:image/jpeg;base64," + base64Image) << '&';
+	body << "language=" << urlEncode("chs") << '&';
+	body << "isOverlayRequired=" << urlEncode("false") << '&';
+	body << "detectOrientation=" << urlEncode("true") << '&';
+	body << "scale=" << urlEncode("true") << '&';
+	body << "OCREngine=" << urlEncode("2");
+	return body.str();
+}
+
+static std::string buildOcrSpaceHeaders(const std::string &apiKey) {
+	return "apikey: " + apiKey + "\r\nContent-Type: application/x-www-form-urlencoded\r\n";
+}
+
+static std::string buildPaddleOcrRequestBody(const std::string &base64Image, const std::string &imagePath) {
+	nlohmann::json body;
+	body["file"]                    = base64Image;
+	body["fileType"]                = isPdfFile(imagePath) ? 0 : 1;
+	body["useDocOrientationClassify"] = false;
+	body["useDocUnwarping"]         = false;
+	body["useTextlineOrientation"]   = false;
+	body["visualize"]                = false;
+	return body.dump();
+}
+
+static std::string buildPaddleOcrHeaders(const std::string &apiKey) {
+	return "Authorization: token " + apiKey + "\r\nContent-Type: application/json\r\n";
+}
+
+static void appendTrimmedText(std::vector<std::string> &texts, const nlohmann::json &value) {
+	if (!value.is_string()) { return; }
+	auto text = trimCopy(value.get<std::string>());
+	if (!text.empty()) { texts.push_back(text); }
+}
+
+static std::vector<std::string> extractPaddlePageTexts(const nlohmann::json &ocrItem) {
+	std::vector<std::string> pageTexts;
+
+	const nlohmann::json *prunedResult = nullptr;
+	if (ocrItem.contains("prunedResult") && ocrItem["prunedResult"].is_object()) {
+		prunedResult = &ocrItem["prunedResult"];
+	} else if (ocrItem.is_object()) {
+		prunedResult = &ocrItem;
+	}
+
+	if (!prunedResult) { return pageTexts; }
+
+	if (prunedResult->contains("res") && (*prunedResult)["res"].is_object()) {
+		const auto &res = (*prunedResult)["res"];
+		if (res.contains("rec_texts") && res["rec_texts"].is_array()) {
+			for (const auto &line : res["rec_texts"]) {
+				appendTrimmedText(pageTexts, line);
+			}
+			return pageTexts;
+		}
+	}
+
+	if (prunedResult->contains("rec_texts") && (*prunedResult)["rec_texts"].is_array()) {
+		for (const auto &line : (*prunedResult)["rec_texts"]) {
+			appendTrimmedText(pageTexts, line);
+		}
+	}
+
+	return pageTexts;
+}
+
+static std::string joinTexts(const std::vector<std::string> &texts) {
+	std::string result;
+	for (const auto &text : texts) {
+		if (text.empty()) { continue; }
+		if (!result.empty()) { result += "\n"; }
+		result += text;
+	}
+	return result;
+}
+
+static OcrResult parsePaddleOcrResponse(const std::string &responseBody) {
+	OcrResult res;
+
+	auto respJson = nlohmann::json::parse(responseBody);
+	if (!respJson.is_object()) {
+		res.error = "Invalid PaddleOCR response format";
+		return res;
+	}
+
+	if (respJson.contains("errorCode") && !respJson["errorCode"].is_null()) {
+		int errorCode = 0;
+		if (respJson["errorCode"].is_number_integer()) {
+			errorCode = respJson["errorCode"].get<int>();
+		} else if (respJson["errorCode"].is_string()) {
+			errorCode = std::stoi(respJson["errorCode"].get<std::string>());
+		}
+
+		if (errorCode != 0) {
+			std::string message;
+			if (respJson.contains("errorMsg") && respJson["errorMsg"].is_string()) {
+				message = trimCopy(respJson["errorMsg"].get<std::string>());
+			}
+			if (message.empty()) { message = "PaddleOCR processing failed"; }
+			res.error = message;
+			return res;
+		}
+	}
+
+	if (!respJson.contains("result") || !respJson["result"].is_object()) {
+		res.error = "Invalid PaddleOCR response format";
+		return res;
+	}
+
+	const auto &result = respJson["result"];
+	if (!result.contains("ocrResults") || !result["ocrResults"].is_array()) {
+		res.error = "Invalid PaddleOCR response format";
+		return res;
+	}
+
+	std::vector<std::string> pageTexts;
+	for (const auto &item : result["ocrResults"]) {
+		auto texts = extractPaddlePageTexts(item);
+		auto page  = joinTexts(texts);
+		if (!page.empty()) { pageTexts.push_back(page); }
+	}
+
+	res.fullText = joinTexts(pageTexts);
+	res.success  = true;
+	return res;
+}
+
 VisionModule::VisionModule(std::shared_ptr<HttpClientInterface> httpClient)
     : httpClient_(std::move(httpClient)) {}
 
@@ -84,7 +319,11 @@ bool VisionModule::initialize(const VisionConfig &config) {
 		}
 	}
 
-	isOcrAvailable_ = (!config_.ocrApiKey.empty() && !config_.ocrApiUrl.empty() && !config_.ocrProvider.empty());
+	isOcrAvailable_ = (!config_.ocrApiKey.empty() && !config_.ocrApiUrl.empty() &&
+	                   (isPaddleOcrProvider(config_.ocrProvider) || isOcrSpaceProvider(config_.ocrProvider)));
+	if (!config_.ocrProvider.empty() && !isPaddleOcrProvider(config_.ocrProvider) && !isOcrSpaceProvider(config_.ocrProvider)) {
+		LOG_WARN("vision", "Unsupported OCR provider: " + config_.ocrProvider + ". Only PaddleOCR / OcrSpace are enabled.");
+	}
 
 	LOG_INFO("vision",
 	         "VisionModule initialized — AI: " + std::string(isAiAvailable_ ? "available" : "unavailable") +
@@ -114,12 +353,128 @@ bool VisionModule::isOcrAvailable() const {
 
 OcrResult VisionModule::recognize(const std::string &imagePath) {
 	OcrResult res;
-	res.success  = true;
-	res.fullText = "OCR Extraction Placeholder"; // 占位接口，待适配
-	res.error    = "";
+	if (!isPaddleOcrProvider(config_.ocrProvider) && !isOcrSpaceProvider(config_.ocrProvider)) {
+		res.success = false;
+		res.error   = config_.ocrProvider.empty() ? "OCR provider not configured" :
+		                                          "Unsupported OCR provider: " + config_.ocrProvider;
+		LOG_WARN("vision", "OCR recognize skipped: " + res.error);
+		return res;
+	}
 
-	LOG_INFO("vision", "OCR recognize called (Placeholder mode) for: " + imagePath);
-	return res;
+	if (!isOcrAvailable_) {
+		res.success = false;
+		res.error   = "OCR service unavailable";
+		LOG_WARN("vision", "OCR recognize skipped: OCR service unavailable.");
+		return res;
+	}
+
+	if (isGifImage(imagePath)) {
+		res.success = true;
+		res.fullText.clear();
+		res.error.clear();
+		LOG_INFO("vision", "GIF image skipped for OCR: " + imagePath);
+		return res;
+	}
+
+	std::string imageBase64 = encodeImageToBase64(imagePath);
+	if (imageBase64.empty()) {
+		res.success = false;
+		res.error   = "Failed to encode image";
+		return res;
+	}
+
+	std::string url;
+	std::string body;
+	std::string headers;
+	std::string providerLabel;
+	if (isPaddleOcrProvider(config_.ocrProvider)) {
+		url          = normalizePaddleOcrUrl(config_.ocrApiUrl);
+		body         = buildPaddleOcrRequestBody(imageBase64, imagePath);
+		headers      = buildPaddleOcrHeaders(config_.ocrApiKey);
+		providerLabel = "PaddleOCR";
+	} else {
+		url          = normalizeOcrSpaceUrl(config_.ocrApiUrl);
+		body         = buildOcrSpaceRequestBody(imageBase64);
+		headers      = buildOcrSpaceHeaders(config_.ocrApiKey);
+		providerLabel = "OcrSpace";
+	}
+
+	std::string responseBody;
+	int         retries = config_.maxRetries;
+	for (int attempt = 0; attempt <= retries; ++attempt) {
+		try {
+			responseBody = httpClient_->post(url, headers, body, config_.timeoutSeconds);
+			break;
+		} catch (const ApiException &e) {
+			if (attempt == retries) {
+				LOG_ERROR("vision", providerLabel + " request failed after retries: " + std::string(e.what()));
+				res.success = false;
+				res.error   = e.what();
+				return res;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(500 * (1 << attempt)));
+		}
+	}
+
+	try {
+		if (isPaddleOcrProvider(config_.ocrProvider)) {
+			auto parsed = parsePaddleOcrResponse(responseBody);
+			if (!parsed.success && parsed.error.empty()) { parsed.error = "Failed to parse PaddleOCR response"; }
+			return parsed;
+		}
+
+		auto respJson = nlohmann::json::parse(responseBody);
+		int  exitCode = 0;
+		if (respJson.contains("OCRExitCode")) {
+			if (respJson["OCRExitCode"].is_number_integer()) {
+				exitCode = respJson["OCRExitCode"].get<int>();
+			} else if (respJson["OCRExitCode"].is_string()) {
+				exitCode = std::stoi(respJson["OCRExitCode"].get<std::string>());
+			}
+		}
+
+		bool isErrored = false;
+		if (respJson.contains("IsErroredOnProcessing")) { isErrored = respJson["IsErroredOnProcessing"].get<bool>(); }
+		if (isErrored || exitCode >= 3) {
+			std::string message;
+			if (respJson.contains("ErrorMessage")) { message = jsonValueToString(respJson["ErrorMessage"]); }
+			if (respJson.contains("ErrorDetails")) {
+				auto details = jsonValueToString(respJson["ErrorDetails"]);
+				if (!details.empty()) {
+					if (!message.empty()) message += ": ";
+					message += details;
+				}
+			}
+			if (message.empty()) { message = "OCR.Space processing failed"; }
+			res.success = false;
+			res.error   = message;
+			return res;
+		}
+
+		if (!respJson.contains("ParsedResults") || !respJson["ParsedResults"].is_array()) {
+			res.success = false;
+			res.error   = "Invalid OCR.Space response format";
+			return res;
+		}
+
+		std::vector<std::string> parsedTexts;
+		for (const auto &item : respJson["ParsedResults"]) {
+			if (item.contains("ParsedText") && item["ParsedText"].is_string()) {
+				auto text = trimCopy(item["ParsedText"].get<std::string>());
+				if (!text.empty()) { parsedTexts.push_back(text); }
+			}
+		}
+
+		res.fullText = joinTexts(parsedTexts);
+		res.success  = true;
+		res.error.clear();
+		return res;
+	} catch (const std::exception &e) {
+		LOG_WARN("vision", std::string("Failed to parse ") + providerLabel + " response: " + std::string(e.what()));
+		res.success = false;
+		res.error   = std::string("Failed to parse ") + providerLabel + " response";
+		return res;
+	}
 }
 
 AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const std::string &ocrFullText) {
@@ -309,11 +664,20 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 		return "";
 	}
 
+	constexpr size_t kMaxOcrUploadBytes = 1024 * 1024;
+	size_t           sourceSize         = 0;
+	try {
+		sourceSize = std::filesystem::file_size(imagePath);
+	} catch (...) {
+		// ignore file size lookup failures
+	}
+
 	std::unique_ptr<unsigned char, decltype(&stbi_image_free)> scopedData(raw_data, stbi_image_free);
 	unsigned char                                             *processData = scopedData.get();
 
 	int                        newW = w, newH = h;
 	std::vector<unsigned char> resizedData;
+	std::vector<unsigned char> jpegBuffer;
 	try {
 		if (w > 1024 || h > 1024) {
 			float scale = 1024.0f / static_cast<float>(std::max(w, h));
@@ -325,15 +689,45 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 			processData = resizedData.data();
 		}
 
-		std::vector<unsigned char> jpegBuffer;
-		stbi_write_jpg_to_func(stbiWriteCallback, &jpegBuffer, newW, newH, 4, processData, 80);
-
-		if (jpegBuffer.empty()) {
-			LOG_ERROR("vision", "JPEG encoding failed for: " + imagePath);
-			return "";
+		if (sourceSize > kMaxOcrUploadBytes) {
+			LOG_INFO("vision", "Input image larger than 1MB, applying OCR compression: " + imagePath);
 		}
 
-		return base64Encode(jpegBuffer.data(), jpegBuffer.size());
+		int quality = sourceSize > kMaxOcrUploadBytes ? 70 : 80;
+		for (int attempt = 0; attempt < 8; ++attempt) {
+			jpegBuffer.clear();
+			stbi_write_jpg_to_func(stbiWriteCallback, &jpegBuffer, newW, newH, 4, processData, quality);
+
+			if (jpegBuffer.empty()) {
+				LOG_ERROR("vision", "JPEG encoding failed for: " + imagePath);
+				return "";
+			}
+
+			if (jpegBuffer.size() <= kMaxOcrUploadBytes) {
+				return base64Encode(jpegBuffer.data(), jpegBuffer.size());
+			}
+
+			if (newW <= 256 && newH <= 256 && quality <= 40) {
+				break;
+			}
+
+			quality = std::max(40, quality - 10);
+			int nextW = std::max(1, static_cast<int>(newW * 0.85f));
+			int nextH = std::max(1, static_cast<int>(newH * 0.85f));
+			if (nextW == newW && nextH == newH) {
+				break;
+			}
+
+			resizedData.clear();
+			resizedData.resize(nextW * nextH * 4);
+			stbir_resize_uint8_linear(processData, newW, newH, 0, resizedData.data(), nextW, nextH, 0, STBIR_RGBA);
+			processData = resizedData.data();
+			newW        = nextW;
+			newH        = nextH;
+		}
+
+		LOG_ERROR("vision", "Failed to compress image under 1MB for OCR: " + imagePath);
+		return "";
 	} catch (const std::exception &e) {
 		LOG_ERROR("vision", std::string("Exception during image encoding: ") + e.what());
 		return "";

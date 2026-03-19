@@ -47,7 +47,7 @@ TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	                                           "--ocr-api-url",
 	                                           "https://ocr.example.com",
 	                                           "--ocr-provider",
-	                                           "azure",
+	                                           "PaddleOCR",
 	                                           "--thumbnail-enabled",
 	                                           "false",
 	                                           "--thumbnail-max-size",
@@ -90,7 +90,7 @@ TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	EXPECT_EQ(config.visionConfig.maxRetries, 3);
 	EXPECT_EQ(config.visionConfig.ocrApiKey, "ocr-key");
 	EXPECT_EQ(config.visionConfig.ocrApiUrl, "https://ocr.example.com");
-	EXPECT_EQ(config.visionConfig.ocrProvider, "azure");
+	EXPECT_EQ(config.visionConfig.ocrProvider, "PaddleOCR");
 
 	EXPECT_FALSE(config.thumbnailEnabled);
 	EXPECT_EQ(config.thumbnailMaxSize, 256);

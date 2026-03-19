@@ -182,8 +182,8 @@ VisionConfig {
     timeoutSeconds : int     // 请求超时秒数（默认 30）
     maxRetries     : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
     ocrApiKey      : string  // 云端 OCR API 密钥（可为空）
-    ocrApiUrl      : string  // 云端 OCR API 地址（待适配）
-    ocrProvider    : string  // 云端 OCR 提供商标识（占位字段）
+    ocrApiUrl      : string  // 云端 OCR API 地址
+    ocrProvider    : string  // 云端 OCR 提供商标识（当前支持 "PaddleOCR" 与 "OcrSpace"）
 }
 ```
 

@@ -22,7 +22,7 @@
   - [config.md](./03-Modules/config.md) - 配置文件与运行时命令行参数详细说明。
   - [logger.md](./03-Modules/logger.md) - 前后端统一的日志记录设计。
   - [persistence.md](./03-Modules/persistence.md) - 基于 SQLite 和 sqlite-vec 的持久化方案。
-  - [vision.md](./03-Modules/vision.md) - 关于 OCR 与 AI 服务集成的视觉分析设计方案。
+  - [vision.md](./03-Modules/vision.md) - 关于 OCR 与 AI 服务集成的视觉分析设计方案，包含 `PaddleOCR` 与 `OcrSpace`。
   - [PP_OCRApi.md](./03-Modules/api/PP_OCRApi.md) - PP-OCRv5 服务化部署 API、参数、响应与错误码说明。
   - [api/OCR_SpaceApi.md](./03-Modules/api/OCR_SpaceApi.md) - OCR.Space 免费 OCR API 的参数、响应与接入说明。
 

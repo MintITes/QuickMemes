@@ -24,8 +24,8 @@ struct VisionConfig {
 	int         timeoutSeconds = 30; ///< 单次请求超时秒数
 	int         maxRetries     = 2;  ///< 失败重试次数
 	std::string ocrApiKey;           ///< 云端 OCR API 密钥（可为空）
-	std::string ocrApiUrl;           ///< 云端 OCR API 地址（待适配）
-	std::string ocrProvider;         ///< 云端 OCR 提供商标识（占位）
+	std::string ocrApiUrl;           ///< 云端 OCR API 地址（PaddleOCR / 兼容旧提供商）
+	std::string ocrProvider;         ///< 云端 OCR 提供商标识（如 "PaddleOCR"）
 };
 
 /**
