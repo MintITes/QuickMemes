@@ -43,8 +43,22 @@ export function Gallery() {
     } = useUiStore();
 
     const mainRef = useRef<HTMLElement>(null);
+    const scrollRef = useRef<HTMLDivElement>(null);
     const zoomAnimationTimerRef = useRef<number | null>(null);
     const [isZoomResizing, setIsZoomResizing] = useState(false);
+    const [containerWidth, setContainerWidth] = useState(0);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setContainerWidth(entry.contentRect.width);
+            }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         const el = mainRef.current;
@@ -220,23 +234,35 @@ export function Gallery() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide gpu-layer">
+            <div
+                ref={scrollRef}
+                className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide gpu-layer"
+            >
                 {memes.length === 0 ? renderEmptyState() : (
-                    viewMode === 'masonry' ? (
-                        <div
-                            className="w-full pb-8"
-                            style={{
-                                columnWidth: `${galleryItemSize || 200}px`,
-                                columnGap: '16px',
-                            }}
-                        >
-                            {memes.map((meme) => (
-                                <div key={meme.id} className="break-inside-avoid">
-                                    {renderMemeCard(meme)}
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
+                    viewMode === 'masonry' ? (() => {
+                        const itemSize = galleryItemSize || 200;
+                        const gap = 16;
+                        const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemSize + gap)));
+                        const masonryWidth = containerWidth > 0 ? columns * itemSize + (columns - 1) * gap : '100%';
+
+                        return (
+                            <div
+                                className="pb-8 mx-auto"
+                                style={{
+                                    width: typeof masonryWidth === 'number' ? `${masonryWidth}px` : masonryWidth,
+                                    columnWidth: `${itemSize}px`,
+                                    columnGap: `${gap}px`,
+                                    visibility: containerWidth > 0 ? 'visible' : 'hidden'
+                                }}
+                            >
+                                {memes.map((meme) => (
+                                    <div key={meme.id} className="break-inside-avoid">
+                                        {renderMemeCard(meme)}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    })() : (
                         <VirtuosoGrid
                             totalCount={memes.length}
                             listClassName={clsx(
