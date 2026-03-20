@@ -67,11 +67,12 @@ export function SettingsModal() {
             setCornerRadiusDraft(null);
             return;
         }
+        const { glassBlur: currentGlassBlur, cornerRadius: currentCornerRadius } = useUiStore.getState();
         void getAppConfig().then((nextConfig) => {
             setConfig(nextConfig);
             setSavedConfig(nextConfig);
-            setGlassBlurDraft(glassBlur);
-            setCornerRadiusDraft(cornerRadius);
+            setGlassBlurDraft(currentGlassBlur);
+            setCornerRadiusDraft(currentCornerRadius);
             setThumbnailMaxSizeDraft(nextConfig.thumbnail.maxSize);
         }).catch(() => {
             setConfig(null);
