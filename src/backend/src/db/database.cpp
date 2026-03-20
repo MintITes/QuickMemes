@@ -1222,8 +1222,12 @@ SearchSql Database::buildSearchSql(const SearchQuery &query) {
 		    "SELECT 1 FROM meme_tags mt_keyword "
 		    "JOIN tags t_keyword ON t_keyword.id = mt_keyword.tag_id "
 		    "WHERE mt_keyword.meme_id = m.id AND lower(t_keyword.name) LIKE lower(?)"
+		    ") OR EXISTS ("
+		    "SELECT 1 FROM categories c_keyword "
+		    "WHERE c_keyword.id = m.category_id AND lower(c_keyword.name) LIKE lower(?)"
 		    "))");
 		res.params.push_back(query.keyword);
+		res.params.push_back("%" + query.keyword + "%");
 		res.params.push_back("%" + query.keyword + "%");
 		res.params.push_back("%" + query.keyword + "%");
 		res.params.push_back("%" + query.keyword + "%");

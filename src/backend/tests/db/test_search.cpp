@@ -78,6 +78,35 @@ TEST_F(MemeDbTest, SearchMemes_TagKeyword_ReturnsMatchingResults) {
 	EXPECT_EQ(results.items[0].tags[0].name, "Reaction");
 }
 
+TEST_F(MemeDbTest, SearchMemes_CategoryKeyword_ReturnsMatchingResults) {
+	Category category;
+	category.uuid  = "cat-search-1";
+	category.name  = "Reaction";
+	category.color = "#ffffff";
+	int64_t categoryId = db->insertCategory(category);
+
+	MemeEntry meme;
+	meme.fileHash = "hash_search_category_1";
+	meme.filePath = getSubPath("category.png");
+	meme.mimeType = "image/png";
+	int64_t memeId = db->insertMeme(meme);
+	ASSERT_TRUE(db->updateMemeCategory(memeId, categoryId));
+
+	SearchQuery byCategoryId;
+	byCategoryId.categoryId = categoryId;
+	auto categoryResults = db->searchMemes(byCategoryId);
+	ASSERT_EQ(categoryResults.items.size(), 1);
+	EXPECT_EQ(categoryResults.items[0].fileHash, "hash_search_category_1");
+
+	SearchQuery q;
+	q.keyword    = "reaction";
+	auto results = db->searchMemes(q);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_category_1");
+	EXPECT_EQ(results.items[0].categoryId, categoryId);
+}
+
 TEST_F(MemeDbTest, VectorSearch_ValidEmbedding_ReturnsRankedResults) {
 	MemeEntry meme;
 	meme.fileHash = "hash_vec_1";
