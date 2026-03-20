@@ -45,7 +45,7 @@ protected:
 		tempDir_.reset();
 		MemeDbTest::TearDown();
 	}
-	std::unique_ptr<TestDirectory> tempDir_;
+	std::unique_ptr<TestDirectory>            tempDir_;
 	std::shared_ptr<NiceMock<MockHttpClient>> mockHttp_;
 };
 
@@ -157,7 +157,7 @@ TEST_F(HandlersExtraTest, TrashManagement_Workflow_Success) {
 
 TEST_F(HandlersExtraTest, ManualOcr_ByMemeId_UpdatesDatabaseAndReturnsTaskId) {
 	tempDir_->createSubDirs("storage/2026-03");
-	auto imagePath = tempDir_->getSubPath("storage/2026-03/sample.ppm");
+	auto          imagePath = tempDir_->getSubPath("storage/2026-03/sample.ppm");
 	std::ofstream ofs(imagePath, std::ios::binary);
 	ofs << "P6\n1 1\n255\n";
 	const unsigned char pixel[] = {255, 255, 255};
@@ -165,9 +165,9 @@ TEST_F(HandlersExtraTest, ManualOcr_ByMemeId_UpdatesDatabaseAndReturnsTaskId) {
 	ofs.close();
 
 	MemeEntry meme;
-	meme.fileHash = "manual-ocr-hash";
-	meme.filePath = "2026-03/sample.ppm";
-	meme.mimeType = "image/jpeg";
+	meme.fileHash  = "manual-ocr-hash";
+	meme.filePath  = "2026-03/sample.ppm";
+	meme.mimeType  = "image/jpeg";
 	int64_t memeId = db->insertMeme(meme);
 
 	EXPECT_CALL(*mockHttp_,
@@ -177,7 +177,8 @@ TEST_F(HandlersExtraTest, ManualOcr_ByMemeId_UpdatesDatabaseAndReturnsTaskId) {
 	                                  ::testing::HasSubstr("\"file\":\""),
 	                                  ::testing::HasSubstr("\"visualize\":false")),
 	                 _))
-	    .WillOnce(Return(R"({"errorCode":0,"errorMsg":"Success","result":{"ocrResults":[{"prunedResult":{"res":{"rec_texts":["manual","ocr"]}}}]}})"));
+	    .WillOnce(Return(
+	        R"({"errorCode":0,"errorMsg":"Success","result":{"ocrResults":[{"prunedResult":{"res":{"rec_texts":["manual","ocr"]}}}]}})"));
 
 	HttpRequestProxy req;
 	req.path        = "/api/meme/" + std::to_string(memeId) + "/ocr";

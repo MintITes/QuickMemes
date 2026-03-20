@@ -43,7 +43,7 @@ TEST_F(MemeDbTest, SearchMemes_OcrKeywordSupportsPartialMatch) {
 	meme.fileHash = "hash_search_ocr_partial";
 	meme.filePath = getSubPath("ocr_partial.png");
 	meme.mimeType = "image/png";
-	meme.ocrText   = "识别到的中文文本";
+	meme.ocrText  = "识别到的中文文本";
 	db->insertMeme(meme);
 
 	SearchQuery q;

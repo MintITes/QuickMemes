@@ -11,12 +11,12 @@
 #include "error_codes.hpp"
 #include "utils/logger.hpp"
 
-#include <cctype>
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <filesystem>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <string_view>
@@ -60,7 +60,9 @@ static void stbiWriteCallback(void *context, void *data, int size) {
 }
 
 static std::string toLowerCopy(std::string value) {
-	std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+	std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
+		return static_cast<char>(std::tolower(c));
+	});
 	return value;
 }
 
@@ -69,8 +71,7 @@ static std::string trimCopy(std::string value) {
 		s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); }));
 	};
 	auto rtrim = [](std::string &s) {
-		s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(),
-		        s.end());
+		s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(), s.end());
 	};
 	ltrim(value);
 	rtrim(value);
@@ -119,29 +120,20 @@ static std::string urlEncode(std::string_view value) {
 static std::string normalizePaddleOcrUrl(const std::string &ocrApiUrl) {
 	auto pathEnd = ocrApiUrl.find_first_of("?#");
 	auto path    = pathEnd == std::string::npos ? ocrApiUrl : ocrApiUrl.substr(0, pathEnd);
-	if (path.size() >= 4 && path.compare(path.size() - 4, 4, "/ocr") == 0) {
-		return ocrApiUrl;
-	}
-	if (path.size() >= 5 && path.compare(path.size() - 5, 5, "/ocr/") == 0) {
-		return ocrApiUrl;
-	}
-	if (!ocrApiUrl.empty() && ocrApiUrl.back() == '/') {
-		return ocrApiUrl + "ocr";
-	}
+	if (path.size() >= 4 && path.compare(path.size() - 4, 4, "/ocr") == 0) { return ocrApiUrl; }
+	if (path.size() >= 5 && path.compare(path.size() - 5, 5, "/ocr/") == 0) { return ocrApiUrl; }
+	if (!ocrApiUrl.empty() && ocrApiUrl.back() == '/') { return ocrApiUrl + "ocr"; }
 	return ocrApiUrl + "/ocr";
 }
 
 static std::string normalizeOcrSpaceUrl(const std::string &ocrApiUrl) {
 	if (ocrApiUrl.find("/parse/imageurl") != std::string::npos) {
-		return std::string(ocrApiUrl).replace(ocrApiUrl.find("/parse/imageurl"), std::string("/parse/imageurl").size(),
+		return std::string(ocrApiUrl).replace(ocrApiUrl.find("/parse/imageurl"),
+		                                      std::string("/parse/imageurl").size(),
 		                                      "/parse/image");
 	}
-	if (ocrApiUrl.find("/parse/image") != std::string::npos) {
-		return ocrApiUrl;
-	}
-	if (!ocrApiUrl.empty() && ocrApiUrl.back() == '/') {
-		return ocrApiUrl + "parse/image";
-	}
+	if (ocrApiUrl.find("/parse/image") != std::string::npos) { return ocrApiUrl; }
+	if (!ocrApiUrl.empty() && ocrApiUrl.back() == '/') { return ocrApiUrl + "parse/image"; }
 	return ocrApiUrl + "/parse/image";
 }
 
@@ -178,12 +170,12 @@ static std::string buildOcrSpaceHeaders(const std::string &apiKey) {
 
 static std::string buildPaddleOcrRequestBody(const std::string &base64Image, const std::string &imagePath) {
 	nlohmann::json body;
-	body["file"]                    = base64Image;
-	body["fileType"]                = isPdfFile(imagePath) ? 0 : 1;
+	body["file"]                      = base64Image;
+	body["fileType"]                  = isPdfFile(imagePath) ? 0 : 1;
 	body["useDocOrientationClassify"] = false;
-	body["useDocUnwarping"]         = false;
-	body["useTextlineOrientation"]   = false;
-	body["visualize"]                = false;
+	body["useDocUnwarping"]           = false;
+	body["useTextlineOrientation"]    = false;
+	body["visualize"]                 = false;
 	return body.dump();
 }
 
@@ -321,8 +313,10 @@ bool VisionModule::initialize(const VisionConfig &config) {
 
 	isOcrAvailable_ = (!config_.ocrApiKey.empty() && !config_.ocrApiUrl.empty() &&
 	                   (isPaddleOcrProvider(config_.ocrProvider) || isOcrSpaceProvider(config_.ocrProvider)));
-	if (!config_.ocrProvider.empty() && !isPaddleOcrProvider(config_.ocrProvider) && !isOcrSpaceProvider(config_.ocrProvider)) {
-		LOG_WARN("vision", "Unsupported OCR provider: " + config_.ocrProvider + ". Only PaddleOCR / OcrSpace are enabled.");
+	if (!config_.ocrProvider.empty() && !isPaddleOcrProvider(config_.ocrProvider) &&
+	    !isOcrSpaceProvider(config_.ocrProvider)) {
+		LOG_WARN("vision",
+		         "Unsupported OCR provider: " + config_.ocrProvider + ". Only PaddleOCR / OcrSpace are enabled.");
 	}
 
 	LOG_INFO("vision",
@@ -355,8 +349,8 @@ OcrResult VisionModule::recognize(const std::string &imagePath) {
 	OcrResult res;
 	if (!isPaddleOcrProvider(config_.ocrProvider) && !isOcrSpaceProvider(config_.ocrProvider)) {
 		res.success = false;
-		res.error   = config_.ocrProvider.empty() ? "OCR provider not configured" :
-		                                          "Unsupported OCR provider: " + config_.ocrProvider;
+		res.error   = config_.ocrProvider.empty() ? "OCR provider not configured"
+		                                          : "Unsupported OCR provider: " + config_.ocrProvider;
 		LOG_WARN("vision", "OCR recognize skipped: " + res.error);
 		return res;
 	}
@@ -388,14 +382,14 @@ OcrResult VisionModule::recognize(const std::string &imagePath) {
 	std::string headers;
 	std::string providerLabel;
 	if (isPaddleOcrProvider(config_.ocrProvider)) {
-		url          = normalizePaddleOcrUrl(config_.ocrApiUrl);
-		body         = buildPaddleOcrRequestBody(imageBase64, imagePath);
-		headers      = buildPaddleOcrHeaders(config_.ocrApiKey);
+		url           = normalizePaddleOcrUrl(config_.ocrApiUrl);
+		body          = buildPaddleOcrRequestBody(imageBase64, imagePath);
+		headers       = buildPaddleOcrHeaders(config_.ocrApiKey);
 		providerLabel = "PaddleOCR";
 	} else {
-		url          = normalizeOcrSpaceUrl(config_.ocrApiUrl);
-		body         = buildOcrSpaceRequestBody(imageBase64);
-		headers      = buildOcrSpaceHeaders(config_.ocrApiKey);
+		url           = normalizeOcrSpaceUrl(config_.ocrApiUrl);
+		body          = buildOcrSpaceRequestBody(imageBase64);
+		headers       = buildOcrSpaceHeaders(config_.ocrApiKey);
 		providerLabel = "OcrSpace";
 	}
 
@@ -703,20 +697,14 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 				return "";
 			}
 
-			if (jpegBuffer.size() <= kMaxOcrUploadBytes) {
-				return base64Encode(jpegBuffer.data(), jpegBuffer.size());
-			}
+			if (jpegBuffer.size() <= kMaxOcrUploadBytes) { return base64Encode(jpegBuffer.data(), jpegBuffer.size()); }
 
-			if (newW <= 256 && newH <= 256 && quality <= 40) {
-				break;
-			}
+			if (newW <= 256 && newH <= 256 && quality <= 40) { break; }
 
-			quality = std::max(40, quality - 10);
+			quality   = std::max(40, quality - 10);
 			int nextW = std::max(1, static_cast<int>(newW * 0.85f));
 			int nextH = std::max(1, static_cast<int>(newH * 0.85f));
-			if (nextW == newW && nextH == newH) {
-				break;
-			}
+			if (nextW == newW && nextH == newH) { break; }
 
 			resizedData.clear();
 			resizedData.resize(nextW * nextH * 4);

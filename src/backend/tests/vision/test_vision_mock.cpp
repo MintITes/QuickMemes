@@ -5,8 +5,8 @@
 
 #include "../mocks.hpp"
 #include "../test_utils.hpp"
-#include "vision/vision.hpp"
 #include "utils/logger.hpp"
+#include "vision/vision.hpp"
 
 #include <cctype>
 #include <cstdlib>
@@ -40,8 +40,12 @@ std::string readTestEnvValue(const std::string &key) {
 		if (line.substr(0, eqPos) != key) { continue; }
 
 		auto value = line.substr(eqPos + 1);
-		while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) { value.erase(value.begin()); }
-		while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) { value.pop_back(); }
+		while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+			value.erase(value.begin());
+		}
+		while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+			value.pop_back();
+		}
 		if (value.size() >= 2 &&
 		    ((value.front() == '"' && value.back() == '"') || (value.front() == '\'' && value.back() == '\''))) {
 			value = value.substr(1, value.size() - 2);
@@ -52,17 +56,17 @@ std::string readTestEnvValue(const std::string &key) {
 }
 
 std::string makeGifStubPath(const std::filesystem::path &dir, const std::string &name) {
-	auto path = dir / name;
-	std::ofstream ofs(path, std::ios::binary);
-	const unsigned char bytes[] = {'G', 'I', 'F', '8', '9', 'a', 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,
-	                               0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x01,
-	                               0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3B};
+	auto                path = dir / name;
+	std::ofstream       ofs(path, std::ios::binary);
+	const unsigned char bytes[] = {'G',  'I',  'F',  '8',  '9',  'a',  0x01, 0x00, 0x01, 0x00, 0x80, 0x00,
+	                               0x00, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00, 0x00, 0x00,
+	                               0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3B};
 	ofs.write(reinterpret_cast<const char *>(bytes), sizeof(bytes));
 	return path.string();
 }
 
 std::string makePpmStubPath(const std::filesystem::path &dir, const std::string &name) {
-	auto path = dir / name;
+	auto          path = dir / name;
 	std::ofstream ofs(path, std::ios::binary);
 	ofs << "P6\n1 1\n255\n";
 	const unsigned char pixel[] = {255, 255, 255};
@@ -71,9 +75,9 @@ std::string makePpmStubPath(const std::filesystem::path &dir, const std::string 
 }
 
 std::string makeLargeNoisyPpmPath(const std::filesystem::path &dir, const std::string &name) {
-	const int width  = 700;
-	const int height = 700;
-	auto      path   = dir / name;
+	const int     width  = 700;
+	const int     height = 700;
+	auto          path   = dir / name;
 	std::ofstream ofs(path, std::ios::binary);
 	ofs << "P6\n" << width << ' ' << height << "\n255\n";
 	std::vector<unsigned char> pixels(width * height * 3);
@@ -91,9 +95,9 @@ std::string makeLargeNoisyPpmPath(const std::filesystem::path &dir, const std::s
 
 std::string makePaddleOcrSuccessResponse(const std::vector<std::vector<std::string>> &pages) {
 	nlohmann::json json;
-	json["logId"]               = "abc";
-	json["errorCode"]           = 0;
-	json["errorMsg"]            = "Success";
+	json["logId"]                = "abc";
+	json["errorCode"]            = 0;
+	json["errorMsg"]             = "Success";
 	json["result"]["ocrResults"] = nlohmann::json::array();
 
 	for (const auto &page : pages) {
@@ -106,12 +110,8 @@ std::string makePaddleOcrSuccessResponse(const std::vector<std::vector<std::stri
 }
 
 std::filesystem::path sampleImagePath() {
-	auto repoRoot = std::filesystem::path(__FILE__)
-	                    .parent_path()
-	                    .parent_path()
-	                    .parent_path()
-	                    .parent_path()
-	                    .parent_path();
+	auto repoRoot =
+	    std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().parent_path().parent_path();
 	return repoRoot / "resources" / "QuickMemes_logo_Dark.png";
 }
 
@@ -122,7 +122,7 @@ protected:
 	void SetUp() override {
 		mockHttp = std::make_shared<NiceMock<MockHttpClient>>();
 		vision   = std::make_unique<VisionModule>(mockHttp);
-		tempDir_  = std::make_unique<TestDirectory>();
+		tempDir_ = std::make_unique<TestDirectory>();
 
 		VisionConfig config;
 		config.apiKey         = "test_key";
@@ -156,7 +156,8 @@ protected:
 		ofs.close();
 
 		ON_CALL(*mockHttp, get(_, _, _)).WillByDefault(Return("ok"));
-		ON_CALL(*mockHttp, post(_, _, _, _)).WillByDefault(Return(R"({"data":[{"embedding":[0.1]}], "usage": {"total_tokens": 1}})"));
+		ON_CALL(*mockHttp, post(_, _, _, _))
+		    .WillByDefault(Return(R"({"data":[{"embedding":[0.1]}], "usage": {"total_tokens": 1}})"));
 
 		vision->initialize(config);
 	}
@@ -182,16 +183,19 @@ TEST_F(VisionMockTest, AnalyzeImage_ValidMockResponse_ReturnsResult) {
 }
 
 TEST_F(VisionMockTest, Recognize_PaddleOCR_RequestAndParse_Succeeds) {
-	auto mockResponse = makePaddleOcrSuccessResponse({{"hello world", "second line"}});
+	auto mockResponse = makePaddleOcrSuccessResponse({
+	    {"hello world", "second line"}
+    });
 
-	EXPECT_CALL(*mockHttp, post("https://ocr.example.com/ocr",
-	                            HasSubstr("Authorization: token test-ocr-key"),
-	                            ::testing::AllOf(HasSubstr("\"fileType\":1"),
-	                                             HasSubstr("\"useDocOrientationClassify\":false"),
-	                                             HasSubstr("\"useDocUnwarping\":false"),
-	                                             HasSubstr("\"useTextlineOrientation\":false"),
-	                                             HasSubstr("\"visualize\":false")),
-	                            _))
+	EXPECT_CALL(*mockHttp,
+	            post("https://ocr.example.com/ocr",
+	                 HasSubstr("Authorization: token test-ocr-key"),
+	                 ::testing::AllOf(HasSubstr("\"fileType\":1"),
+	                                  HasSubstr("\"useDocOrientationClassify\":false"),
+	                                  HasSubstr("\"useDocUnwarping\":false"),
+	                                  HasSubstr("\"useTextlineOrientation\":false"),
+	                                  HasSubstr("\"visualize\":false")),
+	                 _))
 	    .WillOnce(Return(mockResponse));
 
 	auto result = vision->recognize(dummyPath);
@@ -201,7 +205,10 @@ TEST_F(VisionMockTest, Recognize_PaddleOCR_RequestAndParse_Succeeds) {
 }
 
 TEST_F(VisionMockTest, Recognize_PaddleOCR_MultiPageResults_JoinInOrder) {
-	auto mockResponse = makePaddleOcrSuccessResponse({{"page1 line1", "page1 line2"}, {"page2 line1"}});
+	auto mockResponse = makePaddleOcrSuccessResponse({
+	    {"page1 line1", "page1 line2"},
+	    {"page2 line1"}
+    });
 	EXPECT_CALL(*mockHttp, post(_, _, _, _)).WillOnce(Return(mockResponse));
 
 	auto result = vision->recognize(dummyPath);
@@ -335,13 +342,9 @@ TEST(PaddleOcrLiveTest, Recognize_WithRealKey_UsesDotEnvAndReturnsText) {
 	}
 
 	auto apiKey = readTestEnvValue("ocr-pp_ocr-key");
-	auto apiUrl  = readTestEnvValue("ocr-pp_ocr-url");
-	if (apiKey.empty()) {
-		GTEST_SKIP() << "No PaddleOCR API key found in src/backend/tests/.test_env";
-	}
-	if (apiUrl.empty()) {
-		GTEST_SKIP() << "No PaddleOCR API url found in src/backend/tests/.test_env";
-	}
+	auto apiUrl = readTestEnvValue("ocr-pp_ocr-url");
+	if (apiKey.empty()) { GTEST_SKIP() << "No PaddleOCR API key found in src/backend/tests/.test_env"; }
+	if (apiUrl.empty()) { GTEST_SKIP() << "No PaddleOCR API url found in src/backend/tests/.test_env"; }
 
 	auto imagePath = sampleImagePath();
 	if (!std::filesystem::exists(imagePath)) {

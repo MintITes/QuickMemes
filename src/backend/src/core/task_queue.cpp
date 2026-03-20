@@ -352,9 +352,7 @@ std::string TaskQueue::submitMemeOcrTask(int64_t memeId) {
 			WsPusher::get().broadcast(progEvent);
 
 			auto meme = Database::get().getMeme(memeId);
-			if (meme.deletedAt > 0) {
-				throw ApiException(ERR_INVALID_PARAMS, "Cannot OCR a deleted meme");
-			}
+			if (meme.deletedAt > 0) { throw ApiException(ERR_INVALID_PARAMS, "Cannot OCR a deleted meme"); }
 
 			std::string actualPath = buildStoredFilePath(impl_->storagePath, meme.filePath);
 			if (!std::filesystem::exists(actualPath)) {
@@ -362,11 +360,9 @@ std::string TaskQueue::submitMemeOcrTask(int64_t memeId) {
 			}
 
 			VisionModule &vision = VisionModule::get();
-			if (!vision.isOcrAvailable()) {
-				throw ApiException(ERR_OCR_NOT_READY, "OCR service unavailable");
-			}
+			if (!vision.isOcrAvailable()) { throw ApiException(ERR_OCR_NOT_READY, "OCR service unavailable"); }
 
-			auto res = vision.recognize(actualPath);
+			auto             res       = vision.recognize(actualPath);
 			ProcessingStatus ocrStatus = res.success ? ProcessingStatus::DONE : ProcessingStatus::FAILED;
 			std::string      ocrText   = res.success ? res.fullText : "";
 
@@ -375,23 +371,29 @@ std::string TaskQueue::submitMemeOcrTask(int64_t memeId) {
 			auto updatedMeme = Database::get().getMeme(memeId);
 			WsPusher::get().broadcast({"meme:updated", updatedMeme});
 
-			if (!res.success) {
-				throw ApiException(ERR_OCR_FAILED, res.error.empty() ? "OCR failed" : res.error);
-			}
+			if (!res.success) { throw ApiException(ERR_OCR_FAILED, res.error.empty() ? "OCR failed" : res.error); }
 
 			markItemDone(state, taskId, true, "");
 		} catch (const ApiException &e) {
 			LOG_ERROR("queue", "Manual OCR task failed: " + std::string(e.what()));
 			try {
 				auto meme = Database::get().getMeme(memeId);
-				Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, meme.aiStatus, "", meme.description);
+				Database::get().updateMemeProcessing(memeId,
+				                                     ProcessingStatus::FAILED,
+				                                     meme.aiStatus,
+				                                     "",
+				                                     meme.description);
 			} catch (...) {}
 			markItemDone(state, taskId, false, e.what());
 		} catch (const std::exception &e) {
 			LOG_ERROR("queue", "Manual OCR task failed: " + std::string(e.what()));
 			try {
 				auto meme = Database::get().getMeme(memeId);
-				Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, meme.aiStatus, "", meme.description);
+				Database::get().updateMemeProcessing(memeId,
+				                                     ProcessingStatus::FAILED,
+				                                     meme.aiStatus,
+				                                     "",
+				                                     meme.description);
 			} catch (...) {}
 			markItemDone(state, taskId, false, "OCR task error: " + std::string(e.what()));
 		} catch (...) {

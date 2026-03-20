@@ -272,8 +272,8 @@ void handlePostMemeOcr(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			return;
 		}
 
-		std::string taskId = TaskQueue::get().submitMemeOcrTask(id);
-		nlohmann::json data = {
+		std::string    taskId = TaskQueue::get().submitMemeOcrTask(id);
+		nlohmann::json data   = {
 		    {"taskId", taskId}
         };
 		res.status = 200;
