@@ -24,6 +24,14 @@ class Database;
 
 namespace quickmemes {
 
+#if defined(__MINGW32__) || defined(__MINGW64__)
+using DatabaseMutex = std::mutex;
+using DatabaseReadLock = std::unique_lock<DatabaseMutex>;
+#else
+using DatabaseMutex = std::shared_mutex;
+using DatabaseReadLock = std::shared_lock<DatabaseMutex>;
+#endif
+
 /**
  * @brief 数据库查询构建内部结构
  *
@@ -353,11 +361,7 @@ private:
 
 	std::unique_ptr<SQLite::Database> db_;     ///< SQLiteCpp 数据库实例
 	std::string                       dbPath_; ///< 数据库文件路径
-#if defined(__MINGW32__) || defined(__MINGW64__)
-	mutable std::mutex dbMutex_; ///< MinGW shared_mutex 实现不稳定，回退到互斥锁
-#else
-	mutable std::shared_mutex dbMutex_;
-#endif
+	mutable DatabaseMutex dbMutex_; ///< MinGW 下退回互斥锁，其它平台使用共享锁
 };
 
 } // namespace quickmemes

@@ -247,11 +247,7 @@ MemeEntry Database::getMeme(int64_t id) {
 }
 
 PagedMemeResults Database::searchMemes(const SearchQuery &query) {
-#if defined(__MINGW32__) || defined(__MINGW64__)
-	std::unique_lock lock(dbMutex_);
-#else
-	std::shared_lock lock(dbMutex_);
-#endif
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SearchSql searchSql = buildSearchSql(query);
 
@@ -857,7 +853,7 @@ bool Database::deleteCategory(int64_t id) {
 }
 
 std::vector<Category> Database::getCategories() {
-	std::shared_lock lock(dbMutex_);
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SQLite::Statement     stmt(*db_,
 		                           "SELECT id, uuid, name, color, position, created_at, updated_at "
