@@ -17,7 +17,7 @@ interface SearchDropdownProps {
 
 export function SearchDropdown({ keyword, onSelectHistory, onClose }: SearchDropdownProps) {
     const { t } = useTranslation();
-    const { searchHistory, clearSearchHistory, toggleAdvancedSearch, browsingHistory } = useUiStore();
+    const { searchHistory, clearSearchHistory, toggleAdvancedSearch, browsingHistory, glassEffect } = useUiStore();
     const { memes } = useMemeStore();
     const { tags } = useTagStore();
     const { categories } = useCategoryStore();
@@ -49,7 +49,27 @@ export function SearchDropdown({ keyword, onSelectHistory, onClose }: SearchDrop
             className="absolute top-full left-0 right-0 pt-2 z-[60] no-drag cursor-default"
             onClick={(e) => e.stopPropagation()}
         >
-            <div className="glass-effect surface-effect shadow-2xl rounded-2xl overflow-hidden flex flex-col border border-white/10 dark:border-black/10">
+            <div className={clsx(
+                "relative surface-effect shadow-2xl rounded-2xl overflow-hidden flex flex-col border",
+                glassEffect
+                    ? "border-white/20 dark:border-white/10 bg-white/72 dark:bg-black/52"
+                    : "border-white/10 dark:border-black/10"
+            )}>
+                {glassEffect && (
+                    <motion.div
+                        aria-hidden="true"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.16, ease: 'easeOut' }}
+                        className="absolute inset-0 pointer-events-none bg-white/28 dark:bg-black/20"
+                        style={{
+                            WebkitBackdropFilter: 'blur(22px)',
+                            backdropFilter: 'blur(22px)'
+                        }}
+                    />
+                )}
+                <div className="relative z-10 flex flex-col">
                 {/* Search History */}
                 {historyItems.length > 0 && (
                     <div className="p-2 border-b border-borderColor">
@@ -135,6 +155,7 @@ export function SearchDropdown({ keyword, onSelectHistory, onClose }: SearchDrop
                         <SlidersHorizontal size={12} />
                         {t('search.advanced')}
                     </button>
+                </div>
                 </div>
             </div>
         </motion.div>

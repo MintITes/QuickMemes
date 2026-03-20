@@ -73,7 +73,6 @@ export function AdvancedSearchDialog() {
         { id: 'today', label: t('search.date_today') },
         { id: 'week', label: t('search.date_week') },
         { id: 'month', label: t('search.date_month') },
-        { id: 'year', label: t('search.date_year') },
     ];
 
     const containerVariants = {
@@ -107,11 +106,11 @@ export function AdvancedSearchDialog() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-hidden gpu-transform-opacity"
+                    className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-hidden"
                 >
                     {/* Backdrop */}
                     <div
-                        className="absolute inset-0 bg-black/30 dark:bg-black/50 backdrop-blur-[6px] gpu-layer"
+                        className="absolute inset-0 bg-white/8 dark:bg-black/32 backdrop-blur-md"
                         onClick={() => toggleAdvancedSearch(false)}
                     />
 
@@ -121,7 +120,7 @@ export function AdvancedSearchDialog() {
                         initial="hidden"
                         animate="visible"
                         exit="exit"
-                        className="relative w-full max-w-[560px] glass-effect surface-effect shadow-2xl flex flex-col no-drag border border-white/20 dark:border-white/5 gpu-transform-opacity"
+                        className="relative w-full max-w-[560px] surface-effect bg-white/85 dark:bg-[rgba(30,30,30,0.85)] shadow-2xl flex flex-col no-drag border border-white/22 dark:border-white/8 ring-1 ring-white/12 dark:ring-white/6"
                         style={{ borderRadius: 'var(--corner-radius)' }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -295,7 +294,7 @@ export function AdvancedSearchDialog() {
                                                 key={range.id}
                                                 onClick={() => setLocalDateRange(range.id)}
                                                 className={clsx(
-                                                    "flex-1 h-9 rounded-[10px] text-[10px] font-bold transition-all duration-300",
+                                                    "flex-1 h-9 rounded-[10px] text-xs font-bold transition-all duration-300",
                                                     localDateRange === range.id
                                                         ? "bg-bgSurface text-accent shadow-md shadow-black/5 transform scale-[1.02]"
                                                         : "text-textSecondary hover:text-textPrimary"
