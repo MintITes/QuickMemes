@@ -5,14 +5,14 @@
 @layer base {
   :root {
     /* macOS style light mode - SOLID DEFAULT */
-    --bg-primary: #e5e5e5;
-    --bg-secondary: #f0f0f0;
-    --bg-surface: #ffffff;
+    --bg-primary: #e3e3e3;
+    --bg-secondary: #eeeeee;
+    --bg-surface: #e4e4e4;
     --text-primary: rgba(0, 0, 0, 0.85);
     --text-secondary: rgba(0, 0, 0, 0.55);
     --accent-color: #0066cc;
     --border-color: rgba(0, 0, 0, 0.1);
-    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-bg: rgba(236, 236, 236, 0.96);
     --glass-blur: 0px;
     --glass-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.15);
     --corner-radius: 12px;
@@ -37,17 +37,11 @@
 
   /* GLASS MODE ACTIVE */
   .glass-mode {
-    --bg-primary: rgba(220, 220, 220, 0.65);
-    --bg-secondary: rgba(240, 240, 240, 0.65);
-    --bg-surface: rgba(255, 255, 255, 0.75);
-    --glass-bg: rgba(255, 255, 255, 0.8);
+    --glass-bg: color-mix(in srgb, var(--bg-surface) 92%, transparent);
   }
 
   .glass-mode.dark {
-    --bg-primary: rgba(10, 10, 10, 0.65);
-    --bg-secondary: rgba(20, 20, 20, 0.65);
-    --bg-surface: rgba(35, 35, 35, 0.75);
-    --glass-bg: rgba(40, 40, 40, 0.8);
+    --glass-bg: color-mix(in srgb, var(--bg-surface) 90%, transparent);
   }
 
   * {
@@ -144,7 +138,7 @@
 
   /* Secondary surface for cards/items inside panels */
   .inner-container-effect {
-    @apply bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-xl;
+    @apply bg-black/[0.09] dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-xl;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
   }
