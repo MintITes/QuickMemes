@@ -212,7 +212,7 @@ export function Lightbox() {
             <AnimatePresence>
                 <div
                     ref={containerRef}
-                    className="fixed inset-0 z-[2000] flex flex-col items-center justify-center outline-none select-none gpu-layer"
+                    className="fixed inset-0 z-[2000] flex flex-col items-center justify-center outline-none select-none gpu-layer rounded-[--corner-radius] overflow-hidden"
                     tabIndex={-1}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}

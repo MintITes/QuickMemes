@@ -9,6 +9,7 @@ import type { Meme } from '../../types';
 import { MemeCardMedia } from '../meme/MemeCardMedia';
 import { MemeCardMeta } from '../meme/MemeCardMeta';
 import { MoreButton } from '../meme/MoreButton';
+import { CopyButton } from '../meme/CopyButton';
 
 interface MemeCardProps {
     meme: Meme;
@@ -132,11 +133,16 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
                     onImageLoad={() => setIsLoading(false)}
                 />
 
-                {/* Floating More Button - Enhanced visibility on hover */}
+                {/* Floating Action Buttons - Enhanced visibility on hover */}
                 <div className={clsx(
-                    'absolute bottom-2 right-2 z-30 transition-all duration-300 transform-gpu gpu-transform-opacity',
+                    'absolute bottom-2 right-2 z-30 flex gap-2 transition-all duration-300 transform-gpu gpu-transform-opacity',
                     isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover/card:opacity-100 group-hover/card:scale-100'
                 )}>
+                    <CopyButton
+                        memeId={meme.id}
+                        memeName={meme.name}
+                        isVisible={true} // Controlled by parent visibility classes
+                    />
                     <MoreButton
                         memeId={meme.id}
                         isVisible={true} // Controlled by parent visibility classes
