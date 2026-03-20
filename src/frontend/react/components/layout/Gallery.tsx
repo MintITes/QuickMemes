@@ -40,6 +40,10 @@ export function Gallery() {
         selectedMemeIds,
         toggleImportModal,
         galleryItemSize,
+        goBack,
+        goForward,
+        navHistory,
+        navHistoryIndex,
     } = useUiStore();
 
     const mainRef = useRef<HTMLElement>(null);
@@ -182,8 +186,22 @@ export function Gallery() {
         >
             <div className="h-12 mx-4 mt-3 mb-2 rounded-xl border border-borderColor flex px-4 items-center justify-between glass-effect gpu-layer z-10 sticky top-3">
                 <div className="flex gap-1.5">
-                    <IconButton icon={<ArrowLeft size={18} />} size="sm" variant="ghost" title={t('gallery.controls.back')} />
-                    <IconButton icon={<ArrowRight size={18} />} size="sm" variant="ghost" disabled title={t('gallery.controls.forward')} />
+                    <IconButton
+                        icon={<ArrowLeft size={18} />}
+                        size="sm"
+                        variant="ghost"
+                        title={t('gallery.controls.back')}
+                        disabled={navHistoryIndex === 0}
+                        onClick={goBack}
+                    />
+                    <IconButton
+                        icon={<ArrowRight size={18} />}
+                        size="sm"
+                        variant="ghost"
+                        title={t('gallery.controls.forward')}
+                        disabled={navHistoryIndex === navHistory.length - 1}
+                        onClick={goForward}
+                    />
                 </div>
 
                 <div className="flex p-0.5 bg-black/5 dark:bg-white/5 rounded-xl border border-black/5 dark:border-white/5 items-center">

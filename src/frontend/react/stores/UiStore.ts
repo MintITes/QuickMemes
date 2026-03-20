@@ -50,6 +50,8 @@ export interface UiState {
     isUrlImportDialogOpen: boolean;
     glassEffect: boolean;
     activeNav: string;
+    navHistory: string[];
+    navHistoryIndex: number;
     platformOverride: 'darwin' | 'win32' | 'linux' | 'auto';
     glassBlur: number;
     galleryItemSize: number;
@@ -72,6 +74,8 @@ export interface UiState {
     setImporting: (isImporting: boolean, taskId?: string | null) => void;
     selectMeme: (id: number, multi?: boolean, range?: boolean) => void;
     clearSelection: () => void;
+    goBack: () => void;
+    goForward: () => void;
     setSearchQuery: (query: Partial<SearchQuery>) => void;
     setViewMode: (mode: 'grid' | 'masonry' | 'list') => void;
     setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -122,6 +126,8 @@ export const useUiStore = create<UiState>()(
             isUrlImportDialogOpen: false,
             glassEffect: false,
             activeNav: 'all',
+            navHistory: ['all'],
+            navHistoryIndex: 0,
             platformOverride: 'auto',
             glassBlur: 20,
             galleryItemSize: 200,
@@ -189,7 +195,47 @@ export const useUiStore = create<UiState>()(
             toggleGlassEffect: (enabled) =>
                 set((state) => ({ glassEffect: enabled !== undefined ? enabled : !state.glassEffect })),
 
-            setActiveNav: (nav: string) => set({ activeNav: nav, selectedMemeIds: [] }),
+            setActiveNav: (nav: string) => set((state) => {
+                if (state.activeNav === nav) return {};
+
+                const newHistory = state.navHistory.slice(0, state.navHistoryIndex + 1);
+                newHistory.push(nav);
+
+                if (newHistory.length > 50) {
+                    newHistory.shift();
+                }
+
+                return {
+                    activeNav: nav,
+                    selectedMemeIds: [],
+                    navHistory: newHistory,
+                    navHistoryIndex: newHistory.length - 1
+                };
+            }),
+
+            goBack: () => set((state) => {
+                if (state.navHistoryIndex > 0) {
+                    const newIndex = state.navHistoryIndex - 1;
+                    return {
+                        activeNav: state.navHistory[newIndex],
+                        navHistoryIndex: newIndex,
+                        selectedMemeIds: []
+                    };
+                }
+                return {};
+            }),
+
+            goForward: () => set((state) => {
+                if (state.navHistoryIndex < state.navHistory.length - 1) {
+                    const newIndex = state.navHistoryIndex + 1;
+                    return {
+                        activeNav: state.navHistory[newIndex],
+                        navHistoryIndex: newIndex,
+                        selectedMemeIds: []
+                    };
+                }
+                return {};
+            }),
 
             setPlatformOverride: (platform) => set({ platformOverride: platform }),
 
