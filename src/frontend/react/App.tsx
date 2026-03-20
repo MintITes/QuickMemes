@@ -14,15 +14,29 @@ import { connectWebSocket, disconnectWebSocket, onEvent } from './api/wsClient';
 import { mergeImportTaskUpdate } from './utils/taskEvents';
 import './index.css';
 
+function ThemeTokenSync() {
+    const glassEffect = useUiStore((state) => state.glassEffect);
+    const glassBlur = useUiStore((state) => state.glassBlur);
+    const cornerRadius = useUiStore((state) => state.cornerRadius);
+    const galleryGap = useUiStore((state) => state.galleryGap);
+    const accentColor = useUiStore((state) => state.accentColor);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        root.classList.toggle('glass-mode', glassEffect);
+        root.style.setProperty('--glass-blur', `${glassBlur}px`);
+        root.style.setProperty('--corner-radius', `${cornerRadius}px`);
+        root.style.setProperty('--gallery-gap', `${galleryGap}px`);
+        root.style.setProperty('--accent-color', accentColor);
+    }, [accentColor, cornerRadius, glassBlur, galleryGap, glassEffect]);
+
+    return null;
+}
+
 function App() {
     const {
         theme,
         setResolvedTheme,
-        glassEffect,
-        glassBlur,
-        cornerRadius,
-        galleryGap,
-        accentColor,
         toggleImportModal,
         activeNav,
         searchQuery,
@@ -100,20 +114,6 @@ function App() {
             return () => mediaQuery.removeEventListener('change', applyTheme);
         }
     }, [theme, setResolvedTheme]);
-
-    useEffect(() => {
-        const root = document.documentElement;
-        if (glassEffect) {
-            root.classList.add('glass-mode');
-        } else {
-            root.classList.remove('glass-mode');
-        }
-
-        root.style.setProperty('--glass-blur', `${glassBlur}px`);
-        root.style.setProperty('--corner-radius', `${cornerRadius}px`);
-        root.style.setProperty('--gallery-gap', `${galleryGap}px`);
-        root.style.setProperty('--accent-color', accentColor);
-    }, [glassEffect, glassBlur, cornerRadius, galleryGap, accentColor]);
 
     useEffect(() => {
         if (language === 'system') {
@@ -339,7 +339,12 @@ function App() {
         };
     }, [activeNav, addNotification, backendReady, searchQuery, setLoading, setMemes]);
 
-    return <MainShell />;
+    return (
+        <>
+            <ThemeTokenSync />
+            <MainShell />
+        </>
+    );
 }
 
 export default App;

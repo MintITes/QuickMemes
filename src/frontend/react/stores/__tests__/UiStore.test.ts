@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useUiStore } from '../UiStore';
+import { GALLERY_ITEM_SIZE_MAX, GALLERY_ITEM_SIZE_MIN, useUiStore } from '../UiStore';
 
 describe('UiStore', () => {
     beforeEach(() => {
@@ -63,5 +63,13 @@ describe('UiStore', () => {
         useUiStore.getState().setImporting(true, 'task-123');
         expect(useUiStore.getState().isImporting).toBe(true);
         expect(useUiStore.getState().activeTaskId).toBe('task-123');
+    });
+
+    it('should clamp gallery item size within bounds', () => {
+        useUiStore.getState().setGalleryItemSize(GALLERY_ITEM_SIZE_MIN - 50);
+        expect(useUiStore.getState().galleryItemSize).toBe(GALLERY_ITEM_SIZE_MIN);
+
+        useUiStore.getState().setGalleryItemSize(GALLERY_ITEM_SIZE_MAX + 120);
+        expect(useUiStore.getState().galleryItemSize).toBe(GALLERY_ITEM_SIZE_MAX);
     });
 });

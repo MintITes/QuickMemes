@@ -20,12 +20,9 @@ interface MemeCardMediaProps {
 export function MemeCardMedia({
     meme, src, isLoading, isSelected, viewMode, imageFit, showTags, onImageLoad
 }: MemeCardMediaProps) {
-    const { cornerRadius, accentColor } = useUiStore();
+    const accentColor = useUiStore((state) => state.accentColor);
     const tags = useTagStore((state) => state.tags);
     const memeTags = tags.filter((entry) => meme.tagIds.includes(entry.id));
-
-    const radiusValue = `${cornerRadius}px`;
-    const innerRadiusValue = `${Math.max(0, cornerRadius - 1)}px`;
     const shouldShowTags = showTags && memeTags.length > 0;
 
     return (
@@ -39,7 +36,7 @@ export function MemeCardMedia({
                     ? `${meme.width} / ${meme.height}`
                     : undefined,
                 minHeight: viewMode === 'masonry' && (!meme.width || !meme.height) ? '150px' : undefined,
-                borderRadius: radiusValue,
+                borderRadius: 'var(--corner-radius)',
                 // Keep the selection stroke inside the card bounds so edge items do not get clipped.
                 boxShadow: isSelected
                     ? `inset 0 0 0 2px ${accentColor}, 0 8px 20px -4px ${accentColor}40`
@@ -55,7 +52,7 @@ export function MemeCardMedia({
                         : 'opacity-0 group-hover/media:opacity-100'
                 )}
                 style={{
-                    borderRadius: radiusValue,
+                    borderRadius: 'var(--corner-radius)',
                     boxShadow: isSelected
                         ? `inset 0 0 0 1px rgba(255,255,255,0.2)`
                         : 'inset 0 0 0 1px rgba(255,255,255,0.1)'
@@ -64,7 +61,7 @@ export function MemeCardMedia({
 
             <div
                 className="absolute inset-px overflow-hidden bg-white dark:bg-white/5 isolate transform-gpu gpu-layer"
-                style={{ borderRadius: innerRadiusValue }}
+                style={{ borderRadius: 'max(0px, calc(var(--corner-radius) - 1px))' }}
             >
                 {/* Selection Badge */}
                 <AnimatePresence>

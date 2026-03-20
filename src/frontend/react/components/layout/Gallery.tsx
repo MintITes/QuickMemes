@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { EmptyState } from '../common/EmptyState';
-import { useUiStore } from '../../stores/UiStore';
+import { GALLERY_ITEM_SIZE_MAX, GALLERY_ITEM_SIZE_MIN, useUiStore } from '../../stores/UiStore';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { MemeCard } from './MemeCard';
@@ -86,8 +86,10 @@ export function Gallery() {
 
                 useUiStore.setState((state) => {
                     const currentSize = state.galleryItemSize || 200;
-                    const newSize = Math.max(100, Math.min(800, currentSize - delta * step));
-                    return { galleryItemSize: newSize };
+                    const newSize = currentSize - delta * step;
+                    return {
+                        galleryItemSize: Math.max(GALLERY_ITEM_SIZE_MIN, Math.min(GALLERY_ITEM_SIZE_MAX, newSize)),
+                    };
                 });
             }
         };

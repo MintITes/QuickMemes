@@ -31,8 +31,12 @@ export function SettingsModal() {
     const [debugClickCount, setDebugClickCount] = useState(0);
     const [config, setConfig] = useState<AppConfig | null>(null);
     const [savedConfig, setSavedConfig] = useState<AppConfig | null>(null);
+    const [glassBlurDraft, setGlassBlurDraft] = useState<number | null>(null);
+    const [cornerRadiusDraft, setCornerRadiusDraft] = useState<number | null>(null);
     const [thumbnailMaxSizeDraft, setThumbnailMaxSizeDraft] = useState<number | null>(null);
     const [isSavingThumbnailMaxSize, setIsSavingThumbnailMaxSize] = useState(false);
+    const activeGlassBlur = glassBlurDraft ?? glassBlur;
+    const activeCornerRadius = cornerRadiusDraft ?? cornerRadius;
 
     const hasPatchChanges = (base: unknown, patch: unknown): boolean => {
         if (patch === null || patch === undefined) {
@@ -59,18 +63,46 @@ export function SettingsModal() {
 
     useEffect(() => {
         if (!isSettingsOpen) {
+            setGlassBlurDraft(null);
+            setCornerRadiusDraft(null);
             return;
         }
         void getAppConfig().then((nextConfig) => {
             setConfig(nextConfig);
             setSavedConfig(nextConfig);
+            setGlassBlurDraft(glassBlur);
+            setCornerRadiusDraft(cornerRadius);
             setThumbnailMaxSizeDraft(nextConfig.thumbnail.maxSize);
         }).catch(() => {
             setConfig(null);
             setSavedConfig(null);
+            setGlassBlurDraft(null);
+            setCornerRadiusDraft(null);
             setThumbnailMaxSizeDraft(null);
         });
     }, [isSettingsOpen]);
+
+    useEffect(() => {
+        if (!isSettingsOpen) {
+            return;
+        }
+        setGlassBlurDraft(glassBlur);
+    }, [glassBlur, isSettingsOpen]);
+
+    useEffect(() => {
+        if (!isSettingsOpen) {
+            return;
+        }
+        setCornerRadiusDraft(cornerRadius);
+    }, [cornerRadius, isSettingsOpen]);
+
+    useEffect(() => {
+        if (cornerRadiusDraft === null) {
+            return;
+        }
+
+        document.documentElement.style.setProperty('--corner-radius', `${cornerRadiusDraft}px`);
+    }, [cornerRadiusDraft]);
 
     useEffect(() => {
         setThumbnailMaxSizeDraft(config?.thumbnail.maxSize ?? null);
@@ -265,16 +297,25 @@ export function SettingsModal() {
 
                             <Slider
                                 label={t('settings.appearance.blur.label')}
-                                value={glassBlur}
+                                value={glassBlurDraft ?? glassBlur}
                                 min={0}
                                 max={40}
-                                onChange={setGlassBlur}
+                                onChange={setGlassBlurDraft}
+                                onAfterChange={(value) => setGlassBlur(value)}
                                 disabled={!glassEffect}
                                 unit="px"
                                 warning={!glassEffect ? t('settings.appearance.blur.warning') : undefined}
                             />
 
-                            <Slider label={t('settings.appearance.radius')} value={cornerRadius} min={0} max={24} onChange={setCornerRadius} unit="px" />
+                            <Slider
+                                label={t('settings.appearance.radius')}
+                                value={cornerRadiusDraft ?? cornerRadius}
+                                min={0}
+                                max={24}
+                                onChange={setCornerRadiusDraft}
+                                onAfterChange={(value) => setCornerRadius(value)}
+                                unit="px"
+                            />
                             <Slider label={t('settings.appearance.gap')} value={galleryGap} min={4} max={32} onChange={setGalleryGap} unit="px" />
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
@@ -531,7 +572,11 @@ export function SettingsModal() {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-md transition-opacity"
+                        className="absolute inset-0 bg-black/50 dark:bg-black/70 transition-opacity"
+                        style={{
+                            backdropFilter: glassEffect ? `blur(${activeGlassBlur}px)` : 'blur(0px)',
+                            WebkitBackdropFilter: glassEffect ? `blur(${activeGlassBlur}px)` : 'blur(0px)',
+                        }}
                         onClick={() => toggleSettings(false)}
                         aria-hidden="true"
                     />
@@ -542,7 +587,12 @@ export function SettingsModal() {
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300, opacity: { duration: 0.2 } }}
                         className="relative surface-effect w-[920px] h-[600px] max-h-[90vh] flex flex-col overflow-hidden ring-1 ring-white/10"
-                        style={{ WebkitAppRegion: 'no-drag', borderRadius: 'var(--corner-radius)' } as React.CSSProperties}
+                        style={{
+                            WebkitAppRegion: 'no-drag',
+                            borderRadius: 'var(--corner-radius)',
+                            '--glass-blur': `${activeGlassBlur}px`,
+                            '--corner-radius': `${activeCornerRadius}px`,
+                        } as React.CSSProperties}
                     >
                         <div className="flex items-center justify-center p-4 border-b border-white/10 dark:border-black/20 shrink-0">
                             <h2 className="text-base font-bold tracking-wide select-none">{t('settings.title')}</h2>
@@ -585,9 +635,12 @@ export function SettingsModal() {
 
                                 {activeTab === 'appearance' && (
                                     <div className="w-[280px] shrink-0 border-l border-white/5 bg-black/5 dark:bg-black/10 p-6 flex flex-col items-center justify-start overflow-y-auto no-drag animate-in fade-in slide-in-from-right-4 duration-500">
-                                        <div className="w-full">
-                                            <LivePreview />
-                                        </div>
+                            <div className="w-full">
+                                <LivePreview
+                                    cornerRadius={activeCornerRadius}
+                                    glassBlur={activeGlassBlur}
+                                />
+                            </div>
                                     </div>
                                 )}
                             </div>

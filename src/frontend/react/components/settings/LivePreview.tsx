@@ -3,8 +3,13 @@ import { motion } from 'framer-motion';
 import { Heart, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 
-export function LivePreview() {
-    const { glassBlur, cornerRadius, galleryGap, accentColor, resolvedTheme, glassEffect } = useUiStore();
+interface LivePreviewProps {
+    cornerRadius: number;
+    glassBlur: number;
+}
+
+export function LivePreview({ cornerRadius, glassBlur }: LivePreviewProps) {
+    const { galleryGap, accentColor, resolvedTheme, glassEffect } = useUiStore();
 
     return (
         <div className="flex flex-col gap-3 pointer-events-none select-none">
@@ -19,15 +24,16 @@ export function LivePreview() {
 
                 {/* Demo Card */}
                 <motion.div
-                    animate={{
-                        borderRadius: cornerRadius,
-                        backdropFilter: glassEffect ? `blur(${glassBlur}px)` : 'blur(0px)',
-                    }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.15 }}
                     className={clsx(
                         "relative w-full max-w-[200px] aspect-square flex flex-col shadow-2xl border border-white/20 overflow-hidden",
                         resolvedTheme === 'dark' ? "bg-black/40" : "bg-white/60"
                     )}
+                    style={{
+                        borderRadius: cornerRadius,
+                        backdropFilter: glassEffect ? `blur(${glassBlur}px)` : 'blur(0px)',
+                    }}
                 >
                     {/* Placeholder Image Area */}
                     <div className="flex-1 bg-black/5 dark:bg-white/5 flex items-center justify-center overflow-hidden">

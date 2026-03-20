@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
+export const GALLERY_ITEM_SIZE_MIN = 150;
+export const GALLERY_ITEM_SIZE_MAX = 400;
+
 export interface SearchQuery {
     keyword: string;
     categoryId?: number;
@@ -241,7 +244,9 @@ export const useUiStore = create<UiState>()(
 
             setGlassBlur: (value) => set({ glassBlur: value }),
 
-            setGalleryItemSize: (value) => set({ galleryItemSize: value }),
+            setGalleryItemSize: (value) => set({
+                galleryItemSize: Math.max(GALLERY_ITEM_SIZE_MIN, Math.min(GALLERY_ITEM_SIZE_MAX, value)),
+            }),
 
             setCornerRadius: (value) => set({ cornerRadius: value }),
 

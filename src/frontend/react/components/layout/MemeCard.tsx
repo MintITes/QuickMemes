@@ -22,7 +22,7 @@ interface MemeCardProps {
 
 export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disableLayoutAnimation = false }: MemeCardProps) {
     const { t } = useTranslation();
-    const { selectMeme, setContextMenu, setLightboxMemeId, cornerRadius, selectedMemeIds } = useUiStore();
+    const { selectMeme, setContextMenu, setLightboxMemeId, selectedMemeIds } = useUiStore();
 
     const [src, setSrc] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -162,7 +162,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
                 <div
                     className="absolute inset-0 z-10 pointer-events-none gpu-layer"
                     style={{
-                        borderRadius: `${cornerRadius}px`,
+                        borderRadius: 'var(--corner-radius)',
                         background: 'radial-gradient(circle at top left, color-mix(in srgb, var(--accent-color), transparent 75%), transparent 56%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent-color), transparent 82%), transparent 62%)',
                         boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(--accent-color), transparent 45%)`
                     }}

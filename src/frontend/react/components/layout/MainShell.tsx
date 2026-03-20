@@ -1,21 +1,25 @@
+import { AnimatePresence } from 'framer-motion';
+import { useUiStore } from '../../stores/UiStore';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { Gallery } from './Gallery';
-import { Inspector } from './Inspector';
 import { StatusBar } from './StatusBar';
+import { ToastContainer } from './ToastContainer';
+import { Inspector } from './Inspector';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ImportModal } from '../settings/ImportModal';
 import { NotificationPanel } from './NotificationPanel';
 import { UrlImportDialog } from '../common/UrlImportDialog';
 import { AdvancedSearchDialog } from '../common/AdvancedSearchDialog';
-import { ToastContainer } from './ToastContainer';
-import { AnimatePresence } from 'framer-motion';
-import { useUiStore } from '../../stores/UiStore';
 import { ContextMenu } from '../meme/ContextMenu';
 import { Lightbox } from '../meme/Lightbox';
 
 export function MainShell() {
     const isPanelOpen = useUiStore(state => state.isPanelOpen);
+    const isSettingsOpen = useUiStore(state => state.isSettingsOpen);
+    const isImportModalOpen = useUiStore(state => state.isImportModalOpen);
+    const isUrlImportDialogOpen = useUiStore(state => state.isUrlImportDialogOpen);
+    const isAdvancedSearchOpen = useUiStore(state => state.isAdvancedSearchOpen);
 
     return (
         <div className="w-screen h-screen flex flex-col bg-bgPrimary text-textPrimary overflow-hidden font-sans">
@@ -30,10 +34,10 @@ export function MainShell() {
             <StatusBar />
 
             {/* Absolute positioning modals */}
-            <SettingsModal />
-            <ImportModal />
-            <UrlImportDialog />
-            <AdvancedSearchDialog />
+            {isSettingsOpen && <SettingsModal />}
+            {isImportModalOpen && <ImportModal />}
+            {isUrlImportDialogOpen && <UrlImportDialog />}
+            {isAdvancedSearchOpen && <AdvancedSearchDialog />}
             <NotificationPanel />
             <ToastContainer />
 
