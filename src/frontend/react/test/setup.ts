@@ -72,3 +72,23 @@ Object.defineProperty(window, 'matchMedia', {
         dispatchEvent: vi.fn(),
     })),
 });
+
+// JSDOM does not provide ResizeObserver, but Gallery depends on it during mount.
+class ResizeObserverMock {
+    private readonly callback: ResizeObserverCallback;
+
+    constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+    }
+
+    observe(...args: Parameters<ResizeObserver['observe']>) {
+        void args;
+        this.callback([], this as unknown as ResizeObserver);
+    }
+
+    unobserve() {}
+
+    disconnect() {}
+}
+
+vi.stubGlobal('ResizeObserver', ResizeObserverMock);
