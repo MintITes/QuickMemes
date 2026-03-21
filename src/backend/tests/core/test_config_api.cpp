@@ -37,6 +37,20 @@ TEST_F(ConfigApiTest, PatchConfig_UpdateAiKey_Success) {
 	EXPECT_EQ(g_server->getConfig().visionConfig.apiKey, "new-key");
 }
 
+TEST_F(ConfigApiTest, PatchConfig_UpdateEmbeddingModel_Success) {
+	HttpRequestProxy req;
+	req.path   = "/api/config";
+	req.method = "PATCH";
+	req.body   = R"({"embeddingModel": "jina-embeddings-v5-text-small", "embeddingProvider": "JinaAI"})";
+	HttpResponseProxy res;
+
+	handlePatchConfig(req, res);
+
+	EXPECT_EQ(res.status, 200);
+	EXPECT_EQ(g_server->getConfig().embeddingConfig.model, "jina-embeddings-v5-text-small");
+	EXPECT_EQ(g_server->getConfig().embeddingConfig.provider, "JinaAI");
+}
+
 TEST_F(ConfigApiTest, PatchConfig_InvalidJson_ReturnsError) {
 	HttpRequestProxy req;
 	req.path   = "/api/config";

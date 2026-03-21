@@ -183,12 +183,18 @@ struct RuntimeConfigPatch {
 	std::optional<std::string> aiApiKey;         ///< AI API 密钥
 	std::optional<std::string> aiApiBaseUrl;     ///< AI API 基础 URL
 	std::optional<std::string> aiVisionModel;    ///< VLM 模型名称
-	std::optional<std::string> aiEmbeddingModel; ///< Embedding 模型名称
 	std::optional<int>         aiTimeoutSeconds; ///< AI API 请求超时秒数
 	std::optional<int>         aiMaxRetries;     ///< AI API 失败重试次数
 	std::optional<std::string> ocrApiKey;        ///< 云端 OCR API 密钥
 	std::optional<std::string> ocrApiUrl;        ///< 云端 OCR API 地址
 	std::optional<std::string> ocrProvider;      ///< 云端 OCR 提供商
+	std::optional<std::string> embeddingProvider;       ///< Embedding 提供商
+	std::optional<std::string> embeddingModel;          ///< Embedding 模型
+	std::optional<std::string> embeddingApiUrl;         ///< Embedding API 地址
+	std::optional<std::string> embeddingApiKey;         ///< Embedding API 密钥
+	std::optional<int>         embeddingDimensions;     ///< Embedding 维度
+	std::optional<int>         embeddingTimeoutSeconds; ///< Embedding API 超时秒数
+	std::optional<int>         embeddingMaxRetries;     ///< Embedding API 最大重试次数
 	std::optional<std::string> logMinLevel;      ///< 最低日志输出等级
 };
 
@@ -280,8 +286,6 @@ inline void from_json(const nlohmann::json &j, RuntimeConfigPatch &p) {
 		p.aiApiBaseUrl = j.at("aiApiBaseUrl").get<std::string>();
 	if (j.contains("aiVisionModel") && !j.at("aiVisionModel").is_null())
 		p.aiVisionModel = j.at("aiVisionModel").get<std::string>();
-	if (j.contains("aiEmbeddingModel") && !j.at("aiEmbeddingModel").is_null())
-		p.aiEmbeddingModel = j.at("aiEmbeddingModel").get<std::string>();
 	if (j.contains("aiTimeoutSeconds") && !j.at("aiTimeoutSeconds").is_null())
 		p.aiTimeoutSeconds = j.at("aiTimeoutSeconds").get<int>();
 	if (j.contains("aiMaxRetries") && !j.at("aiMaxRetries").is_null()) p.aiMaxRetries = j.at("aiMaxRetries").get<int>();
@@ -289,6 +293,20 @@ inline void from_json(const nlohmann::json &j, RuntimeConfigPatch &p) {
 	if (j.contains("ocrApiUrl") && !j.at("ocrApiUrl").is_null()) p.ocrApiUrl = j.at("ocrApiUrl").get<std::string>();
 	if (j.contains("ocrProvider") && !j.at("ocrProvider").is_null())
 		p.ocrProvider = j.at("ocrProvider").get<std::string>();
+	if (j.contains("embeddingProvider") && !j.at("embeddingProvider").is_null())
+		p.embeddingProvider = j.at("embeddingProvider").get<std::string>();
+	if (j.contains("embeddingModel") && !j.at("embeddingModel").is_null())
+		p.embeddingModel = j.at("embeddingModel").get<std::string>();
+	if (j.contains("embeddingApiUrl") && !j.at("embeddingApiUrl").is_null())
+		p.embeddingApiUrl = j.at("embeddingApiUrl").get<std::string>();
+	if (j.contains("embeddingApiKey") && !j.at("embeddingApiKey").is_null())
+		p.embeddingApiKey = j.at("embeddingApiKey").get<std::string>();
+	if (j.contains("embeddingDimensions") && !j.at("embeddingDimensions").is_null())
+		p.embeddingDimensions = j.at("embeddingDimensions").get<int>();
+	if (j.contains("embeddingTimeoutSeconds") && !j.at("embeddingTimeoutSeconds").is_null())
+		p.embeddingTimeoutSeconds = j.at("embeddingTimeoutSeconds").get<int>();
+	if (j.contains("embeddingMaxRetries") && !j.at("embeddingMaxRetries").is_null())
+		p.embeddingMaxRetries = j.at("embeddingMaxRetries").get<int>();
 	if (j.contains("logMinLevel") && !j.at("logMinLevel").is_null())
 		p.logMinLevel = j.at("logMinLevel").get<std::string>();
 }
@@ -297,12 +315,18 @@ inline void to_json(nlohmann::json &j, const RuntimeConfigPatch &p) {
 	if (p.aiApiKey) j["aiApiKey"] = *p.aiApiKey;
 	if (p.aiApiBaseUrl) j["aiApiBaseUrl"] = *p.aiApiBaseUrl;
 	if (p.aiVisionModel) j["aiVisionModel"] = *p.aiVisionModel;
-	if (p.aiEmbeddingModel) j["aiEmbeddingModel"] = *p.aiEmbeddingModel;
 	if (p.aiTimeoutSeconds) j["aiTimeoutSeconds"] = *p.aiTimeoutSeconds;
 	if (p.aiMaxRetries) j["aiMaxRetries"] = *p.aiMaxRetries;
 	if (p.ocrApiKey) j["ocrApiKey"] = *p.ocrApiKey;
 	if (p.ocrApiUrl) j["ocrApiUrl"] = *p.ocrApiUrl;
 	if (p.ocrProvider) j["ocrProvider"] = *p.ocrProvider;
+	if (p.embeddingProvider) j["embeddingProvider"] = *p.embeddingProvider;
+	if (p.embeddingModel) j["embeddingModel"] = *p.embeddingModel;
+	if (p.embeddingApiUrl) j["embeddingApiUrl"] = *p.embeddingApiUrl;
+	if (p.embeddingApiKey) j["embeddingApiKey"] = *p.embeddingApiKey;
+	if (p.embeddingDimensions) j["embeddingDimensions"] = *p.embeddingDimensions;
+	if (p.embeddingTimeoutSeconds) j["embeddingTimeoutSeconds"] = *p.embeddingTimeoutSeconds;
+	if (p.embeddingMaxRetries) j["embeddingMaxRetries"] = *p.embeddingMaxRetries;
 	if (p.logMinLevel) j["logMinLevel"] = *p.logMinLevel;
 }
 

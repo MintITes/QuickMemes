@@ -5,6 +5,7 @@
 #include "core/task_queue.hpp"
 #include "core/ws_pusher.hpp"
 #include "db/database.hpp"
+#include "embedding/embedding.hpp"
 #include "utils/file_utils.hpp"
 #include "utils/logger.hpp"
 #include "vision/vision.hpp"
@@ -104,63 +105,11 @@ void handlePostImportCancel(const HttpRequestProxy &req, HttpResponseProxy &res)
 void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto query = nlohmann::json::parse(req.body).get<SearchQuery>();
-
-		std::vector<MemeEntry> vectorResults;
-		bool                   didVectorSearch = false;
-
-		if (query.useVector && !query.keyword.empty()) {
-			auto emb = VisionModule::get().generateEmbedding(query.keyword);
-			if (!emb.empty()) {
-				vectorResults   = Database::get().vectorSearch(emb, query.limit);
-				didVectorSearch = true;
-			}
-		}
+		// TODO: 搜索算法重构时，用 description / OCR 双向量检索重新接入 embedding 搜索。
 
 		auto    dbResults      = Database::get().searchMemes(query);
 		auto   &keywordResults = dbResults.items;
 		int32_t total          = dbResults.totalCount;
-
-		if (didVectorSearch) {
-			std::map<int64_t, SearchResultItem> merged;
-			const float                         k = 60.0f;
-
-			for (size_t i = 0; i < keywordResults.size(); ++i) {
-				const auto      &meme = keywordResults[i];
-				SearchResultItem item;
-				item.meme            = meme;
-				item.similarityScore = 1.0f / (k + i + 1);
-				merged[meme.id]      = item;
-			}
-
-			for (size_t i = 0; i < vectorResults.size(); ++i) {
-				const auto &meme = vectorResults[i];
-				if (merged.find(meme.id) == merged.end()) {
-					SearchResultItem item;
-					item.meme            = meme;
-					item.similarityScore = 0.0f;
-					merged[meme.id]      = item;
-				}
-				merged[meme.id].similarityScore += 1.0f / (k + i + 1);
-			}
-
-			SearchResult data;
-			data.total = total;
-			for (const auto &pair : merged) {
-				data.items.push_back(pair.second);
-			}
-
-			std::sort(data.items.begin(), data.items.end(), [](const SearchResultItem &a, const SearchResultItem &b) {
-				return a.similarityScore > b.similarityScore;
-			});
-
-			if (data.items.size() > static_cast<size_t>(query.limit)) { data.items.resize(query.limit); }
-
-			data.total = total;
-
-			res.status = 200;
-			res.body   = makeSuccessResponse(data);
-			return;
-		}
 
 		SearchResult data;
 		for (const auto &meme : keywordResults) {
@@ -208,6 +157,26 @@ void handlePutMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 		bool success = Database::get().updateMeme(id, patch);
 		if (success) {
+			if (patch.description && EmbeddingModule::get().isAvailable()) {
+				try {
+					auto description = *patch.description;
+					if (description.empty()) {
+						Database::get().deleteDescriptionEmbedding(id);
+					} else {
+						auto embedding = EmbeddingModule::get().generateEmbedding(description);
+						if (!embedding.empty()) {
+							Database::get().upsertDescriptionEmbedding(id, embedding);
+						} else {
+							Database::get().deleteDescriptionEmbedding(id);
+						}
+					}
+				} catch (const std::exception &e) {
+					Database::get().deleteDescriptionEmbedding(id);
+					LOG_WARN("handlers",
+					         "Failed to refresh description embedding for meme " + std::to_string(id) +
+					             ", deleted stale vector: " + e.what());
+				}
+			}
 			auto meme = Database::get().getMeme(id);
 			WsPusher::get().broadcast({"meme:updated", meme});
 			res.status = 200;
@@ -714,6 +683,8 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		if (g_server) {
 			ServerConfig config  = g_server->getConfig();
 			bool         changed = false;
+			bool         embeddingChanged = false;
+			bool         embeddingDimensionsChanged = false;
 
 			if (patch.logMinLevel) { Logger::get().setMinLevel(logLevelFromString(*patch.logMinLevel)); }
 			if (patch.aiApiKey) {
@@ -728,10 +699,6 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			if (patch.aiVisionModel) {
 				config.visionConfig.visionModel = *patch.aiVisionModel;
 				changed                         = true;
-			}
-			if (patch.aiEmbeddingModel) {
-				config.visionConfig.embeddingModel = *patch.aiEmbeddingModel;
-				changed                            = true;
 			}
 			if (patch.aiTimeoutSeconds) {
 				config.visionConfig.timeoutSeconds = *patch.aiTimeoutSeconds;
@@ -753,10 +720,53 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 				config.visionConfig.ocrProvider = *patch.ocrProvider;
 				changed                         = true;
 			}
+			if (patch.embeddingProvider) {
+				config.embeddingConfig.provider = *patch.embeddingProvider;
+				changed                         = true;
+				embeddingChanged                = true;
+			}
+			if (patch.embeddingModel) {
+				config.embeddingConfig.model = *patch.embeddingModel;
+				changed                      = true;
+				embeddingChanged             = true;
+			}
+			if (patch.embeddingApiUrl) {
+				config.embeddingConfig.apiUrl = *patch.embeddingApiUrl;
+				changed                       = true;
+				embeddingChanged              = true;
+			}
+			if (patch.embeddingApiKey) {
+				config.embeddingConfig.apiKey = *patch.embeddingApiKey;
+				changed                       = true;
+				embeddingChanged              = true;
+			}
+			if (patch.embeddingDimensions) {
+				config.embeddingConfig.dimensions = *patch.embeddingDimensions;
+				changed                           = true;
+				embeddingChanged                  = true;
+				embeddingDimensionsChanged        = true;
+			}
+			if (patch.embeddingTimeoutSeconds) {
+				config.embeddingConfig.timeoutSeconds = *patch.embeddingTimeoutSeconds;
+				changed                               = true;
+				embeddingChanged                      = true;
+			}
+			if (patch.embeddingMaxRetries) {
+				config.embeddingConfig.maxRetries = *patch.embeddingMaxRetries;
+				changed                           = true;
+				embeddingChanged                  = true;
+			}
 
 			if (changed) {
-				g_server->updateConfig(config);
 				VisionModule::get().reconfigure(config.visionConfig);
+				if (embeddingChanged) {
+					EmbeddingModule::get().reconfigure(config.embeddingConfig);
+					config.embeddingConfig = EmbeddingModule::get().getConfig();
+					if (embeddingDimensionsChanged) {
+						Database::get().rebuildEmbeddingTables(EmbeddingModule::get().getDimensions());
+					}
+				}
+				g_server->updateConfig(config);
 			}
 		}
 		res.status = 200;
@@ -981,9 +991,9 @@ void handlePostMemesBatchCategory(const HttpRequestProxy &req, HttpResponseProxy
 
 void handlePostAdminRebuildEmbeddings(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	(void)req;
-	if (!VisionModule::get().isAvailable()) {
+	if (!EmbeddingModule::get().isAvailable()) {
 		res.status = 503;
-		res.body   = makeErrorResponse(ERR_AI_UNAVAILABLE, "AI unavailable");
+		res.body   = makeErrorResponse(ERR_EMBEDDING_NOT_READY, "Embedding unavailable");
 		return;
 	}
 	std::string    taskId = TaskQueue::get().submitRebuildTask();

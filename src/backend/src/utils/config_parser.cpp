@@ -77,13 +77,20 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	getString("--api-key", config.visionConfig.apiKey, true);
 	getString("--api-base-url", config.visionConfig.apiBaseUrl, true);
 	getString("--vision-model", config.visionConfig.visionModel, true);
-	getString("--embedding-model", config.visionConfig.embeddingModel, true);
 	getInt("--api-timeout", config.visionConfig.timeoutSeconds, true);
 	getInt("--api-retries", config.visionConfig.maxRetries, true);
 
 	getString("--ocr-api-key", config.visionConfig.ocrApiKey, true);
 	getString("--ocr-api-url", config.visionConfig.ocrApiUrl, true);
 	getString("--ocr-provider", config.visionConfig.ocrProvider, true);
+
+	getString("--embedding-provider", config.embeddingConfig.provider, true);
+	getString("--embedding-model", config.embeddingConfig.model, true);
+	getString("--embedding-api-url", config.embeddingConfig.apiUrl, true);
+	getString("--embedding-api-key", config.embeddingConfig.apiKey, true);
+	getInt("--embedding-dimensions", config.embeddingConfig.dimensions, true);
+	getInt("--embedding-timeout", config.embeddingConfig.timeoutSeconds, true);
+	getInt("--embedding-retries", config.embeddingConfig.maxRetries, true);
 
 	getBool("--thumbnail-enabled", config.thumbnailEnabled, true);
 	getInt("--thumbnail-max-size", config.thumbnailMaxSize, true);

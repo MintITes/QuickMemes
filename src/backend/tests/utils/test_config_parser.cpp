@@ -36,8 +36,20 @@ TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	                                           "https://api.example.com/v1",
 	                                           "--vision-model",
 	                                           "gpt-4v",
+	                                           "--embedding-provider",
+	                                           "JinaAI",
 	                                           "--embedding-model",
-	                                           "text-embed-v1",
+	                                           "jina-embeddings-v5-text-small",
+	                                           "--embedding-api-url",
+	                                           "https://api.jina.ai/v1/embeddings",
+	                                           "--embedding-api-key",
+	                                           "embedding-key",
+	                                           "--embedding-dimensions",
+	                                           "768",
+	                                           "--embedding-timeout",
+	                                           "28",
+	                                           "--embedding-retries",
+	                                           "4",
 	                                           "--api-timeout",
 	                                           "45",
 	                                           "--api-retries",
@@ -85,12 +97,18 @@ TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	EXPECT_EQ(config.visionConfig.apiKey, "vision-key");
 	EXPECT_EQ(config.visionConfig.apiBaseUrl, "https://api.example.com/v1");
 	EXPECT_EQ(config.visionConfig.visionModel, "gpt-4v");
-	EXPECT_EQ(config.visionConfig.embeddingModel, "text-embed-v1");
 	EXPECT_EQ(config.visionConfig.timeoutSeconds, 45);
 	EXPECT_EQ(config.visionConfig.maxRetries, 3);
 	EXPECT_EQ(config.visionConfig.ocrApiKey, "ocr-key");
 	EXPECT_EQ(config.visionConfig.ocrApiUrl, "https://ocr.example.com");
 	EXPECT_EQ(config.visionConfig.ocrProvider, "PaddleOCR");
+	EXPECT_EQ(config.embeddingConfig.provider, "JinaAI");
+	EXPECT_EQ(config.embeddingConfig.model, "jina-embeddings-v5-text-small");
+	EXPECT_EQ(config.embeddingConfig.apiUrl, "https://api.jina.ai/v1/embeddings");
+	EXPECT_EQ(config.embeddingConfig.apiKey, "embedding-key");
+	EXPECT_EQ(config.embeddingConfig.dimensions, 768);
+	EXPECT_EQ(config.embeddingConfig.timeoutSeconds, 28);
+	EXPECT_EQ(config.embeddingConfig.maxRetries, 4);
 
 	EXPECT_FALSE(config.thumbnailEnabled);
 	EXPECT_EQ(config.thumbnailMaxSize, 256);

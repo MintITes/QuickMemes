@@ -7,8 +7,6 @@
 
 #include "error_codes.hpp"
 #include "utils/logger.hpp"
-#include "vision/vision.hpp"
-
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <chrono>
 #include <filesystem>
@@ -78,8 +76,9 @@ namespace quickmemes {
 Database::Database()  = default;
 Database::~Database() = default;
 
-bool Database::initialize(const std::string &dbPath) {
+bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 	dbPath_ = dbPath;
+	embeddingDimensions_ = embeddingDimensions > 0 ? embeddingDimensions : EmbeddingModule::kDefaultDimensions;
 	try {
 		int flags = SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE;
 
@@ -121,6 +120,7 @@ bool Database::initialize(const std::string &dbPath) {
 		}
 
 		runMigrations();
+		ensureEmbeddingTableSchema();
 
 		LOG_INFO("persist", "Database initialized successfully.");
 		return true;
@@ -365,6 +365,7 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
 	if (embedding.empty()) { throw ApiException(ERR_INVALID_PARAMS, "Empty embedding provided for vector search"); }
 
 	try {
+		// TODO: 重构搜索算法时，以 description / OCR 双向量表重新接入检索逻辑。
 		std::vector<MemeEntry> results;
 		int                    searchLimit = limit * 3;
 
@@ -375,7 +376,7 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
                    m.category_id,
                    (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
                     FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json
-            FROM vec_memes v
+            FROM vec_meme_desc v
             JOIN memes m ON v.meme_id = m.id
             WHERE v.embedding MATCH ?
               AND v.k = ?
@@ -658,9 +659,13 @@ bool Database::deleteMeme(int64_t id) {
 		if (rows > 0) {
 			// FTS delete is handled by triggers
 			// Delete from vector tables specifically
-			SQLite::Statement delVec(*db_, "DELETE FROM vec_memes WHERE meme_id = ?");
-			delVec.bind(1, id);
-			delVec.exec();
+			SQLite::Statement delDesc(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
+			delDesc.bind(1, id);
+			delDesc.exec();
+
+			SQLite::Statement delOcr(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
+			delOcr.bind(1, id);
+			delOcr.exec();
 		}
 
 		txn.commit();
@@ -895,30 +900,75 @@ bool Database::updateMemeCategory(int64_t memeId, int64_t categoryId) {
 	}
 }
 
-void Database::upsertEmbedding(int64_t memeId, const std::vector<float> &embedding) {
+void Database::upsertDescriptionEmbedding(int64_t memeId, const std::vector<float> &embedding) {
 	std::unique_lock lock(dbMutex_);
 	try {
-		SQLite::Statement stmt(*db_, "INSERT OR REPLACE INTO vec_memes (meme_id, embedding) VALUES (?, ?)");
+		SQLite::Statement stmt(*db_, "INSERT OR REPLACE INTO vec_meme_desc (meme_id, embedding) VALUES (?, ?)");
 		stmt.bind(1, memeId);
 		stmt.bind(2, embedding.data(), embedding.size() * sizeof(float));
 		stmt.exec();
-	} catch (const SQLite::Exception &e) { LOG_ERROR("persist", std::string("upsertEmbedding failed: ") + e.what()); }
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("upsertDescriptionEmbedding failed: ") + e.what());
+	}
 }
 
-void Database::rebuildVecTable(int newDimension) {
+void Database::upsertOcrEmbedding(int64_t memeId, const std::vector<float> &embedding) {
 	std::unique_lock lock(dbMutex_);
-	if (newDimension <= 0) { newDimension = VisionModule::get().getEmbeddingDimension(); }
-	if (newDimension <= 0) newDimension = 1536; // Fallback
+	try {
+		SQLite::Statement stmt(*db_, "INSERT OR REPLACE INTO vec_meme_ocr (meme_id, embedding) VALUES (?, ?)");
+		stmt.bind(1, memeId);
+		stmt.bind(2, embedding.data(), embedding.size() * sizeof(float));
+		stmt.exec();
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("upsertOcrEmbedding failed: ") + e.what());
+	}
+}
+
+void Database::deleteDescriptionEmbedding(int64_t memeId) {
+	std::unique_lock lock(dbMutex_);
+	try {
+		SQLite::Statement stmt(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
+		stmt.bind(1, memeId);
+		stmt.exec();
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("deleteDescriptionEmbedding failed: ") + e.what());
+	}
+}
+
+void Database::deleteOcrEmbedding(int64_t memeId) {
+	std::unique_lock lock(dbMutex_);
+	try {
+		SQLite::Statement stmt(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
+		stmt.bind(1, memeId);
+		stmt.exec();
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("deleteOcrEmbedding failed: ") + e.what());
+	}
+}
+
+void Database::rebuildEmbeddingTables(int newDimension) {
+	std::unique_lock lock(dbMutex_);
+	if (newDimension <= 0) { newDimension = embeddingDimensions_; }
+	if (newDimension <= 0) newDimension = EmbeddingModule::kDefaultDimensions;
+	embeddingDimensions_ = newDimension;
 
 	try {
 		SQLite::Transaction txn(*db_);
-		db_->exec("DROP TABLE IF EXISTS vec_memes;");
-		std::string ddl = "CREATE VIRTUAL TABLE vec_memes USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
-		                  std::to_string(newDimension) + "]);";
-		db_->exec(ddl);
+		db_->exec("DROP TABLE IF EXISTS vec_meme_desc;");
+		db_->exec("DROP TABLE IF EXISTS vec_meme_ocr;");
+		std::string descDdl =
+		    "CREATE VIRTUAL TABLE vec_meme_desc USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
+		    std::to_string(newDimension) + "]);";
+		std::string ocrDdl =
+		    "CREATE VIRTUAL TABLE vec_meme_ocr USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
+		    std::to_string(newDimension) + "]);";
+		db_->exec(descDdl);
+		db_->exec(ocrDdl);
 		txn.commit();
-		LOG_INFO("persist", "Vec table rebuilt with dimension " + std::to_string(newDimension));
-	} catch (const SQLite::Exception &e) { LOG_ERROR("persist", std::string("rebuildVecTable failed: ") + e.what()); }
+		LOG_INFO("persist", "Embedding tables rebuilt with dimension " + std::to_string(newDimension));
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("rebuildEmbeddingTables failed: ") + e.what());
+	}
 }
 
 std::string Database::backupDatabase() {
@@ -966,7 +1016,7 @@ bool Database::restoreDatabase(const std::string &backupPath) {
 			std::ofstream dst(tempPath, std::ios::binary | std::ios::trunc);
 			if (!src || !dst) {
 				LOG_ERROR("persist", "Failed to open files for restore copy");
-				if (!dbPath_.empty()) initialize(currentPath);
+				if (!dbPath_.empty()) initialize(currentPath, embeddingDimensions_);
 				return false;
 			}
 			dst << src.rdbuf();
@@ -978,12 +1028,12 @@ bool Database::restoreDatabase(const std::string &backupPath) {
 		} catch (const std::exception &e) {
 			LOG_ERROR("persist", std::string("Rename failed during restore: ") + e.what());
 			std::filesystem::remove(tempPath);
-			if (!dbPath_.empty()) initialize(currentPath);
+			if (!dbPath_.empty()) initialize(currentPath, embeddingDimensions_);
 			return false;
 		}
 
 		// 重新初始化
-		bool ok = initialize(currentPath);
+		bool ok = initialize(currentPath, embeddingDimensions_);
 		if (ok) {
 			LOG_INFO("persist", "Database restored from: " + backupPath);
 		} else {
@@ -993,7 +1043,7 @@ bool Database::restoreDatabase(const std::string &backupPath) {
 	} catch (const std::exception &e) {
 		LOG_ERROR("persist", std::string("restoreDatabase failed: ") + e.what());
 		// 尝试重新打开原数据库
-		if (!dbPath_.empty()) initialize(dbPath_);
+		if (!dbPath_.empty()) initialize(dbPath_, embeddingDimensions_);
 		return false;
 	}
 }
@@ -1107,11 +1157,10 @@ void Database::runMigrations() {
         )");
 
 		// 4. Vector 向量搜索虚拟表
-		int dim = VisionModule::get().getEmbeddingDimension();
-		if (dim <= 0) dim = 1536;
-		db_->exec(
-		    "CREATE VIRTUAL TABLE IF NOT EXISTS vec_memes USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
-		    std::to_string(dim) + "]);");
+		db_->exec("CREATE VIRTUAL TABLE IF NOT EXISTS vec_meme_desc USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
+		          std::to_string(embeddingDimensions_) + "]);");
+		db_->exec("CREATE VIRTUAL TABLE IF NOT EXISTS vec_meme_ocr USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
+		          std::to_string(embeddingDimensions_) + "]);");
 
 		// 5. 标签表
 		db_->exec(R"(
@@ -1204,6 +1253,48 @@ void Database::runMigrations() {
 		transaction.commit();
 		LOG_INFO("persist", "Database migrated to schema v3 successfully.");
 	}
+
+	if (currentVersion < 4) {
+		SQLite::Transaction transaction(*db_);
+		LOG_INFO("persist", "Migrating database to schema v4 (Split embedding tables)...");
+
+		db_->exec("DROP TABLE IF EXISTS vec_memes;");
+		db_->exec("CREATE VIRTUAL TABLE IF NOT EXISTS vec_meme_desc USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
+		          std::to_string(embeddingDimensions_) + "]);");
+		db_->exec("CREATE VIRTUAL TABLE IF NOT EXISTS vec_meme_ocr USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
+		          std::to_string(embeddingDimensions_) + "]);");
+
+		auto nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		db_->exec("INSERT INTO schema_version (version, applied_at) VALUES (4, " + std::to_string(nowMs) + ");");
+
+		transaction.commit();
+		LOG_INFO("persist", "Database migrated to schema v4 successfully.");
+	}
+}
+
+int Database::getVecTableDimension(const std::string &tableName) const {
+	try {
+		SQLite::Statement stmt(*db_, "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?");
+		stmt.bind(1, tableName);
+		if (!stmt.executeStep() || stmt.getColumn(0).isNull()) { return 0; }
+
+		std::string sql = stmt.getColumn(0).getString();
+		std::regex  dimRegex(R"(float\[(\d+)\])");
+		std::smatch match;
+		if (std::regex_search(sql, match, dimRegex) && match.size() >= 2) { return std::stoi(match[1].str()); }
+	} catch (...) {}
+	return 0;
+}
+
+void Database::ensureEmbeddingTableSchema() {
+	DatabaseReadLock lock(dbMutex_);
+	int              descDim = getVecTableDimension("vec_meme_desc");
+	int              ocrDim  = getVecTableDimension("vec_meme_ocr");
+	lock.unlock();
+
+	if (descDim != embeddingDimensions_ || ocrDim != embeddingDimensions_) { rebuildEmbeddingTables(embeddingDimensions_); }
 }
 
 SearchSql Database::buildSearchSql(const SearchQuery &query) {

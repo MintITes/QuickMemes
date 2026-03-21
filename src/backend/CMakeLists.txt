@@ -176,6 +176,18 @@ target_link_libraries(quickmemes_vision PUBLIC
 )
 target_precompile_headers(quickmemes_vision PRIVATE ${PCH_HEADER})
 
+# ── embedding 静态库 ──
+add_library(quickmemes_embedding STATIC
+    ${SRC_DIR}/embedding/embedding.cpp
+)
+target_include_directories(quickmemes_embedding PUBLIC ${SRC_DIR})
+target_link_libraries(quickmemes_embedding PUBLIC
+    nlohmann_json::nlohmann_json
+    quickmemes_utils
+    quickmemes_vision
+)
+target_precompile_headers(quickmemes_embedding PRIVATE ${PCH_HEADER})
+
 # ── core 静态库 ──
 add_library(quickmemes_core STATIC
     ${SRC_DIR}/core/server.cpp
@@ -191,6 +203,7 @@ target_link_libraries(quickmemes_core PUBLIC
     Boost::uuid
     nlohmann_json::nlohmann_json
     quickmemes_db
+    quickmemes_embedding
     quickmemes_vision
     quickmemes_utils
 )
@@ -208,6 +221,7 @@ add_executable(quickmemes-backend ${SRC_DIR}/main.cpp)
 target_link_libraries(quickmemes-backend PRIVATE
     quickmemes_core
     quickmemes_db
+    quickmemes_embedding
     quickmemes_vision
     quickmemes_utils
 )

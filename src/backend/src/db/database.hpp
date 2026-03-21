@@ -9,6 +9,7 @@
  */
 
 #include "api_types.hpp"
+#include "embedding/embedding.hpp"
 #include "types.hpp"
 
 #include <cstdint>
@@ -80,7 +81,7 @@ public:
 	 * @param dbPath std::string SQLite 数据库文件绝对路径
 	 * @return bool 成功返回 true；失败返回 false
 	 */
-	bool initialize(const std::string &dbPath);
+	bool initialize(const std::string &dbPath, int embeddingDimensions = EmbeddingModule::kDefaultDimensions);
 
 	/**
 	 * @brief 关闭数据库连接并释放资源
@@ -290,7 +291,10 @@ public:
 	 * @param memeId int64_t Meme ID
 	 * @param embedding std::vector<float> 语义向量
 	 */
-	void upsertEmbedding(int64_t memeId, const std::vector<float> &embedding);
+	void upsertDescriptionEmbedding(int64_t memeId, const std::vector<float> &embedding);
+	void upsertOcrEmbedding(int64_t memeId, const std::vector<float> &embedding);
+	void deleteDescriptionEmbedding(int64_t memeId);
+	void deleteOcrEmbedding(int64_t memeId);
 
 	/**
 	 * @brief 重建 vec_memes 虚拟表
@@ -299,7 +303,7 @@ public:
 	 *
 	 * @param newDimension int 新的向量维度
 	 */
-	void rebuildVecTable(int newDimension);
+	void rebuildEmbeddingTables(int newDimension);
 
 	// ── 备份与完整性 ──
 
@@ -359,9 +363,13 @@ private:
 	 */
 	SearchSql buildSearchSql(const SearchQuery &query);
 
-	std::unique_ptr<SQLite::Database> db_;     ///< SQLiteCpp 数据库实例
-	std::string                       dbPath_; ///< 数据库文件路径
-	mutable DatabaseMutex dbMutex_; ///< MinGW 下退回互斥锁，其它平台使用共享锁
+	int       getVecTableDimension(const std::string &tableName) const;
+	void      ensureEmbeddingTableSchema();
+
+	std::unique_ptr<SQLite::Database> db_;                   ///< SQLiteCpp 数据库实例
+	std::string                       dbPath_;               ///< 数据库文件路径
+	int                               embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
+	mutable DatabaseMutex             dbMutex_;              ///< MinGW 下退回互斥锁，其它平台使用共享锁
 };
 
 } // namespace quickmemes

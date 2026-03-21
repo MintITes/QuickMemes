@@ -29,6 +29,7 @@ set(TEST_SOURCES
     db/test_soft_delete.cpp
     db/test_category_ops.cpp
     vision/test_vision_mock.cpp
+    embedding/test_embedding_mock.cpp
     utils/test_config_parser.cpp
     utils/test_logger.cpp
     integration/integration_test.cpp
@@ -52,6 +53,7 @@ add_executable(quickmemes_tests ${TEST_SOURCES})
 target_link_libraries(quickmemes_tests PRIVATE
     quickmemes_core
     quickmemes_db
+    quickmemes_embedding
     quickmemes_vision
     quickmemes_utils
     gtest_main

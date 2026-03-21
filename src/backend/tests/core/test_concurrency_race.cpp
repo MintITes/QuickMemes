@@ -47,7 +47,7 @@ TEST_F(ConcurrencyRaceTest, Import_vs_Rebuild_Race) {
 		while (!start)
 			std::this_thread::yield();
 		for (int i = 0; i < 10; ++i) {
-			Database::get().rebuildVecTable(1536);
+			Database::get().rebuildEmbeddingTables(512);
 		}
 		completed++;
 	});
@@ -57,8 +57,9 @@ TEST_F(ConcurrencyRaceTest, Import_vs_Rebuild_Race) {
 		while (!start)
 			std::this_thread::yield();
 		for (int i = 0; i < 100; ++i) {
-			std::vector<float> vec(1536, 1.0f);
-			Database::get().upsertEmbedding(i + 1, vec);
+			std::vector<float> vec(512, 1.0f);
+			Database::get().upsertDescriptionEmbedding(i + 1, vec);
+			Database::get().upsertOcrEmbedding(i + 1, vec);
 		}
 		completed++;
 	});

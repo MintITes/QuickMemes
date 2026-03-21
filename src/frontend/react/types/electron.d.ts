@@ -14,7 +14,15 @@ declare global {
             apiKey: string;
             apiBaseUrl: string;
             visionModel: string;
-            embeddingModel: string;
+            timeoutSeconds: number;
+            maxRetries: number;
+        };
+        embedding: {
+            provider: string;
+            model: string;
+            apiUrl: string;
+            apiKey: string;
+            dimensions: number;
             timeoutSeconds: number;
             maxRetries: number;
         };

@@ -5,6 +5,8 @@
 
 #include "../mocks.hpp"
 
+#include <SQLiteCpp/SQLiteCpp.h>
+
 namespace quickmemes { namespace testing {
 
 TEST_F(MemeDbTest, SearchMemes_ValidQuery_ReturnsMatchingResults) {
@@ -114,8 +116,8 @@ TEST_F(MemeDbTest, VectorSearch_ValidEmbedding_ReturnsRankedResults) {
 	meme.mimeType = "image/png";
 	int64_t id    = db->insertMeme(meme);
 
-	std::vector<float> embed(1536, 0.1f);
-	db->upsertEmbedding(id, embed);
+	std::vector<float> embed(512, 0.1f);
+	db->upsertDescriptionEmbedding(id, embed);
 
 	auto results = db->vectorSearch(embed, 10);
 	EXPECT_GE(results.size(), 1);
@@ -124,6 +126,32 @@ TEST_F(MemeDbTest, VectorSearch_ValidEmbedding_ReturnsRankedResults) {
 TEST_F(MemeDbTest, VectorSearch_InsufficientDimension_ThrowsError) {
 	std::vector<float> bad(10, 0.1f);
 	EXPECT_THROW(db->vectorSearch(bad, 10), ApiException);
+}
+
+TEST_F(MemeDbTest, EmbeddingTables_DescriptionAndOcrStoreSeparately) {
+	MemeEntry meme;
+	meme.fileHash = "hash_vec_split_1";
+	meme.filePath = getSubPath("split.png");
+	meme.mimeType = "image/png";
+	int64_t id    = db->insertMeme(meme);
+
+	std::vector<float> desc(512, 0.2f);
+	std::vector<float> ocr(512, 0.3f);
+	db->upsertDescriptionEmbedding(id, desc);
+	db->upsertOcrEmbedding(id, ocr);
+
+	auto rawDb = db->getRawDatabase();
+	ASSERT_NE(rawDb, nullptr);
+
+	SQLite::Statement descStmt(*rawDb, "SELECT count(*) FROM vec_meme_desc WHERE meme_id = ?");
+	descStmt.bind(1, id);
+	ASSERT_TRUE(descStmt.executeStep());
+	EXPECT_EQ(descStmt.getColumn(0).getInt(), 1);
+
+	SQLite::Statement ocrStmt(*rawDb, "SELECT count(*) FROM vec_meme_ocr WHERE meme_id = ?");
+	ocrStmt.bind(1, id);
+	ASSERT_TRUE(ocrStmt.executeStep());
+	EXPECT_EQ(ocrStmt.getColumn(0).getInt(), 1);
 }
 
 TEST_F(MemeDbTest, SearchMemes_AllFilters_Works) {

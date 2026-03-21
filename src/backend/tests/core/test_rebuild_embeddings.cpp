@@ -2,6 +2,7 @@
 #include "../test_utils.hpp"
 #include "core/handlers.hpp"
 #include "core/task_queue.hpp"
+#include "embedding/embedding.hpp"
 #include "vision/vision.hpp"
 
 #include <gtest/gtest.h>
@@ -18,11 +19,15 @@ protected:
 		auto mockHttp = std::make_shared<MockHttpClient>();
 		EXPECT_CALL(*mockHttp, get(::testing::_, ::testing::_, ::testing::_)).WillRepeatedly(::testing::Return("ok"));
 		VisionModule::get().setHttpClient(mockHttp);
+		EmbeddingModule::get().setHttpClient(mockHttp);
 
-		VisionConfig cfg;
-		cfg.apiKey     = "test-key";
-		cfg.apiBaseUrl = "http://mock-api.com";
-		VisionModule::get().initialize(cfg);
+		EmbeddingConfig embeddingConfig;
+		embeddingConfig.provider   = "JinaAI";
+		embeddingConfig.model      = "jina-embeddings-v5-text-small";
+		embeddingConfig.apiUrl     = "http://mock-api.com/v1/embeddings";
+		embeddingConfig.apiKey     = "test-key";
+		embeddingConfig.dimensions = 2;
+		EmbeddingModule::get().initialize(embeddingConfig);
 
 		TaskQueue::get().initialize(1, 100, tempDir_->getSubPath("storage"));
 	}
@@ -30,6 +35,8 @@ protected:
 	void TearDown() override {
 		TaskQueue::get().shutdown();
 		VisionModule::get().setHttpClient(std::make_shared<HttpClient>());
+		EmbeddingModule::get().setHttpClient(std::make_shared<HttpClient>());
+		EmbeddingModule::get().shutdown();
 		tempDir_.reset();
 		MemeDbTest::TearDown();
 	}

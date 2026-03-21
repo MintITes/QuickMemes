@@ -128,7 +128,6 @@ protected:
 		config.apiKey         = "test_key";
 		config.apiBaseUrl     = "https://api.test.com";
 		config.visionModel    = "test-vision";
-		config.embeddingModel = "test-embed";
 		config.ocrProvider    = "PaddleOCR";
 		config.ocrApiKey      = "test-ocr-key";
 		config.ocrApiUrl      = "https://ocr.example.com";
@@ -156,8 +155,7 @@ protected:
 		ofs.close();
 
 		ON_CALL(*mockHttp, get(_, _, _)).WillByDefault(Return("ok"));
-		ON_CALL(*mockHttp, post(_, _, _, _))
-		    .WillByDefault(Return(R"({"data":[{"embedding":[0.1]}], "usage": {"total_tokens": 1}})"));
+		ON_CALL(*mockHttp, post(_, _, _, _)).WillByDefault(Return(R"({})"));
 
 		vision->initialize(config);
 	}
@@ -271,7 +269,6 @@ TEST_F(VisionMockTest, Recognize_UnsupportedProvider_ReturnsFailure) {
 	config.apiKey         = "test_key";
 	config.apiBaseUrl     = "https://api.test.com";
 	config.visionModel    = "test-vision";
-	config.embeddingModel = "test-embed";
 	config.ocrProvider    = "legacy";
 	config.ocrApiKey      = "test-ocr-key";
 	config.ocrApiUrl      = "https://ocr.example.com";
@@ -289,15 +286,6 @@ TEST_F(VisionMockTest, AnalyzeImage_HttpTimeout_ThrowsException) {
 
 	auto result = vision->analyzeImage(dummyPath, "text");
 	EXPECT_FALSE(result.success);
-}
-
-TEST_F(VisionMockTest, GenerateEmbedding_ValidMockResponse_ReturnsVector) {
-	std::string mockResponse = R"({"data":[{"embedding":[0.1, 0.2, 0.3]}], "usage": {"total_tokens": 50}})";
-	EXPECT_CALL(*mockHttp, post(_, _, _, _)).WillOnce(Return(mockResponse));
-
-	auto vec = vision->generateEmbedding("some text");
-	EXPECT_EQ(vec.size(), 3);
-	EXPECT_FLOAT_EQ(vec[0], 0.1f);
 }
 
 TEST_F(VisionMockTest, AnalyzeImage_MultipleTagsAndOcr_CorrectParsing) {

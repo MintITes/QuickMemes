@@ -28,6 +28,8 @@ constexpr int ERR_OCR_FAILED    = 2002; ///< OCR 识别失败
 
 constexpr int ERR_AI_UNAVAILABLE    = 3001; ///< AI 服务不可用
 constexpr int ERR_AI_REQUEST_FAILED = 3002; ///< AI API 调用失败
+constexpr int ERR_EMBEDDING_NOT_READY = 3101; ///< Embedding 服务未配置
+constexpr int ERR_EMBEDDING_FAILED    = 3102; ///< Embedding 请求失败
 
 constexpr int ERR_QUOTA_EXCEEDED = 4001; ///< API 配额超限（AI / OCR 共用）
 

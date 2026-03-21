@@ -34,7 +34,15 @@ interface AppConfig {
         apiKey: string;
         apiBaseUrl: string;
         visionModel: string;
-        embeddingModel: string;
+        timeoutSeconds: number;
+        maxRetries: number;
+    };
+    embedding: {
+        provider: string;
+        model: string;
+        apiUrl: string;
+        apiKey: string;
+        dimensions: number;
         timeoutSeconds: number;
         maxRetries: number;
     };
@@ -132,9 +140,15 @@ const HOT_PATCH_KEYS = new Set([
     'vision.apiKey',
     'vision.apiBaseUrl',
     'vision.visionModel',
-    'vision.embeddingModel',
     'vision.timeoutSeconds',
     'vision.maxRetries',
+    'embedding.provider',
+    'embedding.model',
+    'embedding.apiUrl',
+    'embedding.apiKey',
+    'embedding.dimensions',
+    'embedding.timeoutSeconds',
+    'embedding.maxRetries',
     'ocr.apiKey',
     'ocr.apiUrl',
     'ocr.provider',
@@ -166,7 +180,15 @@ function getDefaultConfig(): AppConfig {
             apiKey: '',
             apiBaseUrl: 'https://api.openai.com/v1',
             visionModel: 'gpt-4o',
-            embeddingModel: 'text-embedding-3-small',
+            timeoutSeconds: 30,
+            maxRetries: 2,
+        },
+        embedding: {
+            provider: 'JinaAI',
+            model: 'jina-embeddings-v5-text-small',
+            apiUrl: 'https://api.jina.ai/v1/embeddings',
+            apiKey: '',
+            dimensions: 512,
             timeoutSeconds: 30,
             maxRetries: 2,
         },
@@ -229,6 +251,7 @@ function deepMerge<T>(base: T, patch: Partial<T>): T {
 function normalizeConfig(input?: Partial<AppConfig>): AppConfig {
     const defaults = getDefaultConfig();
     const merged = deepMerge(defaults, input ?? {});
+    delete (merged.vision as Record<string, unknown>).embeddingModel;
 
     ensureDir(path.dirname(merged.dbPath));
     ensureDir(merged.storagePath);
@@ -348,9 +371,15 @@ function buildBackendArgs(config: AppConfig, token: string): string[] {
         '--api-key', config.vision.apiKey,
         '--api-base-url', config.vision.apiBaseUrl,
         '--vision-model', config.vision.visionModel,
-        '--embedding-model', config.vision.embeddingModel,
         '--api-timeout', String(config.vision.timeoutSeconds),
         '--api-retries', String(config.vision.maxRetries),
+        '--embedding-provider', config.embedding.provider,
+        '--embedding-model', config.embedding.model,
+        '--embedding-api-url', config.embedding.apiUrl,
+        '--embedding-api-key', config.embedding.apiKey,
+        '--embedding-dimensions', String(config.embedding.dimensions),
+        '--embedding-timeout', String(config.embedding.timeoutSeconds),
+        '--embedding-retries', String(config.embedding.maxRetries),
         '--ocr-api-key', config.ocr.apiKey,
         '--ocr-api-url', config.ocr.apiUrl,
         '--ocr-provider', config.ocr.provider,
@@ -511,9 +540,15 @@ async function patchBackendConfig(config: AppConfig, changedKeys: string[]) {
     if (changedKeys.includes('vision.apiKey')) payload.aiApiKey = config.vision.apiKey;
     if (changedKeys.includes('vision.apiBaseUrl')) payload.aiApiBaseUrl = config.vision.apiBaseUrl;
     if (changedKeys.includes('vision.visionModel')) payload.aiVisionModel = config.vision.visionModel;
-    if (changedKeys.includes('vision.embeddingModel')) payload.aiEmbeddingModel = config.vision.embeddingModel;
     if (changedKeys.includes('vision.timeoutSeconds')) payload.aiTimeoutSeconds = config.vision.timeoutSeconds;
     if (changedKeys.includes('vision.maxRetries')) payload.aiMaxRetries = config.vision.maxRetries;
+    if (changedKeys.includes('embedding.provider')) payload.embeddingProvider = config.embedding.provider;
+    if (changedKeys.includes('embedding.model')) payload.embeddingModel = config.embedding.model;
+    if (changedKeys.includes('embedding.apiUrl')) payload.embeddingApiUrl = config.embedding.apiUrl;
+    if (changedKeys.includes('embedding.apiKey')) payload.embeddingApiKey = config.embedding.apiKey;
+    if (changedKeys.includes('embedding.dimensions')) payload.embeddingDimensions = config.embedding.dimensions;
+    if (changedKeys.includes('embedding.timeoutSeconds')) payload.embeddingTimeoutSeconds = config.embedding.timeoutSeconds;
+    if (changedKeys.includes('embedding.maxRetries')) payload.embeddingMaxRetries = config.embedding.maxRetries;
     if (changedKeys.includes('ocr.apiKey')) payload.ocrApiKey = config.ocr.apiKey;
     if (changedKeys.includes('ocr.apiUrl')) payload.ocrApiUrl = config.ocr.apiUrl;
     if (changedKeys.includes('ocr.provider')) payload.ocrProvider = config.ocr.provider;

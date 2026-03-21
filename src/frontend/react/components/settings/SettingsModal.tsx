@@ -142,14 +142,14 @@ export function SettingsModal() {
         await savePatch({ ocr: nextOcr });
     };
 
-    const saveVisionField = async (key: keyof AppConfig['vision'], value: string) => {
+    const saveEmbeddingField = async (key: keyof AppConfig['embedding'], value: string | number) => {
         if (!config) {
             return;
         }
-        const nextVision = { ...config.vision, [key]: value };
-        const nextConfig = { ...config, vision: nextVision };
+        const nextEmbedding = { ...config.embedding, [key]: value };
+        const nextConfig = { ...config, embedding: nextEmbedding };
         setConfig(nextConfig);
-        await savePatch({ vision: nextVision });
+        await savePatch({ embedding: nextEmbedding });
     };
 
     const saveThumbnailField = async (key: keyof AppConfig['thumbnail'], value: number | boolean) => {
@@ -438,33 +438,75 @@ export function SettingsModal() {
                 return (
                     <div className="space-y-6">
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ai.title')}</h3>
-
-                        <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-orange-600 dark:text-orange-400 text-sm mb-4">
-                            {t('settings.ai.todo')}
-                        </div>
-
-                        <div className="space-y-4 opacity-50 grayscale pointer-events-none">
+                        <div className="space-y-4">
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">{t('settings.ai.apiBaseUrl.label')}</div>
-                                <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiBaseUrl.desc')}</div>
+                                <div className="font-medium text-sm mb-1">Embedding Provider</div>
+                                <div className="text-xs opacity-60 mb-3">当前仅支持 JinaAI。</div>
                                 <input
-                                    disabled
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
-                                    value={config?.vision.apiBaseUrl ?? ''}
-                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, vision: { ...prev.vision, apiBaseUrl: e.target.value } } : prev)}
-                                    onBlur={(e) => void saveVisionField('apiBaseUrl', e.target.value)}
+                                    value={config?.embedding.provider ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, provider: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveEmbeddingField('provider', e.target.value)}
                                 />
                             </div>
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">{t('settings.ai.apiKey.label')}</div>
-                                <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiKey.desc')}</div>
+                                <div className="font-medium text-sm mb-1">Embedding Model</div>
                                 <input
-                                    disabled
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
-                                    value={config?.vision.apiKey ?? ''}
-                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, vision: { ...prev.vision, apiKey: e.target.value } } : prev)}
-                                    onBlur={(e) => void saveVisionField('apiKey', e.target.value)}
+                                    value={config?.embedding.model ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, model: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveEmbeddingField('model', e.target.value)}
                                 />
+                            </div>
+                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div className="font-medium text-sm mb-1">Embedding API URL</div>
+                                <input
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
+                                    value={config?.embedding.apiUrl ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, apiUrl: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveEmbeddingField('apiUrl', e.target.value)}
+                                />
+                            </div>
+                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div className="font-medium text-sm mb-1">Embedding API Key</div>
+                                <input
+                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
+                                    value={config?.embedding.apiKey ?? ''}
+                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, apiKey: e.target.value } } : prev)}
+                                    onBlur={(e) => void saveEmbeddingField('apiKey', e.target.value)}
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                    <div className="font-medium text-sm mb-1">Dimensions</div>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
+                                        value={config?.embedding.dimensions ?? 512}
+                                        onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, dimensions: Number(e.target.value) } } : prev)}
+                                        onBlur={(e) => void saveEmbeddingField('dimensions', Number(e.target.value))}
+                                    />
+                                </div>
+                                <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                    <div className="font-medium text-sm mb-1">Timeout</div>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
+                                        value={config?.embedding.timeoutSeconds ?? 30}
+                                        onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, timeoutSeconds: Number(e.target.value) } } : prev)}
+                                        onBlur={(e) => void saveEmbeddingField('timeoutSeconds', Number(e.target.value))}
+                                    />
+                                </div>
+                                <div className="p-3 rounded-xl border border-borderColor bg-white/5">
+                                    <div className="font-medium text-sm mb-1">Retries</div>
+                                    <input
+                                        type="number"
+                                        className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
+                                        value={config?.embedding.maxRetries ?? 2}
+                                        onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, maxRetries: Number(e.target.value) } } : prev)}
+                                        onBlur={(e) => void saveEmbeddingField('maxRetries', Number(e.target.value))}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

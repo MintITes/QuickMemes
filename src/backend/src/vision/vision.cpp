@@ -302,13 +302,6 @@ bool VisionModule::initialize(const VisionConfig &config) {
 			isAiAvailable_ = false;
 		}
 
-		if (isAiAvailable_ && !config_.embeddingModel.empty()) {
-			auto probe = generateEmbedding("probe");
-			if (!probe.empty()) {
-				embeddingDim_ = static_cast<int>(probe.size());
-				LOG_INFO("vision", "Embedding dimension detected: " + std::to_string(embeddingDim_));
-			}
-		}
 	}
 
 	isOcrAvailable_ = (!config_.ocrApiKey.empty() && !config_.ocrApiUrl.empty() &&
@@ -590,43 +583,6 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 	}
 
 	return res;
-}
-
-std::vector<float> VisionModule::generateEmbedding(const std::string &text) {
-	if (!isAiAvailable_) { return {}; }
-
-	if (text.empty()) {
-		if (embeddingDim_ > 0) { return std::vector<float>(embeddingDim_, 0.0f); }
-		return {};
-	}
-
-	std::string inputText = text;
-	if (inputText.size() > 8000) { inputText.resize(8000); }
-
-	nlohmann::json requestBody;
-	requestBody["model"] = config_.embeddingModel;
-	requestBody["input"] = inputText;
-
-	std::string url     = config_.apiBaseUrl + "/embeddings";
-	std::string headers = "Authorization: Bearer " + config_.apiKey + "\r\n";
-
-	try {
-		std::string responseBody = httpClient_->post(url, headers, requestBody.dump(), config_.timeoutSeconds);
-
-		auto respJson     = nlohmann::json::parse(responseBody);
-		auto embeddingArr = respJson["data"][0]["embedding"];
-
-		std::vector<float> result;
-		result.reserve(embeddingArr.size());
-		for (const auto &val : embeddingArr) {
-			result.push_back(val.get<float>());
-		}
-
-		return result;
-	} catch (const std::exception &e) {
-		LOG_ERROR("vision", "generateEmbedding failed: " + std::string(e.what()));
-		return {};
-	}
 }
 
 std::string VisionModule::encodeImageToBase64(const std::string &imagePath) const {

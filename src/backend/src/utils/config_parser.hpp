@@ -20,12 +20,26 @@ struct VisionConfig {
 	std::string apiKey;              ///< AI API 鉴权密钥
 	std::string apiBaseUrl;          ///< AI API 基础 URL（兼容 OpenAI 格式）
 	std::string visionModel;         ///< 图像分析模型名称
-	std::string embeddingModel;      ///< 向量化模型名称
 	int         timeoutSeconds = 30; ///< 单次请求超时秒数
 	int         maxRetries     = 2;  ///< 失败重试次数
 	std::string ocrApiKey;           ///< 云端 OCR API 密钥（可为空）
 	std::string ocrApiUrl;           ///< 云端 OCR API 地址（PaddleOCR / 兼容旧提供商）
 	std::string ocrProvider;         ///< 云端 OCR 提供商标识（如 "PaddleOCR"）
+};
+
+/**
+ * @brief Embedding 模块配置
+ *
+ * 由 C++ 核心模块在 startServer 时传递给 Embedding 模块初始化。
+ */
+struct EmbeddingConfig {
+	std::string provider;            ///< Embedding 提供商标识
+	std::string model;               ///< Embedding 模型名称
+	std::string apiUrl;              ///< Embedding API 地址
+	std::string apiKey;              ///< Embedding API 密钥
+	int         dimensions     = 512; ///< 向量维度
+	int         timeoutSeconds = 30;  ///< 单次请求超时秒数
+	int         maxRetries     = 2;   ///< 失败重试次数
 };
 
 /**
@@ -45,6 +59,7 @@ struct ServerConfig {
 	bool         logRetentionEnabled = true;     ///< 是否启用日志自动清理
 	int          logRetentionDays    = 30;       ///< 日志保留天数
 	VisionConfig visionConfig;                   ///< Vision 模块配置
+	EmbeddingConfig embeddingConfig;             ///< Embedding 模块配置
 	int          workerCount             = 4;    ///< 导入线程池线程数
 	int          maxQueueSize            = 500;  ///< 处理队列最大深度
 	bool         thumbnailEnabled        = true; ///< 是否启用缩略图生成

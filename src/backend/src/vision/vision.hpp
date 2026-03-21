@@ -86,14 +86,6 @@ public:
 	[[nodiscard]] bool isOcrAvailable() const;
 
 	/**
-	 * @brief 获取探测到的向量维度
-	 * @return int 维度大小，若未探测到返回 0
-	 */
-	[[nodiscard]] int getEmbeddingDimension() const {
-		return embeddingDim_;
-	}
-
-	/**
 	 * @brief 执行文本识别 (OCR)
 	 *
 	 * 根据配置调用云端 OCR API。
@@ -116,16 +108,6 @@ public:
 	 */
 	AiAnalysisResult analyzeImage(const std::string &imagePath, const std::string &ocrFullText);
 
-	/**
-	 * @brief 将文本转换为语义向量
-	 *
-	 * 调用 Embedding API（如 text-embedding-3-small）生成特征向量。
-	 *
-	 * @param text std::string 待转换的拼接文本（含标签、描述、OCR）
-	 * @return std::vector<float> 归一化语义向量序列
-	 */
-	std::vector<float> generateEmbedding(const std::string &text);
-
 private:
 	/**
 	 * @brief 将图像文件转换为 Base64 编码的 JPEG 并压缩体积
@@ -138,7 +120,6 @@ private:
 	std::shared_ptr<HttpClientInterface> httpClient_;             ///< HTTP 客户端抽象接口
 	bool                                 isAiAvailable_  = false; ///< AI 连通性状态标记
 	bool                                 isOcrAvailable_ = false; ///< OCR 连通性状态标记
-	int                                  embeddingDim_   = 0;     ///< 探测到的 embedding 向量维度
 
 	// Limit concurrent image processing to prevent OOM
 	mutable std::counting_semaphore<4> processingSemaphore_{4};

@@ -15,7 +15,7 @@ class CoreFixesTest : public MemeDbTest {
 protected:
 	void SetUp() override {
 		MemeDbTest::SetUp();
-		// Vision probe mock is not needed here as we use fallback 1536
+		// Embedding defaults are injected via Database::initialize default arguments.
 	}
 };
 
@@ -45,14 +45,13 @@ TEST_F(CoreFixesTest, Database_RunMigrations_SchemaVerification) {
 	// Verify schema_version table has applied_at
 	EXPECT_NO_THROW({ db->getRawDatabase()->exec("SELECT applied_at FROM schema_version LIMIT 1"); });
 
-	// Verify vec_memes was created with dynamic dimension
-	SQLite::Statement stmt(*db->getRawDatabase(), "SELECT sql FROM sqlite_master WHERE name = 'vec_memes'");
-	if (stmt.executeStep()) {
-		std::string sql = stmt.getColumn(0).getString();
-		EXPECT_TRUE(sql.find("embedding float") != std::string::npos);
-		// Ensure it doesn't have a hardcoded 1536 if the model dimension is different
-		// In this test environment, it defaults to 1536, but the code uses a variable.
-	}
+	SQLite::Statement descStmt(*db->getRawDatabase(), "SELECT sql FROM sqlite_master WHERE name = 'vec_meme_desc'");
+	ASSERT_TRUE(descStmt.executeStep());
+	EXPECT_TRUE(descStmt.getColumn(0).getString().find("embedding float[512]") != std::string::npos);
+
+	SQLite::Statement ocrStmt(*db->getRawDatabase(), "SELECT sql FROM sqlite_master WHERE name = 'vec_meme_ocr'");
+	ASSERT_TRUE(ocrStmt.executeStep());
+	EXPECT_TRUE(ocrStmt.getColumn(0).getString().find("embedding float[512]") != std::string::npos);
 }
 
 TEST_F(CoreFixesTest, Database_Restore_Atomic_Verification) {

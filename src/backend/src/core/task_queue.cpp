@@ -3,6 +3,7 @@
 #include "core/server.hpp"
 #include "core/ws_pusher.hpp"
 #include "db/database.hpp"
+#include "embedding/embedding.hpp"
 #include "error_codes.hpp"
 #include "utils/file_utils.hpp"
 #include "utils/logger.hpp"
@@ -367,6 +368,25 @@ std::string TaskQueue::submitMemeOcrTask(int64_t memeId) {
 			std::string      ocrText   = res.success ? res.fullText : "";
 
 			Database::get().updateMemeProcessing(memeId, ocrStatus, meme.aiStatus, ocrText, meme.description);
+			if (res.success && EmbeddingModule::get().isAvailable()) {
+				try {
+					if (ocrText.empty()) {
+						Database::get().deleteOcrEmbedding(memeId);
+					} else {
+						auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(ocrText);
+						if (!ocrEmbedding.empty()) {
+							Database::get().upsertOcrEmbedding(memeId, ocrEmbedding);
+						} else {
+							Database::get().deleteOcrEmbedding(memeId);
+						}
+					}
+				} catch (const std::exception &e) {
+					Database::get().deleteOcrEmbedding(memeId);
+					LOG_WARN("queue",
+					         "Manual OCR embedding refresh failed for meme " + std::to_string(memeId) +
+					             ", deleted stale vector: " + e.what());
+				}
+			}
 
 			auto updatedMeme = Database::get().getMeme(memeId);
 			WsPusher::get().broadcast({"meme:updated", updatedMeme});
@@ -407,12 +427,14 @@ std::string TaskQueue::submitMemeOcrTask(int64_t memeId) {
 
 std::string TaskQueue::submitRebuildTask() {
 	if (!impl_->aiPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
+	if (!EmbeddingModule::get().isAvailable()) { throw ApiException(ERR_EMBEDDING_NOT_READY, "Embedding unavailable"); }
 
 	if (impl_->currentPending >= impl_->maxQueueSize) { throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full"); }
 
 	std::string taskId = "rebuild-" + generateUUIDv4();
 
 	auto state = std::make_shared<TaskState>();
+	Database::get().rebuildEmbeddingTables(EmbeddingModule::get().getDimensions());
 
 	// Use batching to avoid OOM for large datasets
 	int  batchSize     = 100;
@@ -454,13 +476,32 @@ std::string TaskQueue::submitRebuildTask() {
                         };
 					    WsPusher::get().broadcast(progEvent);
 
-					    if (VisionModule::get().isAvailable()) {
-						    auto embedVector = VisionModule::get().generateEmbedding(ocrText + " " + desc);
-						    if (!embedVector.empty()) { Database::get().upsertEmbedding(memeId, embedVector); }
+					    if (!desc.empty()) {
+						    auto descEmbedding = EmbeddingModule::get().generateEmbedding(desc);
+						    if (!descEmbedding.empty()) {
+							    Database::get().upsertDescriptionEmbedding(memeId, descEmbedding);
+						    } else {
+							    Database::get().deleteDescriptionEmbedding(memeId);
+						    }
+					    } else {
+						    Database::get().deleteDescriptionEmbedding(memeId);
+					    }
+
+					    if (!ocrText.empty()) {
+						    auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(ocrText);
+						    if (!ocrEmbedding.empty()) {
+							    Database::get().upsertOcrEmbedding(memeId, ocrEmbedding);
+						    } else {
+							    Database::get().deleteOcrEmbedding(memeId);
+						    }
+					    } else {
+						    Database::get().deleteOcrEmbedding(memeId);
 					    }
 
 					    markItemDone(state, taskId, true, "");
 				    } catch (const std::exception &e) {
+					    if (!desc.empty()) { Database::get().deleteDescriptionEmbedding(memeId); }
+					    if (!ocrText.empty()) { Database::get().deleteOcrEmbedding(memeId); }
 					    markItemDone(state, taskId, false, "Rebuild error: " + std::string(e.what()));
 				    } catch (...) { markItemDone(state, taskId, false, "Unknown rebuild error"); }
 			    });
@@ -772,9 +813,36 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 			Database &db = Database::get();
 			db.updateMemeProcessing(memeId, ocrStatus, aiStatus, finalOcr, finalDesc);
 
-			if (vision.isAvailable() && !finalDesc.empty()) {
-				auto embedVector = vision.generateEmbedding(finalOcr + " " + finalDesc);
-				if (!embedVector.empty()) { db.upsertEmbedding(memeId, embedVector); }
+			if (EmbeddingModule::get().isAvailable()) {
+				try {
+					if (!finalDesc.empty()) {
+						auto descEmbedding = EmbeddingModule::get().generateEmbedding(finalDesc);
+						if (!descEmbedding.empty()) {
+							db.upsertDescriptionEmbedding(memeId, descEmbedding);
+						} else {
+							db.deleteDescriptionEmbedding(memeId);
+						}
+					} else {
+						db.deleteDescriptionEmbedding(memeId);
+					}
+
+					if (!finalOcr.empty()) {
+						auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(finalOcr);
+						if (!ocrEmbedding.empty()) {
+							db.upsertOcrEmbedding(memeId, ocrEmbedding);
+						} else {
+							db.deleteOcrEmbedding(memeId);
+						}
+					} else {
+						db.deleteOcrEmbedding(memeId);
+					}
+				} catch (const std::exception &e) {
+					if (!finalDesc.empty()) { db.deleteDescriptionEmbedding(memeId); }
+					if (!finalOcr.empty()) { db.deleteOcrEmbedding(memeId); }
+					LOG_WARN("queue",
+					         "Embedding refresh failed for meme " + std::to_string(memeId) +
+					             ", deleted stale vectors: " + e.what());
+				}
 			}
 
 			LOG_INFO("queue", "2-Stage Pipeline completed for meme: " + std::to_string(memeId));

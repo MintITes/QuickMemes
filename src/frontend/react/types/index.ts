@@ -114,12 +114,18 @@ export interface RuntimeConfigPatch {
     aiApiKey?: string;
     aiApiBaseUrl?: string;
     aiVisionModel?: string;
-    aiEmbeddingModel?: string;
     aiTimeoutSeconds?: number;
     aiMaxRetries?: number;
     ocrApiKey?: string;
     ocrApiUrl?: string;
     ocrProvider?: string;
+    embeddingProvider?: string;
+    embeddingModel?: string;
+    embeddingApiUrl?: string;
+    embeddingApiKey?: string;
+    embeddingDimensions?: number;
+    embeddingTimeoutSeconds?: number;
+    embeddingMaxRetries?: number;
     logMinLevel?: string;
 }
 

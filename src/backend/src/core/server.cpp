@@ -4,6 +4,7 @@
 #include "core/task_queue.hpp"
 #include "core/ws_pusher.hpp"
 #include "db/database.hpp"
+#include "embedding/embedding.hpp"
 #include "utils/logger.hpp"
 #include "vision/vision.hpp"
 
@@ -435,9 +436,11 @@ bool Server::start(const ServerConfig &config) {
 	impl_->router->setAuthToken(config.authToken);
 
 	LOG_INFO("server", "Starting Server initialization...");
+	EmbeddingModule::get().initialize(config.embeddingConfig);
+	impl_->config.embeddingConfig = EmbeddingModule::get().getConfig();
 
 	try {
-		Database::get().initialize(config.dbPath);
+		Database::get().initialize(config.dbPath, EmbeddingModule::get().getDimensions());
 		if (!Database::get().checkIntegrity()) {
 			LOG_ERROR("server", "Database integrity check failed. Attempting to recover from latest backup...");
 			std::string                     latestBackup;
@@ -512,6 +515,7 @@ void Server::stop() {
 	impl_->ioc.stop();
 
 	TaskQueue::get().shutdown();
+	EmbeddingModule::get().shutdown();
 	VisionModule::get().shutdown();
 	Database::get().shutdown();
 
