@@ -107,7 +107,7 @@ graph TD
     VISION["Vision 模块"]
     DB["持久化模块"]
 
-    TASK_QUEUE -->|"recognize() / analyzeImage() / generateEmbedding()"| VISION
+    TASK_QUEUE -->|"recognize() / analyzeImage()"| VISION
     TASK_QUEUE -->|"insertMeme() / updateMeme()"| DB
     HANDLERS -->|"searchMemes() / getMeme() / deleteMeme()"| DB
 ```
@@ -178,12 +178,25 @@ VisionConfig {
     apiKey         : string  // AI API 鉴权密钥
     apiBaseUrl     : string  // AI API 基础 URL
     visionModel    : string  // 图像分析模型名称
-    embeddingModel : string  // 向量化模型名称
     timeoutSeconds : int     // 请求超时秒数（默认 30）
     maxRetries     : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
     ocrApiKey      : string  // 云端 OCR API 密钥（可为空）
     ocrApiUrl      : string  // 云端 OCR API 地址
     ocrProvider    : string  // 云端 OCR 提供商标识（当前支持 "PaddleOCR" 与 "OcrSpace"）
+}
+```
+
+### `EmbeddingConfig` — Embedding 模块配置（传递给独立 Embedding 模块）
+
+```
+EmbeddingConfig {
+    provider       : string  // 当前仅支持 "JinaAI"
+    model          : string  // 当前仅支持 "jina-embeddings-v5-text-small"
+    apiUrl         : string  // Embedding API 地址
+    apiKey         : string  // Embedding API 密钥
+    dimensions     : int     // 向量维度；当前模型仅允许 1..1024
+    timeoutSeconds : int     // 请求超时秒数（默认 30）
+    maxRetries     : int     // 失败自动重试次数（默认 2）
 }
 ```
 
@@ -197,7 +210,7 @@ VisionConfig {
 parseArgs(argc: int, argv: char*[]): ServerConfig
 ```
 
-- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--log-dir`、`--log-level`、`--log-retention-enabled`、`--log-retention-days`、`--api-key`、`--api-base-url`、`--vision-model`、`--embedding-model`、`--api-timeout`、`--api-retries`、`--ocr-api-key`、`--ocr-api-url`、`--ocr-provider`、`--thumbnail-enabled`、`--thumbnail-max-size`、`--backup-enabled`、`--backup-retention-days`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
+- **描述**：在 `main()` 入口中调用，遍历 `argv` 按 `--key value` 格式解析全部命令行参数，构建并返回 `ServerConfig`。需要解析的参数包括：`--bind-address`、`--port`、`--auth-token`、`--storage-path`、`--db-path`、`--log-dir`、`--log-level`、`--log-retention-enabled`、`--log-retention-days`、`--api-key`、`--api-base-url`、`--vision-model`、`--api-timeout`、`--api-retries`、`--embedding-provider`、`--embedding-model`、`--embedding-api-url`、`--embedding-api-key`、`--embedding-dimensions`、`--embedding-timeout`、`--embedding-retries`、`--ocr-api-key`、`--ocr-api-url`、`--ocr-provider`、`--thumbnail-enabled`、`--thumbnail-max-size`、`--backup-enabled`、`--backup-retention-days`、`--max-queue-size`。任意必传参数缺失时，输出错误信息并以退出码 `1` 终止。
 - **输入**：`argc` / `argv`：标准 C 命令行参数
 - **输出**：完整填充的 `ServerConfig` 对象
 
@@ -285,9 +298,9 @@ runProcessingPipeline(memeId: int64): void
   4. 若 AI 可用且 `autoAiAnalyze == true`：
      - 更新 `aiStatus = PROCESSING`，推送 `meme:processing`
      - 调用 `VisionModule.analyzeImage(filePath)` 获取标签和描述
-     - 调用 `VisionModule.generateEmbedding(ocrText + description + tags)` 生成向量（将 OCR 文本、AI 描述和标签名空格拼接后向量化）
-     - 更新描述、标签关联、embedding，`aiStatus = DONE`
-  5. 若 AI 不可用，设置 `aiStatus = SKIPPED`，**不生成 embedding 向量**
+     - 调用独立 `EmbeddingModule` 分别对 `description` 与 `ocrText` 单独生成向量
+     - 更新描述、标签关联、两类 embedding，`aiStatus = DONE`
+  5. 若 Embedding 不可用，对应向量写入跳过；若文本为空则删除旧向量，不发请求
   6. 推送 `meme:updated` 通知前端更新完整数据
 - **输入**：`memeId`：已入库的 Meme ID
 - **输出**：无（通过 WebSocket 推送状态变更）
@@ -303,11 +316,8 @@ handleSearch(query: SearchQuery): SearchResult
 - **描述**：
   1. 校验并规范化 `SearchQuery` 参数（limit 限制 ≤200，offset ≥0）
   2. 默认过滤已软删除的 Meme（`deleted_at == 0`）
-  3. 若 `query.useVector == true` 且 `query.keyword` 非空：
-     - 调用 `VisionModule.generateEmbedding(keyword)` 生成查询向量
-     - 同时执行 `Persistence.vectorSearch()` 和 `Persistence.searchMemes(query)` 获取两路结果
-     - 使用 **Reciprocal Rank Fusion (RRF)** 融合排序：`RRFScore(d) = Σ 1/(k + rank_i(d))`，其中 `k = 60`（常用常数），`rank_i(d)` 为文档 `d` 在第 `i` 路搜索结果中的排名（从 1 开始）。未出现在某路结果中的文档该路不贡献分数。按 RRFScore 降序排列最终结果
-  4. 若 `useVector == false`，调用 `Persistence.searchMemes(query)` 执行普通搜索（使用 FTS5 全文索引），`similarityScore` 设为 `-1`
+  3. 当前版本暂时断开 embedding 搜索路径；即使 `query.useVector == true`，也不会执行向量检索
+  4. 调用 `Persistence.searchMemes(query)` 执行普通搜索（使用 FTS5 全文索引），`similarityScore` 设为 `-1`
   5. 包装为 `SearchResult` 返回
 - **输入**：`query`：搜索参数
 - **输出**：`SearchResult`（含 `items` 列表和 `total`）
@@ -470,11 +480,11 @@ handleHealth(): HealthStatus
 handleRebuildEmbeddings(): ImportTask
 ```
 
-- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 重新调用 `VisionModule.generateEmbedding()` 更新向量。用于 Embedding 模型切换后。流程如下：
-  1. 调用 `VisionModule.generateEmbedding()` 探测新模型的向量维度
-  2. 若维度与当前 `vec_memes` 表不一致，调用 `Persistence.rebuildVecTable(newDimension)` 重建虚拟表
-  3. 遍历所有未软删除的 Meme，通过 WebSocket 推送进度
-  4. 对每个 Meme，使用 `ocrText + description + tags` 拼接后调用 `generateEmbedding()` 生成新向量，调用 `upsertEmbedding()` 写入
+- **描述**：创建异步任务，遍历所有 Meme，对每个 Meme 分别重建 description 向量与 OCR 向量。用于 Embedding 配置变更后的向量重建。流程如下：
+  1. 使用当前 `EmbeddingConfig.dimensions` 重建 `vec_meme_desc` 与 `vec_meme_ocr`
+  2. 遍历所有未软删除的 Meme，通过 WebSocket 推送进度
+  3. 对每个 Meme，分别对 `description` 和 `ocrText` 调用独立 `EmbeddingModule`
+  4. 对空文本不发请求并删除旧向量；若某次重建失败，也删除对应旧向量，避免保留过期 embedding
 - **输入**：无
 - **输出**：重建任务对象
 

@@ -132,9 +132,18 @@ AppConfig {
         apiKey         : string  // AI API 密钥（空字符串表示禁用 AI）
         apiBaseUrl     : string  // AI API 基础 URL（兼容 OpenAI 格式）
         visionModel    : string  // 图像理解模型名称
-        embeddingModel : string  // 文本向量化模型名称
         timeoutSeconds : int     // AI API 单次请求超时秒数
         maxRetries     : int     // AI API 失败重试次数
+    }
+
+    embedding : {
+        provider       : string  // Embedding 提供商（当前仅支持 "JinaAI"）
+        model          : string  // Embedding 模型名称（当前仅支持 "jina-embeddings-v5-text-small"）
+        apiUrl         : string  // Embedding API 地址
+        apiKey         : string  // Embedding API 密钥
+        dimensions     : int     // 向量维度
+        timeoutSeconds : int     // Embedding API 单次请求超时秒数
+        maxRetries     : int     // Embedding API 失败重试次数
     }
 
     ocr : {

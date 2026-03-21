@@ -133,7 +133,6 @@ graph TD
         ──────────────────
         recognize()
         analyzeImage()
-        generateEmbedding()
         isAvailable()"]
 
         DB_MOD["持久化模块
@@ -235,9 +234,10 @@ MemeEntry {
 ProcessingStatus : "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
 
 // 注意：MemeEntry 结构体不含 embedding 向量字段。
-// embedding 仅在 AiAnalysisResult 中携带并通过持久化模块的 upsertEmbedding() 独立写入 vec_memes 表，
+// 当前 embedding 由独立 Embedding 模块生成，并通过持久化模块分别写入
+// vec_meme_desc / vec_meme_ocr 两张向量表。
 // HTTP 响应中不包含向量数据，以减少网络传输开销。
-// 向量搜索时，结果中会包含 similarityScore 字段。
+// 当前版本 similarityScore 固定为 -1，待后续向量搜索重构后再恢复真实分数。
 ```
 
 ---
@@ -285,7 +285,7 @@ SearchQuery {
     sizeMin    : int64     // 最小文件大小（字节，0 表示不限）
     sizeMax    : int64     // 最大文件大小（字节，0 表示不限）
     regex        : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
-    useVector    : bool      // 是否启用语义向量搜索
+    useVector    : bool      // 当前仅保留兼容字段，不触发实际向量搜索
     sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt" | "lastUsedAt"
     sortOrder    : string    // 排序方向："ASC" | "DESC"
     limit        : int32     // 每页结果数量（默认 50，最大 200）
@@ -460,7 +460,7 @@ AiAnalysisResult {
 
 ### Vision 模块
 
-**职责**：封装对云端第三方 OCR API 和 LLM / VLM API 的调用，提供三项核心能力：OCR 文字识别（云端 OCR API，占位接口）、图像内容分析（打标签/描述生成）、文本转语义向量（用于 sqlite-vec 相似度搜索）。包含网络不可用时的降级策略。
+**职责**：封装对云端第三方 OCR API 和 LLM / VLM API 的调用，提供 OCR 文字识别与图像内容分析两项核心能力。Embedding 已拆分为独立模块。
 
 **对外接口**
 
@@ -469,7 +469,6 @@ AiAnalysisResult {
 | `initialize(config: VisionConfig): bool`            | 初始化 Vision 模块，配置 API Key 和模型参数     | `config`：API 配置对象 | 初始化成功返回 `true` |
 | `recognize(imagePath: string): OcrResult`           | 通过云端 OCR API 识别图像文字（占位接口）       | `imagePath`：图像路径  | `OcrResult`           |
 | `analyzeImage(imagePath: string): AiAnalysisResult` | 对图像进行多模态分析，返回标签和描述            | `imagePath`：图像路径  | `AiAnalysisResult`    |
-| `generateEmbedding(text: string): float[]`          | 将文本转换为语义向量                            | `text`：输入文本       | 浮点数向量            |
 | `isAvailable(): bool`                               | 检查 AI 服务当前是否可用（网络连通 + 配置有效） | 无                     | 可用返回 `true`       |
 | `isOcrAvailable(): bool`                            | 检查云端 OCR 服务是否可用                       | 无                     | 可用返回 `true`       |
 | `shutdown(): void`                                  | 释放 HTTP 客户端资源                            | 无                     | 无                    |

@@ -69,7 +69,8 @@ graph TD
 
         VEC_SEARCH["向量搜索
         vectorSearch()
-        upsertEmbedding()"]
+        upsertDescriptionEmbedding()
+        upsertOcrEmbedding()"]
 
         QUERY_BUILDER["查询构建器
         buildSearchSql()
@@ -95,7 +96,7 @@ graph TD
         CAT_TABLE[("categories 表")]
         MEME_TAG_TABLE[("meme_tags 关联表")]
         SCHEMA_TABLE[("schema_version 表")]
-        VEC_TABLE[("vec_memes 虚拟表（sqlite-vec）")]
+        VEC_TABLE[("vec_meme_desc / vec_meme_ocr 虚拟表（sqlite-vec）")]
     end
 
     CORE --> PERSISTENCE
@@ -183,14 +184,19 @@ CREATE TABLE meme_tags (
 CREATE INDEX idx_meme_tags_tag_id ON meme_tags(tag_id);
 ```
 
-### `vec_memes` 虚拟表（sqlite-vec）
+### `vec_meme_desc` / `vec_meme_ocr` 虚拟表（sqlite-vec）
 
 ```sql
 -- 在 sqlite-vec 扩展加载后创建
--- 维度由 EmbeddingDimension 动态决定（初始化时读取配置）
-CREATE VIRTUAL TABLE vec_memes USING vec0(
+-- 维度由 embedding.dimensions 决定；非法值会在后端回退为默认值 512
+CREATE VIRTUAL TABLE vec_meme_desc USING vec0(
     meme_id INTEGER PRIMARY KEY,
-    embedding float[1536]  -- 维度在初始化时按实际配置动态设定
+    embedding float[512]
+);
+
+CREATE VIRTUAL TABLE vec_meme_ocr USING vec0(
+    meme_id INTEGER PRIMARY KEY,
+    embedding float[512]
 );
 ```
 
@@ -362,7 +368,7 @@ insertMeme(meme: MemeEntry): int64
   3. 获取 `last_insert_rowid()` 作为新 ID
   4. 提交事务，返回新 ID
   
-  > 注意：embedding 向量的写入由 C++ 核心模块在 AI 分析完成后单独调用 `upsertEmbedding()` 完成，不在 `insertMeme` 流程内。
+  > 注意：embedding 向量的写入由 C++ 核心模块在 OCR / AI 分析完成后分别调用 `upsertDescriptionEmbedding()` 与 `upsertOcrEmbedding()` 完成，不在 `insertMeme` 流程内。
 - **输入**：`meme`：完整的 Meme 数据对象（`id` 字段忽略）
 - **输出**：新记录的自增 ID；哈希重复时抛出 `ERR_DUPLICATE`
 
@@ -421,39 +427,49 @@ buildSearchSql(query: SearchQuery): SearchSql
 vectorSearch(embedding: float[], limit: int): MemeEntry[]
 ```
 
-- **描述**：
-  1. 对 `vec_memes` 虚拟表执行 KNN（K 近邻）余弦相似度查询：`SELECT meme_id, distance FROM vec_memes WHERE embedding MATCH ? ORDER BY distance LIMIT ?`
-  2. 将查询结果的 `meme_id` 列表批量查询 `memes` 表，获取完整 `MemeEntry`
-  3. 按相似度距离排序返回
+- **描述**：当前实现中该接口仅保留为后续搜索算法重构预留；现有业务路径不再调用 embedding 检索，搜索接口统一走普通搜索并返回 `similarityScore = -1`。
 - **输入**：`embedding`：查询向量；`limit`：返回结果数量上限
 - **输出**：按相似度排序的 `MemeEntry[]` 列表
 
 ---
 
-### `upsertEmbedding`（内部函数）
+### `upsertDescriptionEmbedding`（内部函数）
 
 ```
-upsertEmbedding(memeId: int64, embedding: float[]): void
+upsertDescriptionEmbedding(memeId: int64, embedding: float[]): void
 ```
 
-- **描述**：向 `vec_memes` 虚拟表插入或更新指定 `meme_id` 的向量数据（INSERT OR REPLACE 语义）。
+- **描述**：向 `vec_meme_desc` 虚拟表插入或更新指定 `meme_id` 的 description 向量数据（INSERT OR REPLACE 语义）。
 - **输入**：`memeId`：Meme ID；`embedding`：语义向量
 - **输出**：无
 
 ---
 
-### `rebuildVecTable`
+### `upsertOcrEmbedding`（内部函数）
 
 ```
-rebuildVecTable(newDimension: int): void
+upsertOcrEmbedding(memeId: int64, embedding: float[]): void
 ```
 
-- **描述**：当 Embedding 模型切换导致向量维度变化时，重建 `vec_memes` 虚拟表。流程如下：
-  1. 在事务中执行 `DROP TABLE IF EXISTS vec_memes`
-  2. 使用新维度 `CREATE VIRTUAL TABLE vec_memes USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[{newDimension}])`
-  3. 提交事务
+- **描述**：向 `vec_meme_ocr` 虚拟表插入或更新指定 `meme_id` 的 OCR 向量数据（INSERT OR REPLACE 语义）。
+- **输入**：`memeId`：Meme ID；`embedding`：语义向量
+- **输出**：无
+
+---
+
+### `rebuildEmbeddingTables`
+
+```
+rebuildEmbeddingTables(newDimension: int): void
+```
+
+- **描述**：当 Embedding 配置变更导致向量维度变化时，重建 `vec_meme_desc` 与 `vec_meme_ocr` 两张虚拟表。流程如下：
+  1. 在事务中执行 `DROP TABLE IF EXISTS vec_meme_desc`
+  2. 在事务中执行 `DROP TABLE IF EXISTS vec_meme_ocr`
+  3. 使用新维度分别重建两张虚拟表
+  4. 提交事务
   
-  > 此函数由 C++ 核心模块的 `handleRebuildEmbeddings()` 在检测到维度变化时调用，调用前会先通过 `VisionModule.generateEmbedding()` 探测新维度并与当前表维度比较。重建后所有旧向量数据丢失，需要逐条重新生成。
+  > 该函数由 C++ 核心模块的 `handleRebuildEmbeddings()` 与配置热更新逻辑调用。重建后旧向量数据丢失，需要逐条重新生成。
 - **输入**：`newDimension`：新的向量维度
 - **输出**：无（失败时抛出 SQLite 异常）
 
@@ -489,7 +505,7 @@ updateMeme(id: int64, patch: MemePatch): bool
 deleteMeme(id: int64): bool
 ```
 
-- **描述**：彻底删除 `memes` 表中 `id` 对应的记录。由于 `meme_tags` 表配置了 `ON DELETE CASCADE`，关联的标签关系自动删除。同时从 `vec_memes` 中删除对应向量记录。仅由内部清理任务调用。
+- **描述**：彻底删除 `memes` 表中 `id` 对应的记录。由于 `meme_tags` 表配置了 `ON DELETE CASCADE`，关联的标签关系自动删除。同时从 `vec_meme_desc` 与 `vec_meme_ocr` 中删除对应向量记录。仅由内部清理任务调用。
 - **输入**：`id`：Meme ID
 - **输出**：删除成功返回 `true`；ID 不存在返回 `false`
 
@@ -764,7 +780,7 @@ flowchart TD
 | 多线程并发写操作（如批量导入）                | WAL 模式下，SQLite 允许多个并发读 + 单个写，写操作由 SQLiteCpp 内部序列化 |
 | 向量维度与建表时声明维度不一致                | sqlite-vec 在插入时自动检查，维度不符时抛出异常                           |
 | 数据库磁盘空间不足                            | SQLite 写操作返回 `SQLITE_FULL` 错误，转换为 `ERR_IO` 错误向上传递        |
-| `deleteMeme` 时 `vec_memes` 中无对应向量      | 静默忽略（该 Meme 可能从未生成向量，正常情况）                            |
+| `deleteMeme` 时某张向量表中无对应向量         | 静默忽略（该 Meme 可能从未生成对应 description / OCR 向量，属正常情况）   |
 | `Schema` 迁移失败（SQL 语法错误等）           | 回滚当前迁移步骤事务，记录失败版本和错误详情，阻止应用启动                |
 | 数据库损坏（`integrity_check` 失败）          | `checkIntegrity()` 返回 `false`，触发自动从最新备份恢复                   |
 | 无可用备份时数据库损坏                        | 记录 FATAL 日志，终止进程，提示用户手动介入                               |

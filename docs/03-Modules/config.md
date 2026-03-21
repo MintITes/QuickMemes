@@ -101,7 +101,15 @@ graph TD
         "apiKey": "",
         "apiBaseUrl": "https://api.openai.com/v1",
         "visionModel": "gpt-4o",
-        "embeddingModel": "text-embedding-3-small",
+        "timeoutSeconds": 30,
+        "maxRetries": 2
+    },
+    "embedding": {
+        "provider": "JinaAI",
+        "model": "jina-embeddings-v5-text-small",
+        "apiUrl": "https://api.jina.ai/v1/embeddings",
+        "apiKey": "",
+        "dimensions": 512,
         "timeoutSeconds": 30,
         "maxRetries": 2
     },
@@ -147,9 +155,15 @@ graph TD
 | `vision.apiKey`           | `string` | `""`                           | 云端 AI API 密钥（空字符串表示禁用 AI）     |
 | `vision.apiBaseUrl`       | `string` | OpenAI URL                     | AI API 基础 URL（兼容 OpenAI 格式）         |
 | `vision.visionModel`      | `string` | `"gpt-4o"`                     | 图像理解模型名称                            |
-| `vision.embeddingModel`   | `string` | `"text-embedding-3-small"`     | 文本向量化模型名称                          |
 | `vision.timeoutSeconds`   | `int`    | `30`                           | AI API 单次请求超时秒数                     |
 | `vision.maxRetries`       | `int`    | `2`                            | AI API 失败重试次数                         |
+| `embedding.provider`      | `string` | `"JinaAI"`                     | Embedding 提供商标识                        |
+| `embedding.model`         | `string` | `"jina-embeddings-v5-text-small"` | Embedding 模型名称                       |
+| `embedding.apiUrl`        | `string` | `https://api.jina.ai/v1/embeddings` | Embedding API 地址                     |
+| `embedding.apiKey`        | `string` | `""`                           | Embedding API 密钥                          |
+| `embedding.dimensions`    | `int`    | `512`                          | 向量维度；当前模型仅允许 `1..1024`          |
+| `embedding.timeoutSeconds`| `int`    | `30`                           | Embedding API 单次请求超时秒数              |
+| `embedding.maxRetries`    | `int`    | `2`                            | Embedding API 失败重试次数                  |
 | `ocr.apiKey`              | `string` | `""`                           | 云端 OCR API 密钥（空表示禁用 OCR）         |
 | `ocr.apiUrl`              | `string` | `""`                           | 云端 OCR API 地址（待适配具体提供商）       |
 | `ocr.provider`            | `string` | `""`                           | 云端 OCR 提供商标识（占位字段）             |
@@ -189,9 +203,15 @@ QuickMemes-backend \
     --api-key         <string>  \   # AI API 密钥（可为空字符串）
     --api-base-url    <string>  \   # AI API 基础 URL
     --vision-model    <string>  \   # VLM 模型名称
-    --embedding-model <string>  \   # Embedding 模型名称
     --api-timeout     <int>     \   # AI API 请求超时秒数
     --api-retries     <int>     \   # AI API 失败重试次数
+    --embedding-provider <string> \   # Embedding 提供商
+    --embedding-model <string>    \   # Embedding 模型名称
+    --embedding-api-url <string>  \   # Embedding API 地址
+    --embedding-api-key <string>  \   # Embedding API 密钥
+    --embedding-dimensions <int>  \   # Embedding 维度
+    --embedding-timeout <int>     \   # Embedding API 请求超时秒数
+    --embedding-retries <int>     \   # Embedding API 失败重试次数
     --ocr-api-key     <string>  \   # 云端 OCR API 密钥（可为空）
     --ocr-api-url     <string>  \   # 云端 OCR API 地址（可为空）
     --ocr-provider    <string>  \   # 云端 OCR 提供商标识（可为空）
@@ -263,12 +283,12 @@ setConfig(patch: Partial<AppConfig>): void
 - **描述**：深度合并 `patch` 到当前配置缓存，然后调用 `saveConfig` 持久化。流程如下：
   1. 将 `patch` 录入的字段分为三类：
      - **需要重启**：`backendPort` / `bindAddress` / `storagePath` / `dbPath` / `thumbnail.*`
-     - **可热更新**：`vision.*`、`ocr.*`、`log.minLevel`（可直接同步到 C++ 后端）
+     - **可热更新**：`vision.*`、`embedding.*`、`ocr.*`、`log.minLevel`（可直接同步到 C++ 后端）
      - **仅前端生效**：`ui.*`（无需通知 C++ 后端）
   2. 调用 `saveConfig` 将全量配置写入 `config.json`
   3. 若存在需要重启的字段，设置 `needsRestart` 标记并返回给 React 显示提示
   4. 若存在可热更新的字段，调用 `syncToBackend(runtimePatch)` 将变更实时同步到 C++ 后端
-  5. 若 `vision.embeddingModel` 发生变更，返回 `{ embeddingModelChanged: true }` 提示前端显示“切换模型后需重建向量索引”警告
+  5. 若 `embedding.*` 发生变更，Electron 主进程会将对应字段实时同步到后端；是否可用由后端根据 provider/model/apiKey/apiUrl 决定
 - **输入**：`patch`：仅含需变更字段的部分配置对象
 - **输出**：无
 
@@ -285,6 +305,8 @@ validateConfig(config: AppConfig): string[]
   - `storagePath` / `dbPath` / `logDir`：非空字符串
   - `vision.timeoutSeconds`：1 ≤ value ≤ 300
   - `vision.maxRetries`：0 ≤ value ≤ 10
+  - `embedding.timeoutSeconds`：1 ≤ value ≤ 300
+  - `embedding.maxRetries`：0 ≤ value ≤ 10
   - `ui.theme`：值为 `"light"` / `"dark"` / `"system"` 之一
   - `log.minLevel`：值为 `"DEBUG"` / `"INFO"` / `"WARN"` / `"ERROR"` / `"FATAL"` 之一
 - **输入**：`config`：待校验的配置对象

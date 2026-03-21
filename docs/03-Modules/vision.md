@@ -74,12 +74,6 @@ graph TD
         视觉模型 VLM
         → suggestedTags + description"]
 
-        EMBED[" 词向量转换
-        generateEmbedding()
-        ─────────────────
-        Embedding 模型
-        → float[] 语义向量"]
-
         HTTP_CLI["Boost.Beast HTTPS 客户端
         ─────────────────────────
         统一请求构造
@@ -88,7 +82,6 @@ graph TD
 
         OCR_FUNC --> HTTP_CLI
         ANALYZE --> HTTP_CLI
-        EMBED --> HTTP_CLI
     end
 
     CLOUD(("云端 API
@@ -98,12 +91,10 @@ graph TD
     /embeddings"))
 
     CORE -->|"initialize(config)"| INIT
-    CORE -->|"recognize() / analyzeImage()
-    generateEmbedding()"| VISION_MOD
+    CORE -->|"recognize() / analyzeImage()"| VISION_MOD
     HTTP_CLI -.->|"HTTPS REST"| CLOUD
     CLOUD -.->|"JSON 响应"| HTTP_CLI
-    VISION_MOD -->|"OcrResult / AiAnalysisResult
-    float[]"| CORE
+    VISION_MOD -->|"OcrResult / AiAnalysisResult"| CORE
 ```
 
 ---
@@ -117,7 +108,6 @@ VisionConfig {
     apiKey          : string  // AI API 鉴权密钥（Header: Authorization: Bearer {apiKey}）
     apiBaseUrl      : string  // AI API 基础 URL（兼容 OpenAI 接口格式，如 https://api.openai.com/v1）
     visionModel     : string  // 图像分析模型名称（如 "gpt-4o"）
-    embeddingModel  : string  // 向量化模型名称（如 "text-embedding-3-small"）
     timeoutSeconds  : int     // 单次 API 请求超时秒数（默认 30）
     maxRetries      : int     // 失败自动重试次数（默认 2，仅对网络错误重试）
     ocrApiKey       : string  // 云端 OCR API 密钥（可为空，空则 OCR 降级为空文本）
@@ -125,6 +115,8 @@ VisionConfig {
     ocrProvider     : string  // 云端 OCR 提供商标识（当前支持 "PaddleOCR" 与 "OcrSpace"）
 }
 ```
+
+> 说明：Embedding 已拆分为独立模块与独立配置，不再属于 `VisionConfig`。
 
 ### `OcrResult` — OCR 识别结果
 
@@ -169,17 +161,6 @@ VisionMessage {
 }
 ```
 
-### `EmbeddingDimension` — 向量维度约定
-
-```
-// 向量维度由所配置的 embeddingModel 决定，存储前需与 sqlite-vec 建表时声明的维度一致
-// 默认参考值（使用 text-embedding-3-small）：1536 维
-// 模块初始化时通过一次 Embedding 调用自动探测并缓存实际维度
-EmbeddingDimension : int  // 运行时确定
-```
-
----
-
 ## 函数规范
 
 ### `initialize`
@@ -191,9 +172,8 @@ initialize(config: VisionConfig): bool
 - **描述**：
   1. 保存 `VisionConfig` 配置，初始化 Boost.Beast HTTPS 客户端
   2. 调用 `isAvailable()` 发起一次轻量级 ping（向 `/models` 接口发送 GET 请求）
-  3. 若 AI 可用，发起一次小文本 Embedding 请求探测并缓存 `EmbeddingDimension`
-  4. 检查 OCR 配置是否有效（`ocrApiKey` / `ocrApiUrl` 非空），记录 OCR 可用性状态
-  5. 记录初始化结果（各能力可用/不可用均不视为严重错误，系统可在部分能力不可用时降级运行）
+  3. 检查 OCR 配置是否有效（`ocrApiKey` / `ocrApiUrl` 非空），记录 OCR 可用性状态
+  4. 记录初始化结果（各能力可用/不可用均不视为严重错误，系统可在部分能力不可用时降级运行）
 - **输入**：`config`：Vision 配置对象
 - **输出**：初始化（包含连通性检查）成功返回 `true`；配置无效（apiKey 为空等）返回 `false`
 
@@ -232,25 +212,9 @@ analyzeImage(imagePath: string): AiAnalysisResult
   3. 构建 OpenAI `/chat/completions` 请求，使用预设提示词要求模型以 JSON 格式返回 `{ tags: string[], description: string }`
   4. 发送请求（含重试逻辑），解析响应 JSON
   5. 提取 `tags` 列表（最多 10 个）和 `description` 文本
-  6. 返回 `AiAnalysisResult`（`embedding` 字段为空向量，向量生成由调用方 C++ 核心模块负责，使用 `ocrText + description + tags` 拼接后调用 `generateEmbedding()` 单独生成）
+  6. 返回 `AiAnalysisResult`；embedding 字段不再由 Vision 模块生成，后续由独立 Embedding 模块分别对 `description` 和 `ocrText` 单独向量化
 - **输入**：`imagePath`：图像文件绝对路径
-- **输出**：`AiAnalysisResult`（`embedding` 为空，待调用方填充）
-
----
-
-### `generateEmbedding`
-
-```
-generateEmbedding(text: string): float[]
-```
-
-- **描述**：
-  1. 检查 `isAvailable()`，不可用返回空向量 `[]`
-  2. 若 `text` 为空字符串，返回全零向量（维度为 `EmbeddingDimension`）
-  3. 若文本过长（超过模型 token 限制），截断至最大长度（约 8000 字符）
-  4. 构建 `/embeddings` 请求，发送并解析响应中的 `data[0].embedding` 浮点数组
-- **输入**：`text`：需要向量化的文本
-- **输出**：`float[]` 语义向量；失败时返回空向量 `[]`
+- **输出**：`AiAnalysisResult`
 
 ---
 
@@ -260,14 +224,14 @@ generateEmbedding(text: string): float[]
 isAvailable(): bool
 ```
 
-- **描述**：检查 AI 服务（VLM + Embedding）当前是否可用，条件为：
+- **描述**：检查 AI 图像分析服务当前是否可用，条件为：
   1. `VisionConfig.apiKey` 非空
   2. `VisionConfig.apiBaseUrl` 非空且格式合法
   3. 最近一次调用未因网络错误失败（使用缓存的连通性状态，每 60 秒重新探测一次）
 - **输入**：无
 - **输出**：满足以上条件为 `true`
 
-> 注意：`isAvailable()` 仅检查 AI 服务（VLM/Embedding）的可用性。OCR 的可用性通过 `ocrApiKey` / `ocrApiUrl` 非空独立判断。
+> 注意：`isAvailable()` 仅检查图像分析能力。Embedding 的可用性由独立 Embedding 模块判断。
 
 ---
 
@@ -292,7 +256,7 @@ isOcrAvailable(): bool
 reconfigure(config: VisionConfig): void
 ```
 
-- **描述**：在运行时替换 Vision 模块的内部配置，用于 `PATCH /api/config` 热更新场景。接收新的 `VisionConfig`，替换 API Key、基础 URL、模型名称、OCR 配置、超时和重试策略等。若 `apiKey` 变为空，则标记 AI 不可用。调用后立即重新探测连通性（通过 `isAvailable()`）并更新 `EmbeddingDimension` 缓存（若 `embeddingModel` 变更）。
+- **描述**：在运行时替换 Vision 模块的内部配置，用于 `PATCH /api/config` 热更新场景。接收新的 `VisionConfig`，替换 API Key、基础 URL、模型名称、OCR 配置、超时和重试策略等。若 `apiKey` 变为空，则标记 AI 不可用。调用后立即重新探测连通性并刷新 OCR / AI 可用性状态。
 - **输入**：`config`：新的 Vision 配置对象
 - **输出**：无
 
@@ -387,6 +351,6 @@ flowchart TD
 | `generateEmbedding` 输入文本超长                     | 截断至约 8000 字符（保留语义关键词部分），不抛出错误                                                                                              |
 | 多线程并发调用 API 接口                              | Boost.Beast 客户端基于 Boost.Asio 异步 I/O，并发请求同时发出，无串行化限制（受制于 API 限速）                                                     |
 | 连通性探测失败后服务重新上线                         | 每 60 秒自动重新探测 `isAvailable()`，恢复后自动重启相关功能                                                                                      |
-| Embedding 模型切换（`embeddingModel` 变更）          | 前端配置模块在检测到 `embeddingModel` 变更时弹出警告提示用户需重建向量索引；C++ 核心模块提供 `handleRebuildEmbeddings()` 异步重建所有 Meme 的向量 |
-| AI 不可用时的向量降级                                | 不生成 embedding 向量（设 `aiStatus = SKIPPED`），向量搜索自动跳过无向量的 Meme 条目                                                              |
+| Embedding 相关配置变更                               | 由独立 Embedding 模块处理 provider / model / apiUrl / apiKey / dimensions / timeout / retries，并由 C++ 核心模块提供 `handleRebuildEmbeddings()` 异步重建所有 Meme 的向量 |
+| AI 不可用时的向量降级                                | 不影响已独立拆分的 Embedding 配置；Embedding 是否可用由独立模块自行判断                                                                          |
 | 云端 OCR API 适配（未来）                            | 当前 `recognize()` 为占位实现，返回降级结果。后续适配具体 API 时实现完整调用逻辑                                                                  |

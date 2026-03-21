@@ -17,10 +17,12 @@ src/backend/tests/
 ├── db/                       # 持久化模块测试
 │   ├── test_meme_crud.cpp    # Meme 增删改查完整流程
 │   ├── test_tag_ops.cpp      # 标签 CRUD 与级联删除
-│   ├── test_search.cpp       # FTS5 全文搜索与 sqlite-vec 向量搜索
+│   ├── test_search.cpp       # FTS5 全文搜索、双向量表存储与兼容查询
 │   └── test_soft_delete.cpp  # 软删除、回收站恢复、自动清理
+├── embedding/                # Embedding 模块测试
+│   └── test_embedding_mock.cpp # JinaAI Mock / live 测试、错误码与排序输出
 ├── vision/                   # Vision 模块测试
-│   └── test_vision_mock.cpp  # Mock HTTP 响应测试 OCR / AI 分析 / Embedding
+│   └── test_vision_mock.cpp  # Mock HTTP 响应测试 OCR / AI 分析
 └── utils/                    # 工具类测试
     ├── test_config_parser.cpp # 配置解析与校验
     └── test_logger.cpp        # 日志格式化与等级过滤
@@ -118,7 +120,7 @@ public:
 | 文件哈希去重        | 插入相同 `fileHash` 的 Meme 时应被拒绝或提示重复       |
 | 标签关联与级联删除  | 删除标签时，`meme_tags` 关联表中的对应记录应被级联移除 |
 | FTS5 全文搜索       | 关键词匹配名称、描述、OCR 文本；中文分词正确性         |
-| sqlite-vec 向量搜索 | 写入向量后可按余弦相似度查询，返回结果按分数排序       |
+| sqlite-vec 双向量表 | description / OCR 向量分别写入 `vec_meme_desc` / `vec_meme_ocr` |
 | 软删除与回收站      | 软删除的 Meme 可恢复；过期记录可被自动清理             |
 | 数据库备份与恢复    | 备份文件可正常创建；从备份恢复后数据完整               |
 
@@ -127,7 +129,9 @@ public:
 | 关键路径         | 测试要点                                                                    |
 | ---------------- | --------------------------------------------------------------------------- |
 | OCR 识别（Mock） | 正确解析 Mock 的 OCR API 响应；处理空结果和错误响应                         |
-| AI 分析（Mock）  | 正确解析标签、描述、embedding；处理 API 超时和重试                          |
+| AI 分析（Mock）  | 正确解析标签、描述；处理 API 超时和重试                                    |
+| Embedding（Mock） | 正确构造 JinaAI 请求、校验 dimensions、分类错误码、验证重试策略           |
+| Embedding（Live） | 默认跳过；通过 `QM_RUN_JINA_EMBEDDING_LIVE=1` 激活，并输出排序后的相似度结果 |
 | 降级策略         | 云端不可用时 `isAvailable()` 返回 `false`，`recognize()` 返回空结果而非崩溃 |
 
 ### 核心路由模块

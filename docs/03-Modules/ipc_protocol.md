@@ -179,7 +179,7 @@ SearchResult {
 
 SearchResultItem {
     meme            : MemeEntry  // Meme 数据（不含 embedding）
-    similarityScore : float      // 向量搜索相似度分数（0.0~1.0，非向量搜索时为 -1）
+    similarityScore : float      // 当前版本统一为 -1；后续向量搜索重构后再恢复真实分数
 }
 ```
 
@@ -212,9 +212,15 @@ RuntimeConfigPatch {
     aiApiKey?          : string  // AI API 密钥（可选）
     aiApiBaseUrl?      : string  // AI API 基础 URL（可选）
     aiVisionModel?     : string  // VLM 模型名称（可选）
-    aiEmbeddingModel?  : string  // Embedding 模型名称（可选）
     aiTimeoutSeconds?  : int     // AI API 请求超时秒数（可选）
     aiMaxRetries?      : int     // AI API 失败重试次数（可选）
+    embeddingProvider? : string  // Embedding 提供商（可选，当前仅支持 "JinaAI"）
+    embeddingModel?    : string  // Embedding 模型名称（可选，当前仅支持 "jina-embeddings-v5-text-small"）
+    embeddingApiUrl?   : string  // Embedding API 地址（可选）
+    embeddingApiKey?   : string  // Embedding API 密钥（可选）
+    embeddingDimensions? : int   // Embedding 维度（可选；当前模型仅允许 1..1024）
+    embeddingTimeoutSeconds? : int // Embedding 请求超时秒数（可选）
+    embeddingMaxRetries? : int  // Embedding 失败重试次数（可选）
     ocrApiKey?         : string  // 云端 OCR API 密钥（可选）
     ocrApiUrl?         : string  // 云端 OCR API 地址（可选）
     ocrProvider?       : string  // 云端 OCR 提供商（可选，当前支持 "PaddleOCR" 与 "OcrSpace"）
@@ -261,7 +267,7 @@ RuntimeConfigPatch {
 
 ### `POST /api/memes/search` — 搜索 Meme 列表
 
-- **描述**：按 `SearchQuery` 参数搜索 Meme，支持模糊搜索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配、向量相似度搜索。默认不返回已软删除的 Meme
+- **描述**：按 `SearchQuery` 参数搜索 Meme，支持模糊搜索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配。默认不返回已软删除的 Meme。`useVector` 字段当前仅保留协议兼容，不触发实际向量搜索
 - **请求体**：`SearchQuery`
 - **成功响应**：`ApiResponse<SearchResult>` — 包含 `items`（带 `similarityScore`）和 `total`
 - **可能错误**：`ERR_INVALID_PARAMS`（非法 regex）、`ERR_INTERNAL`
@@ -474,16 +480,16 @@ RuntimeConfigPatch {
 
 ### `POST /api/admin/rebuild-embeddings` — 重建语义向量
 
-- **描述**：异步任务，对所有 Meme 重新调用 AI Embedding 生成语义向量。用于 Embedding 模型切换后的向量重建。通过 WebSocket 推送进度
+- **描述**：异步任务，对所有 Meme 分别重建 description 向量与 OCR 向量。用于 Embedding 配置变更后的向量重建。通过 WebSocket 推送进度
 - **请求体**：无
 - **成功响应**：`ApiResponse<ImportTask>` — 重建任务对象
-- **可能错误**：`ERR_AI_UNAVAILABLE`
+- **可能错误**：`ERR_EMBEDDING_NOT_READY`
 
 ---
 
 ### `PATCH /api/config` — 运行时配置热更新
 
-- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（Vision 配置、OCR 配置、日志等级）
+- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（Vision 配置、Embedding 配置、OCR 配置、日志等级）
 - **请求体**：`RuntimeConfigPatch`（仅传入需要变更的字段，其余字段保持不变）
 - **成功响应**：`ApiResponse<null>`
 - **可能错误**：`ERR_INVALID_PARAMS`（字段值非法，如 `logMinLevel` 不在有效等级内）
