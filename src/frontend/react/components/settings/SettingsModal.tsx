@@ -317,7 +317,7 @@ export function SettingsModal() {
                                 onAfterChange={(value) => setCornerRadius(value)}
                                 unit="px"
                             />
-                            <Slider label={t('settings.appearance.gap')} value={galleryGap} min={4} max={32} onChange={setGalleryGap} unit="px" />
+                            <Slider label={t('settings.appearance.gap')} value={galleryGap} min={4} max={32} onChange={setGalleryGap} unit="px" disabled />
 
                             <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div className="font-medium text-sm">{t('settings.appearance.accent')}</div>
@@ -636,12 +636,12 @@ export function SettingsModal() {
 
                                 {activeTab === 'appearance' && (
                                     <div className="w-[280px] shrink-0 border-l border-white/5 bg-black/5 dark:bg-black/10 p-6 flex flex-col items-center justify-start overflow-y-auto no-drag animate-in fade-in slide-in-from-right-4 duration-500">
-                            <div className="w-full">
-                                <LivePreview
-                                    cornerRadius={activeCornerRadius}
-                                    glassBlur={activeGlassBlur}
-                                />
-                            </div>
+                                        <div className="w-full">
+                                            <LivePreview
+                                                cornerRadius={activeCornerRadius}
+                                                glassBlur={activeGlassBlur}
+                                            />
+                                        </div>
                                     </div>
                                 )}
                             </div>

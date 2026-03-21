@@ -16,10 +16,6 @@ import { Lightbox } from '../meme/Lightbox';
 
 export function MainShell() {
     const isPanelOpen = useUiStore(state => state.isPanelOpen);
-    const isSettingsOpen = useUiStore(state => state.isSettingsOpen);
-    const isImportModalOpen = useUiStore(state => state.isImportModalOpen);
-    const isUrlImportDialogOpen = useUiStore(state => state.isUrlImportDialogOpen);
-    const isAdvancedSearchOpen = useUiStore(state => state.isAdvancedSearchOpen);
 
     return (
         <div className="w-screen h-screen flex flex-col bg-bgPrimary text-textPrimary overflow-hidden font-sans">
@@ -34,10 +30,10 @@ export function MainShell() {
             <StatusBar />
 
             {/* Absolute positioning modals */}
-            {isSettingsOpen && <SettingsModal />}
-            {isImportModalOpen && <ImportModal />}
-            {isUrlImportDialogOpen && <UrlImportDialog />}
-            {isAdvancedSearchOpen && <AdvancedSearchDialog />}
+            <SettingsModal />
+            <ImportModal />
+            <UrlImportDialog />
+            <AdvancedSearchDialog />
             <NotificationPanel />
             <ToastContainer />
 
