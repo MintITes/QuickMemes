@@ -11,6 +11,7 @@
 - **[02-Architecture (总体架构设计)](./02-Architecture/)**  
   系统层面的设计与选型，为了解整体架构的最佳入口。主要包括：
   - [overview.md](./02-Architecture/overview.md) - 包含了前端、通信层、后端的全局架构图与共享数据结构。
+  - [database-overview.md](./02-Architecture/database-overview.md) - 后端数据库表结构、CRUD 入口、搜索与迁移总览。
   - [structure.md](./02-Architecture/structure.md) - 详述了项目的源码目录结构和预期摆放规范。
   - [tech_stack.md](./02-Architecture/tech_stack.md) - 罗列了前端、后端、持久化、AI 集成相关所有使用的技术栈。
 

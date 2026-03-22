@@ -27,6 +27,24 @@ describe('memeService', () => {
         );
 
         expect(query.categoryId).toBe(-1);
+        expect(query.enablePinyin).toBe(true);
+    });
+
+    it('allows overriding the backend pinyin search toggle', () => {
+        const query = buildBackendSearchQuery(
+            {
+                keyword: 'test',
+                categoryId: 0,
+                tagIds: [],
+                matchMode: 'fuzzy',
+                mediaType: 'all',
+                dateRange: 'all',
+            },
+            'all',
+            { enablePinyin: false }
+        );
+
+        expect(query.enablePinyin).toBe(false);
     });
 
     it('uses the backend manual OCR route', async () => {

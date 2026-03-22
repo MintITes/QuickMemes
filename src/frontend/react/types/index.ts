@@ -54,6 +54,7 @@ export interface SearchQuery {
     sizeMin: number;
     sizeMax: number;
     regex: string;
+    enablePinyin: boolean;
     useVector: boolean;
     sortBy: string;
     sortOrder: 'ASC' | 'DESC';

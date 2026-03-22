@@ -267,7 +267,7 @@ RuntimeConfigPatch {
 
 ### `POST /api/memes/search` — 搜索 Meme 列表
 
-- **描述**：按 `SearchQuery` 参数搜索 Meme，支持模糊搜索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配。默认不返回已软删除的 Meme。`useVector` 字段当前仅保留协议兼容，不触发实际向量搜索
+- **描述**：按 `SearchQuery` 参数搜索 Meme，支持中文全文检索、拼音检索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配。默认不返回已软删除的 Meme。`enablePinyin` 未传时默认按 `true` 处理；关闭后仅禁用拼音扩展，不影响中文搜索。`useVector` 字段当前仅保留协议兼容，不触发实际向量搜索
 - **请求体**：`SearchQuery`
 - **成功响应**：`ApiResponse<SearchResult>` — 包含 `items`（带 `similarityScore`）和 `total`
 - **可能错误**：`ERR_INVALID_PARAMS`（非法 regex）、`ERR_INTERNAL`

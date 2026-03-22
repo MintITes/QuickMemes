@@ -150,6 +150,7 @@ struct SearchQuery {
 	int64_t                  sizeMin = 0;               ///< 最小文件大小（字节，0 = 不限）
 	int64_t                  sizeMax = 0;               ///< 最大文件大小（字节，0 = 不限）
 	std::string              regex;                     ///< 正则表达式匹配（可为空）
+	bool                     enablePinyin = true;      ///< 关键词搜索时是否启用拼音扩展（默认 true）
 	bool                     useVector   = false;       ///< 是否启用语义向量搜索
 	std::string              sortBy      = "createdAt"; ///< 排序字段
 	std::string              sortOrder   = "DESC";      ///< 排序方向 "ASC" / "DESC"
@@ -347,6 +348,8 @@ inline void from_json(const nlohmann::json &j, SearchQuery &q) {
 	if (j.contains("sizeMin") && !j.at("sizeMin").is_null()) j.at("sizeMin").get_to(q.sizeMin);
 	if (j.contains("sizeMax") && !j.at("sizeMax").is_null()) j.at("sizeMax").get_to(q.sizeMax);
 	if (j.contains("regex") && !j.at("regex").is_null()) j.at("regex").get_to(q.regex);
+	if (j.contains("enable_pinyin") && !j.at("enable_pinyin").is_null()) j.at("enable_pinyin").get_to(q.enablePinyin);
+	if (j.contains("enablePinyin") && !j.at("enablePinyin").is_null()) j.at("enablePinyin").get_to(q.enablePinyin);
 	if (j.contains("use_vector") && !j.at("use_vector").is_null()) j.at("use_vector").get_to(q.useVector);
 	if (j.contains("useVector") && !j.at("useVector").is_null()) j.at("useVector").get_to(q.useVector);
 	if (j.contains("sortBy") && !j.at("sortBy").is_null()) j.at("sortBy").get_to(q.sortBy);
@@ -368,6 +371,7 @@ inline void to_json(nlohmann::json &j, const SearchQuery &q) {
 	    {    "sizeMin",     q.sizeMin},
 	    {    "sizeMax",     q.sizeMax},
 	    {      "regex",       q.regex},
+	    {"enablePinyin", q.enablePinyin},
 	    {  "useVector",   q.useVector},
 	    {     "sortBy",      q.sortBy},
 	    {  "sortOrder",   q.sortOrder},

@@ -78,6 +78,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(sqlite_vec)
 
+# ── simple tokenizer (中文/拼音 FTS) ──
+FetchContent_Declare(
+    simple_tokenizer
+    GIT_REPOSITORY https://github.com/wangfenjin/simple.git
+    GIT_TAG        master
+    GIT_SHALLOW    TRUE
+)
+set(BUILD_SQLITE3 OFF CACHE INTERNAL "")
+set(SIMPLE_WITH_JIEBA OFF CACHE INTERNAL "")
+set(BUILD_TEST_EXAMPLE OFF CACHE INTERNAL "")
+set(BUILD_STATIC ON CACHE INTERNAL "")
+FetchContent_MakeAvailable(simple_tokenizer)
+target_compile_definitions(simple PRIVATE SQLITE_CORE)
+
 
 if(NOT EXISTS "${sqlite_vec_SOURCE_DIR}/sqlite-vec.h")
     file(WRITE "${sqlite_vec_SOURCE_DIR}/sqlite-vec.h" "
@@ -157,6 +171,7 @@ target_link_libraries(quickmemes_db PUBLIC
     nlohmann_json::nlohmann_json
     quickmemes_utils
     sqlite_vec_ext
+    simple
 )
 target_precompile_headers(quickmemes_db PRIVATE ${PCH_HEADER})
 

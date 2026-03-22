@@ -200,16 +200,17 @@ CREATE VIRTUAL TABLE vec_meme_ocr USING vec0(
 );
 ```
 
-### `memes_fts` 全文搜索表（FTS5 扩展）
+### `memes_fts` 全文搜索表（FTS5 + simple tokenizer 扩展）
 
 ```sql
--- FTS5 全文索引表，用于替代 LIKE '%keyword%' 查询，提升关键词搜索性能
+-- FTS5 全文索引表，使用 simple tokenizer 支持中文与拼音检索
 CREATE VIRTUAL TABLE memes_fts USING fts5(
     name,
     description,
     ocr_text,
     content=memes,
-    content_rowid=id
+    content_rowid=id,
+    tokenize='simple'
 );
 
 -- 同步触发器：插入 meme 后自动同步到 FTS5 索引
@@ -408,7 +409,9 @@ buildSearchSql(query: SearchQuery): SearchSql
 ```
 
 - **描述**：根据 `SearchQuery` 中非空的过滤字段，动态组装 SQL 的 WHERE 子句、ORDER BY 和 LIMIT / OFFSET。处理规则：
-  - `keyword`：使用 FTS5 全文搜索：`memes.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH ?)`，匹配 `name`、`description`、`ocr_text` 字段
+  - `keyword`：使用 `simple_query(keyword, enablePinyin)` 生成 FTS5 查询串，匹配 `name`、`description`、`ocr_text`
+  - `enablePinyin`：默认 `true`；关闭时仍保留中文检索，只禁用拼音扩展查询
+  - ASCII 中间子串兼容仅保留在 `name` 字段；`description` 与 `ocr_text` 不再做 `LIKE '%keyword%'` fallback
   - `tagIds`：子查询 `EXISTS (SELECT 1 FROM meme_tags WHERE meme_id = memes.id AND tag_id IN (...))`
   - `source`：`source_name = ?`（按来源名称精确匹配）
   - `timeFrom` / `timeTo`：`created_at BETWEEN ? AND ?`

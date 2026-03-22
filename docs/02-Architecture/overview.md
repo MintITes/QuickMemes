@@ -285,6 +285,7 @@ SearchQuery {
     sizeMin    : int64     // 最小文件大小（字节，0 表示不限）
     sizeMax    : int64     // 最大文件大小（字节，0 表示不限）
     regex        : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
+    enablePinyin : bool      // 关键词搜索是否启用拼音扩展（默认 true，未传也按 true 处理）
     useVector    : bool      // 当前仅保留兼容字段，不触发实际向量搜索
     sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt" | "lastUsedAt"
     sortOrder    : string    // 排序方向："ASC" | "DESC"

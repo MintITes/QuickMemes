@@ -6,6 +6,64 @@
 #include "../mocks.hpp"
 
 #include <SQLiteCpp/SQLiteCpp.h>
+#include <iostream>
+
+namespace {
+std::string quoteField(const std::string &value) { return "\"" + value + "\""; }
+
+std::string summarizeMeme(const quickmemes::MemeEntry &meme) {
+	if (!meme.name.empty()) return meme.name;
+	if (!meme.description.empty()) return meme.description;
+	return meme.ocrText;
+}
+
+void printSearchDebug(const char *label, const quickmemes::MemeEntry &meme, const quickmemes::SearchQuery &q,
+                      const quickmemes::PagedMemeResults &results) {
+	std::cout << "插入项:"
+	          << " fileHash=" << meme.fileHash
+	          << " name=" << meme.name
+	          << " description=" << meme.description
+	          << " ocrText=" << meme.ocrText << '\n';
+	std::cout << "搜索字符串:"
+	          << " keyword=" << q.keyword
+	          << " enablePinyin=" << (q.enablePinyin ? "true" : "false")
+	          << " resultCount=" << results.items.size() << '\n';
+	for (size_t i = 0; i < results.items.size(); ++i) {
+		const auto &item = results.items[i];
+		std::cout << "匹配项:"
+		          << " index=" << i
+		          << " fileHash=" << item.fileHash
+		          << " name=" << item.name
+		          << " description=" << item.description
+		          << " ocrText=" << item.ocrText << '\n';
+	}
+}
+
+void printCorpusDebug(const char *label, const std::vector<quickmemes::MemeEntry> &memes) {
+	std::cout << "插入项:";
+	for (size_t i = 0; i < memes.size(); ++i) {
+		if (i > 0) std::cout << ' ';
+		std::cout << "[" << (i + 1) << "]" << quoteField(summarizeMeme(memes[i]));
+	}
+	std::cout << '\n';
+}
+
+void printQuerySummary(const char *label, const quickmemes::SearchQuery &q, const quickmemes::PagedMemeResults &results) {
+	(void)label;
+	std::cout << "搜索字符串:" << quoteField(q.keyword) << " enablePinyin=" << (q.enablePinyin ? "true" : "false")
+	          << '\n';
+	std::cout << "匹配项:";
+	if (results.items.empty()) {
+		std::cout << "[]" << '\n';
+		return;
+	}
+	for (size_t i = 0; i < results.items.size(); ++i) {
+		if (i > 0) std::cout << ' ';
+		std::cout << "[" << (i + 1) << "]" << quoteField(summarizeMeme(results.items[i]));
+	}
+	std::cout << '\n';
+}
+} // namespace
 
 namespace quickmemes { namespace testing {
 
@@ -35,9 +93,43 @@ TEST_F(MemeDbTest, SearchMemes_NameKeywordSupportsPartialMatch) {
 	SearchQuery q;
 	q.keyword    = "Reaction";
 	auto results = db->searchMemes(q);
+	printSearchDebug("SearchMemes_NameKeywordSupportsPartialMatch", meme, q, results);
 
 	ASSERT_EQ(results.items.size(), 1);
 	EXPECT_EQ(results.items[0].fileHash, "hash_search_name_partial");
+}
+
+TEST_F(MemeDbTest, SearchMemes_DescriptionAsciiSubstringDoesNotFallback) {
+	MemeEntry meme;
+	meme.fileHash    = "hash_search_desc_ascii_no_fallback";
+	meme.filePath    = getSubPath("desc_ascii.png");
+	meme.mimeType    = "image/png";
+	meme.description = "FunnyReactionFace";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword    = "Reaction";
+	auto results = db->searchMemes(q);
+	printSearchDebug("SearchMemes_DescriptionAsciiSubstringDoesNotFallback", meme, q, results);
+
+	EXPECT_TRUE(results.items.empty());
+}
+
+TEST_F(MemeDbTest, SearchMemes_ChineseKeywordMatchesName) {
+	MemeEntry meme;
+	meme.fileHash = "hash_search_chinese_name";
+	meme.filePath = getSubPath("chinese_name.png");
+	meme.mimeType = "image/png";
+	meme.name     = "测试表情包";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword    = "表情包";
+	auto results = db->searchMemes(q);
+	printSearchDebug("SearchMemes_ChineseKeywordMatchesName", meme, q, results);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_chinese_name");
 }
 
 TEST_F(MemeDbTest, SearchMemes_OcrKeywordSupportsPartialMatch) {
@@ -51,9 +143,129 @@ TEST_F(MemeDbTest, SearchMemes_OcrKeywordSupportsPartialMatch) {
 	SearchQuery q;
 	q.keyword    = "中文文";
 	auto results = db->searchMemes(q);
+	printSearchDebug("SearchMemes_OcrKeywordSupportsPartialMatch", meme, q, results);
 
 	ASSERT_EQ(results.items.size(), 1);
 	EXPECT_EQ(results.items[0].fileHash, "hash_search_ocr_partial");
+}
+
+TEST_F(MemeDbTest, SearchMemes_PinyinKeywordMatchesChineseTextWhenEnabled) {
+	MemeEntry meme;
+	meme.fileHash    = "hash_search_pinyin_enabled";
+	meme.filePath    = getSubPath("pinyin_enabled.png");
+	meme.mimeType    = "image/png";
+	meme.description = "测试语句";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword    = "ceshiyuju";
+	auto results = db->searchMemes(q);
+	printSearchDebug("SearchMemes_PinyinKeywordMatchesChineseTextWhenEnabled", meme, q, results);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_pinyin_enabled");
+}
+
+TEST_F(MemeDbTest, SearchMemes_PinyinKeywordDoesNotMatchWhenDisabled) {
+	MemeEntry meme;
+	meme.fileHash = "hash_search_pinyin_disabled";
+	meme.filePath = getSubPath("pinyin_disabled.png");
+	meme.mimeType = "image/png";
+	meme.ocrText  = "测试语句";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword       = "ceshiyuju";
+	q.enablePinyin  = false;
+	auto results    = db->searchMemes(q);
+	printSearchDebug("SearchMemes_PinyinKeywordDoesNotMatchWhenDisabled", meme, q, results);
+
+	EXPECT_TRUE(results.items.empty());
+}
+
+TEST_F(MemeDbTest, SearchMemes_ChineseKeywordStillMatchesWhenPinyinDisabled) {
+	MemeEntry meme;
+	meme.fileHash    = "hash_search_chinese_no_pinyin";
+	meme.filePath    = getSubPath("chinese_no_pinyin.png");
+	meme.mimeType    = "image/png";
+	meme.description = "测试语句";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword       = "测试语句";
+	q.enablePinyin  = false;
+	auto results    = db->searchMemes(q);
+	printSearchDebug("SearchMemes_ChineseKeywordStillMatchesWhenPinyinDisabled", meme, q, results);
+
+	ASSERT_EQ(results.items.size(), 1);
+	EXPECT_EQ(results.items[0].fileHash, "hash_search_chinese_no_pinyin");
+}
+
+TEST_F(MemeDbTest, SearchMemes_MixedChineseAndPinyinQueries_ReturnExpectedResultsRepeatedly) {
+	std::vector<MemeEntry> corpus;
+
+	MemeEntry cai;
+	cai.fileHash = "hash_search_mix_cxk";
+	cai.filePath = getSubPath("mix_cxk.png");
+	cai.mimeType = "image/png";
+	cai.name     = "蔡徐坤";
+	corpus.push_back(cai);
+
+	MemeEntry eat;
+	eat.fileHash    = "hash_search_mix_eat";
+	eat.filePath    = getSubPath("mix_eat.png");
+	eat.mimeType    = "image/png";
+	eat.description = "对啊,吃什么啊";
+	corpus.push_back(eat);
+
+	MemeEntry genshin;
+	genshin.fileHash = "hash_search_mix_yuanshen";
+	genshin.filePath = getSubPath("mix_yuanshen.png");
+	genshin.mimeType = "image/png";
+	genshin.ocrText  = "原神启动";
+	corpus.push_back(genshin);
+
+	MemeEntry crispy;
+	crispy.fileHash    = "hash_search_mix_youdian";
+	crispy.filePath    = getSubPath("mix_youdian.png");
+	crispy.mimeType    = "image/png";
+	crispy.description = "有点脆";
+	corpus.push_back(crispy);
+
+	MemeEntry tasty;
+	tasty.fileHash = "hash_search_mix_tai";
+	tasty.filePath = getSubPath("mix_tai.png");
+	tasty.mimeType = "image/png";
+	tasty.ocrText  = "这也太香了吧";
+	corpus.push_back(tasty);
+
+	for (const auto &meme : corpus) { db->insertMeme(meme); }
+	printCorpusDebug("SearchMemes_MixedChineseAndPinyinQueries_ReturnExpectedResultsRepeatedly", corpus);
+
+	struct QueryCase {
+		const char *label;
+		const char *keyword;
+		const char *expectedFileHash;
+	};
+
+	const std::vector<QueryCase> cases = {
+	    {"single-char-to-sentence", "蔡", "hash_search_mix_cxk"},
+	    {"multi-char-to-sentence", "吃什么", "hash_search_mix_eat"},
+	    {"full-pinyin-to-sentence", "yuanshen", "hash_search_mix_yuanshen"},
+	    {"pinyin-initials-to-sentence", "cxk", "hash_search_mix_cxk"},
+	    {"single-char-plus-pinyin", "有dian", "hash_search_mix_youdian"},
+	    {"multi-char-plus-pinyin", "这也tai", "hash_search_mix_tai"},
+	};
+
+	for (const auto &queryCase : cases) {
+		SearchQuery q;
+		q.keyword = queryCase.keyword;
+		auto results = db->searchMemes(q);
+		printQuerySummary(queryCase.label, q, results);
+
+		ASSERT_FALSE(results.items.empty()) << "keyword=" << queryCase.keyword;
+		EXPECT_EQ(results.items[0].fileHash, queryCase.expectedFileHash) << "keyword=" << queryCase.keyword;
+	}
 }
 
 TEST_F(MemeDbTest, SearchMemes_TagKeyword_ReturnsMatchingResults) {

@@ -7,6 +7,9 @@
 
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <chrono>
+#include <sqlite3.h>
+
+extern "C" int sqlite3_simple_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 
 namespace quickmemes { namespace testing {
 
@@ -59,8 +62,13 @@ TEST_F(MemeDbTest, PurgeDeletedMemes_OlderThan30Days_RemovesPermanently) {
 
 	{
 		SQLite::Database rawDb(dbPath, SQLite::OPEN_READWRITE);
-		auto             now   = std::chrono::system_clock::now();
-		auto             older = now - std::chrono::hours(24 * 31);
+		char            *errMsg = nullptr;
+		ASSERT_EQ(sqlite3_simple_init(rawDb.getHandle(), &errMsg, nullptr), SQLITE_OK)
+		    << (errMsg ? errMsg : "sqlite3_simple_init failed");
+		if (errMsg) sqlite3_free(errMsg);
+
+		auto now     = std::chrono::system_clock::now();
+		auto older   = now - std::chrono::hours(24 * 31);
 		auto olderMs = std::chrono::duration_cast<std::chrono::milliseconds>(older.time_since_epoch()).count();
 		SQLite::Statement stmt(rawDb, "UPDATE memes SET deleted_at = ? WHERE id = ?");
 		stmt.bind(1, static_cast<int64_t>(olderMs));

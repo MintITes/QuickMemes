@@ -41,7 +41,7 @@ function getFormats(mediaType: UiSearchQuery['mediaType']) {
 export function buildBackendSearchQuery(
     uiQuery: UiSearchQuery,
     activeNav: string,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number; enablePinyin?: boolean }
 ): SearchQuery {
     const { timeFrom, timeTo } = getTimeRange(uiQuery.dateRange);
     const categoryId =
@@ -60,6 +60,7 @@ export function buildBackendSearchQuery(
         sizeMin: 0,
         sizeMax: 0,
         regex: uiQuery.matchMode === 'regex' ? uiQuery.keyword : '',
+        enablePinyin: options?.enablePinyin ?? true,
         useVector: uiQuery.matchMode === 'fuzzy' && uiQuery.keyword.trim().length > 0,
         sortBy: activeNav === 'recent' ? 'lastUsedAt' : 'createdAt',
         sortOrder: 'DESC',

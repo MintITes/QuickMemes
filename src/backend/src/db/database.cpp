@@ -20,6 +20,7 @@
 #include <vector>
 
 extern "C" int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
+extern "C" int sqlite3_simple_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 
 #include <unordered_map>
 
@@ -69,6 +70,90 @@ static void regexp_func(sqlite3_context *context, int argc, sqlite3_value **argv
 		}
 	} catch (...) { sqlite3_result_error(context, "Invalid regex", -1); }
 }
+
+static bool isAsciiKeyword(const std::string &keyword) {
+	if (keyword.empty()) return false;
+	for (unsigned char ch : keyword) {
+		if (ch > 0x7F) return false;
+	}
+	return true;
+}
+
+static void createMemesFtsObjects(SQLite::Database &db) {
+	db.exec(R"(
+        CREATE VIRTUAL TABLE IF NOT EXISTS memes_fts USING fts5(
+            name,
+            description,
+            ocr_text,
+            content='memes',
+            content_rowid='id',
+            tokenize='simple'
+        );
+    )");
+
+	db.exec(R"(
+        CREATE TRIGGER IF NOT EXISTS memes_ai AFTER INSERT ON memes BEGIN
+            INSERT INTO memes_fts(rowid, name, description, ocr_text)
+            VALUES (new.id, new.name, new.description, new.ocr_text);
+        END;
+    )");
+	db.exec(R"(
+        CREATE TRIGGER IF NOT EXISTS memes_au AFTER UPDATE ON memes BEGIN
+            INSERT INTO memes_fts(memes_fts, rowid, name, description, ocr_text)
+            VALUES ('delete', old.id, old.name, old.description, old.ocr_text);
+            INSERT INTO memes_fts(rowid, name, description, ocr_text)
+            VALUES (new.id, new.name, new.description, new.ocr_text);
+        END;
+    )");
+	db.exec(R"(
+        CREATE TRIGGER IF NOT EXISTS memes_ad AFTER DELETE ON memes BEGIN
+            INSERT INTO memes_fts(memes_fts, rowid, name, description, ocr_text)
+            VALUES ('delete', old.id, old.name, old.description, old.ocr_text);
+        END;
+    )");
+}
+
+static void rebuildMemesFts(SQLite::Database &db) { db.exec("INSERT INTO memes_fts(memes_fts) VALUES ('rebuild');"); }
+
+static void replaceMemesFtsObjects(SQLite::Database &db) {
+	db.exec("DROP TRIGGER IF EXISTS memes_ai;");
+	db.exec("DROP TRIGGER IF EXISTS memes_au;");
+	db.exec("DROP TRIGGER IF EXISTS memes_ad;");
+	db.exec("DROP TABLE IF EXISTS memes_fts;");
+	createMemesFtsObjects(db);
+	rebuildMemesFts(db);
+}
+
+static void appendKeywordWhereClause(const quickmemes::SearchQuery &query, quickmemes::SearchSql &res) {
+	std::vector<std::string> clauses;
+	clauses.push_back("m.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH simple_query(?, ?))");
+	res.params.push_back(query.keyword);
+	res.params.push_back(query.enablePinyin ? "1" : "0");
+
+	if (isAsciiKeyword(query.keyword)) {
+		clauses.push_back("lower(m.name) LIKE lower(?)");
+		res.params.push_back("%" + query.keyword + "%");
+	}
+
+	clauses.push_back(
+	    "EXISTS (SELECT 1 FROM meme_tags mt_keyword "
+	    "JOIN tags t_keyword ON t_keyword.id = mt_keyword.tag_id "
+	    "WHERE mt_keyword.meme_id = m.id AND lower(t_keyword.name) LIKE lower(?))");
+	res.params.push_back("%" + query.keyword + "%");
+
+	clauses.push_back(
+	    "EXISTS (SELECT 1 FROM categories c_keyword "
+	    "WHERE c_keyword.id = m.category_id AND lower(c_keyword.name) LIKE lower(?))");
+	res.params.push_back("%" + query.keyword + "%");
+
+	std::string keywordClause = "(";
+	for (size_t i = 0; i < clauses.size(); ++i) {
+		if (i > 0) keywordClause += " OR ";
+		keywordClause += clauses[i];
+	}
+	keywordClause += ")";
+	res.whereClauses.push_back(keywordClause);
+}
 } // namespace
 
 namespace quickmemes {
@@ -104,20 +189,28 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 		db_->exec("PRAGMA cache_size = -2000;");
 		db_->exec("PRAGMA mmap_size = 268435456;");
 
-		// 注册 sqlite-vec 支持
+		// 注册 sqlite-vec / simple tokenizer 支持
 		char    *errMsg = nullptr;
-		// 如果我们开启了 sqlite_vec_init 的声明或引用
-		// sqlite3_auto_extension() 在 SQLiteCpp 中不直接暴露，可通过底层句柄
 		sqlite3 *rawDb  = db_->getHandle();
 
-		// 调用外部 sqlite3_vec_init，这是 sqlite-vec 扩展的头文件约定
 		int rc = sqlite3_vec_init(rawDb, &errMsg, nullptr);
-
 		if (rc != SQLITE_OK) {
 			LOG_ERROR("persist", std::string("Failed to initialize sqlite-vec: ") + (errMsg ? errMsg : "Unknown"));
 			if (errMsg) sqlite3_free(errMsg);
 			return false;
 		}
+		if (errMsg) {
+			sqlite3_free(errMsg);
+			errMsg = nullptr;
+		}
+
+		rc = sqlite3_simple_init(rawDb, &errMsg, nullptr);
+		if (rc != SQLITE_OK) {
+			LOG_ERROR("persist", std::string("Failed to initialize simple tokenizer: ") + (errMsg ? errMsg : "Unknown"));
+			if (errMsg) sqlite3_free(errMsg);
+			return false;
+		}
+		if (errMsg) sqlite3_free(errMsg);
 
 		runMigrations();
 		ensureEmbeddingTableSchema();
@@ -1123,38 +1216,8 @@ void Database::runMigrations() {
 		db_->exec("CREATE INDEX IF NOT EXISTS idx_memes_created_at ON memes(created_at);");
 		db_->exec("CREATE INDEX IF NOT EXISTS idx_memes_deleted_at ON memes(deleted_at);");
 
-		// 2. FTS 全文搜索虚拟表
-		db_->exec(R"(
-            CREATE VIRTUAL TABLE IF NOT EXISTS memes_fts USING fts5(
-                name,
-                description,
-                ocr_text,
-                content='memes',
-                content_rowid='id'
-            );
-        )");
-
-		// 3. FTS 同步触发器
-		db_->exec(R"(
-            CREATE TRIGGER IF NOT EXISTS memes_ai AFTER INSERT ON memes BEGIN
-                INSERT INTO memes_fts(rowid, name, description, ocr_text) 
-                VALUES (new.id, new.name, new.description, new.ocr_text);
-            END;
-        )");
-		db_->exec(R"(
-            CREATE TRIGGER IF NOT EXISTS memes_au AFTER UPDATE ON memes BEGIN
-                INSERT INTO memes_fts(memes_fts, rowid, name, description, ocr_text) 
-                VALUES ('delete', old.id, old.name, old.description, old.ocr_text);
-                INSERT INTO memes_fts(rowid, name, description, ocr_text) 
-                VALUES (new.id, new.name, new.description, new.ocr_text);
-            END;
-        )");
-		db_->exec(R"(
-            CREATE TRIGGER IF NOT EXISTS memes_ad AFTER DELETE ON memes BEGIN
-                INSERT INTO memes_fts(memes_fts, rowid, name, description, ocr_text) 
-                VALUES ('delete', old.id, old.name, old.description, old.ocr_text);
-            END;
-        )");
+		// 2. FTS 全文搜索虚拟表与同步触发器
+		createMemesFtsObjects(*db_);
 
 		// 4. Vector 向量搜索虚拟表
 		db_->exec("CREATE VIRTUAL TABLE IF NOT EXISTS vec_meme_desc USING vec0(meme_id INTEGER PRIMARY KEY, embedding float[" +
@@ -1272,6 +1335,21 @@ void Database::runMigrations() {
 		transaction.commit();
 		LOG_INFO("persist", "Database migrated to schema v4 successfully.");
 	}
+
+	if (currentVersion < 5) {
+		SQLite::Transaction transaction(*db_);
+		LOG_INFO("persist", "Migrating database to schema v5 (Simple tokenizer FTS)...");
+
+		replaceMemesFtsObjects(*db_);
+
+		auto nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		db_->exec("INSERT INTO schema_version (version, applied_at) VALUES (5, " + std::to_string(nowMs) + ");");
+
+		transaction.commit();
+		LOG_INFO("persist", "Database migrated to schema v5 successfully.");
+	}
 }
 
 int Database::getVecTableDimension(const std::string &tableName) const {
@@ -1307,22 +1385,7 @@ SearchSql Database::buildSearchSql(const SearchQuery &query) {
 	res.whereClauses.push_back("m.deleted_at = 0");
 
 	if (!query.keyword.empty()) {
-		res.whereClauses.push_back(
-		    "(m.id IN (SELECT rowid FROM memes_fts WHERE memes_fts MATCH ?) OR lower(m.name) LIKE lower(?) OR "
-		    "lower(m.description) LIKE lower(?) OR lower(m.ocr_text) LIKE lower(?) OR EXISTS ("
-		    "SELECT 1 FROM meme_tags mt_keyword "
-		    "JOIN tags t_keyword ON t_keyword.id = mt_keyword.tag_id "
-		    "WHERE mt_keyword.meme_id = m.id AND lower(t_keyword.name) LIKE lower(?)"
-		    ") OR EXISTS ("
-		    "SELECT 1 FROM categories c_keyword "
-		    "WHERE c_keyword.id = m.category_id AND lower(c_keyword.name) LIKE lower(?)"
-		    "))");
-		res.params.push_back(query.keyword);
-		res.params.push_back("%" + query.keyword + "%");
-		res.params.push_back("%" + query.keyword + "%");
-		res.params.push_back("%" + query.keyword + "%");
-		res.params.push_back("%" + query.keyword + "%");
-		res.params.push_back("%" + query.keyword + "%");
+		appendKeywordWhereClause(query, res);
 	}
 
 	if (!query.source.empty()) {
