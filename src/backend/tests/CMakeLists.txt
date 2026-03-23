@@ -37,11 +37,13 @@ set(TEST_SOURCES
     integration/test_ws_events.cpp
     core/test_handlers_extra.cpp
     core/test_concurrency_race.cpp
+    core/test_import_perf.cpp
     db/test_last_used.cpp
     core/test_rebuild_embeddings.cpp
     core/test_config_api.cpp
     core/test_trash_purge.cpp
     core/test_task_queue_stress.cpp
+    db/test_search_perf.cpp
     core/test_core_fixes.cpp
     test_globals.cpp
 )
