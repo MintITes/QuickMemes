@@ -68,9 +68,27 @@ function App() {
     }, [addNotification, clearNotifications]);
 
     useEffect(() => {
+        const isFileDrag = (e: DragEvent) => {
+            const types = e.dataTransfer?.types;
+            return types ? Array.from(types).includes('Files') : false;
+        };
+
+        const openImportModalForFileDrag = (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (isFileDrag(e)) {
+                toggleImportModal(true);
+            }
+        };
+
         const handleGlobalDragOver = (e: DragEvent) => {
             e.preventDefault();
             e.stopPropagation();
+        };
+
+        const handleGlobalDragEnter = (e: DragEvent) => {
+            openImportModalForFileDrag(e);
         };
 
         const handleGlobalDrop = (e: DragEvent) => {
@@ -82,10 +100,12 @@ function App() {
             }
         };
 
+        window.addEventListener('dragenter', handleGlobalDragEnter);
         window.addEventListener('dragover', handleGlobalDragOver);
         window.addEventListener('drop', handleGlobalDrop);
 
         return () => {
+            window.removeEventListener('dragenter', handleGlobalDragEnter);
             window.removeEventListener('dragover', handleGlobalDragOver);
             window.removeEventListener('drop', handleGlobalDrop);
         };
