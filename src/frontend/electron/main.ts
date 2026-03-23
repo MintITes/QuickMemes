@@ -104,6 +104,14 @@ const HEALTH_ENDPOINT = '/api/health';
 const HEALTH_TIMEOUT_MS = 12_000;
 const HEALTH_INTERVAL_MS = 250;
 const CLIPBOARD_CACHE_DIR = 'quickmemes-clipboard';
+const isWaylandSession =
+    process.platform === 'linux'
+    && (process.env.XDG_SESSION_TYPE === 'wayland' || Boolean(process.env.WAYLAND_DISPLAY));
+
+if (isWaylandSession) {
+    // Chromium's Wayland color-management path can spam harmless errors on some desktops.
+    app.commandLine.appendSwitch('disable-features', 'WaylandWpColorManagerV1');
+}
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -629,6 +637,7 @@ function createWindow() {
         height: 800,
         minWidth: 800,
         minHeight: 600,
+        show: false,
         transparent: true,
         backgroundColor: '#00000000',
         frame: false,
@@ -653,6 +662,10 @@ function createWindow() {
     } else {
         mainWindow.loadFile(path.join(__dirname, '../react/index.html'));
     }
+
+    mainWindow.once('ready-to-show', () => {
+        mainWindow?.show();
+    });
 
     mainWindow.on('closed', () => {
         mainWindow = null;
