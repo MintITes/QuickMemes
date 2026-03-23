@@ -16,6 +16,7 @@ import {
     isDuplicateImportTaskError,
     mergeImportTaskUpdate,
 } from './utils/taskEvents';
+import { shouldRefreshVisibleMemes } from './utils/visibleMemes';
 import { FpsOverlay } from './components/common/FpsOverlay';
 import './index.css';
 
@@ -56,10 +57,17 @@ function App() {
     const [backendReady, setBackendReady] = useState(false);
     const [fpsEnabled, setFpsEnabled] = useState(false);
     const fpsEnabledRef = useRef(false);
+    const visibleMemesRefreshTimerRef = useRef<number | null>(null);
 
     useEffect(() => {
         fpsEnabledRef.current = fpsEnabled;
     }, [fpsEnabled]);
+
+    useEffect(() => () => {
+        if (visibleMemesRefreshTimerRef.current) {
+            window.clearTimeout(visibleMemesRefreshTimerRef.current);
+        }
+    }, []);
 
     useEffect(() => {
         (window as Window & { debug?: NonNullable<Window['debug']> }).debug = {
@@ -162,6 +170,34 @@ function App() {
 
     useEffect(() => {
         let disposed = false;
+        const scheduleVisibleMemesRefresh = () => {
+            const { activeNav: currentActiveNav, searchQuery: currentSearchQuery } = useUiStore.getState();
+            if (!shouldRefreshVisibleMemes(currentActiveNav, currentSearchQuery)) {
+                return;
+            }
+
+            if (visibleMemesRefreshTimerRef.current) {
+                window.clearTimeout(visibleMemesRefreshTimerRef.current);
+            }
+
+            visibleMemesRefreshTimerRef.current = window.setTimeout(() => {
+                visibleMemesRefreshTimerRef.current = null;
+                const { activeNav: latestActiveNav, searchQuery: latestSearchQuery } = useUiStore.getState();
+                if (!shouldRefreshVisibleMemes(latestActiveNav, latestSearchQuery)) {
+                    return;
+                }
+
+                void searchMemes(buildBackendSearchQuery(latestSearchQuery, latestActiveNav))
+                    .then((result) => {
+                        startTransition(() => {
+                            setMemes(result.items.map((item) => item.meme), result.total);
+                        });
+                    })
+                    .catch(() => {
+                        // The local optimistic update remains visible if the refresh fails.
+                    });
+            }, 120);
+        };
 
         const initialize = async () => {
             const status = await window.electronAPI.getBackendStatus();
@@ -251,8 +287,14 @@ function App() {
                 description: nextTask.errors.join('\n') || '任务执行失败',
             });
         });
-        const unsubscribeMemeAdded = onEvent('meme:added', (meme) => upsertMeme(meme));
-        const unsubscribeMemeUpdated = onEvent('meme:updated', (meme) => upsertMeme(meme));
+        const unsubscribeMemeAdded = onEvent('meme:added', (meme) => {
+            upsertMeme(meme);
+            scheduleVisibleMemesRefresh();
+        });
+        const unsubscribeMemeUpdated = onEvent('meme:updated', (meme) => {
+            upsertMeme(meme);
+            scheduleVisibleMemesRefresh();
+        });
         const unsubscribeMemeDeleted = onEvent('meme:deleted', ({ id }) => removeMemes([id]));
         const unsubscribeMemeUsed = onEvent('meme:used', ({ id, lastUsedAt }) => {
             upsertMeme({

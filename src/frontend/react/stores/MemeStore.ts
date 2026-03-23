@@ -43,10 +43,27 @@ export const useMemeStore = create<MemeState>((set) => ({
         memes: state.memes.map((meme) => (meme.id === id ? { ...meme, ...updates } : meme))
     })),
 
-    removeMemes: (ids) => set((state) => ({
-        memes: state.memes.filter((meme) => !ids.includes(meme.id)),
-        totalCount: Math.max(0, state.totalCount - ids.length),
-    })),
+    removeMemes: (ids) => set((state) => {
+        const idSet = new Set(ids);
+        let removedCount = 0;
+        const memes = state.memes.filter((meme) => {
+            if (!idSet.has(meme.id)) {
+                return true;
+            }
+            removedCount += 1;
+            idSet.delete(meme.id);
+            return false;
+        });
+
+        if (removedCount === 0) {
+            return {};
+        }
+
+        return {
+            memes,
+            totalCount: Math.max(0, state.totalCount - removedCount),
+        };
+    }),
 
     setLoading: (isLoading) => set({ isLoading }),
     setTotalCount: (count) => set({ totalCount: count }),

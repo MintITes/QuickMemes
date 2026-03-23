@@ -44,5 +44,15 @@ describe('MemeStore', () => {
 
         useMemeStore.getState().removeMemes([1]);
         expect(useMemeStore.getState().memes).toHaveLength(1);
+        expect(useMemeStore.getState().totalCount).toBe(1);
+    });
+
+    it('does not change totalCount when removing missing memes', () => {
+        useMemeStore.getState().setMemes([meme1], 1);
+
+        useMemeStore.getState().removeMemes([999, 999]);
+
+        expect(useMemeStore.getState().memes).toHaveLength(1);
+        expect(useMemeStore.getState().totalCount).toBe(1);
     });
 });
