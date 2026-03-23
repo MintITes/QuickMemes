@@ -20,7 +20,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 type ThemeMode = 'light' | 'dark' | 'system';
-type ViewMode = 'grid' | 'list';
+type ViewMode = 'grid' | 'masonry';
 type LanguageMode = 'zh-CN' | 'en-US' | 'system';
 
 interface AppConfig {
@@ -260,6 +260,10 @@ function normalizeConfig(input?: Partial<AppConfig>): AppConfig {
     const defaults = getDefaultConfig();
     const merged = deepMerge(defaults, input ?? {});
     delete (merged.vision as Record<string, unknown>).embeddingModel;
+
+    if (merged.ui.viewMode !== 'grid' && merged.ui.viewMode !== 'masonry') {
+        merged.ui.viewMode = 'grid';
+    }
 
     ensureDir(path.dirname(merged.dbPath));
     ensureDir(merged.storagePath);

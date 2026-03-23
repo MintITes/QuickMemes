@@ -8,14 +8,13 @@ import type { Meme } from '../../types';
 import { useShallow } from 'zustand/react/shallow';
 
 import { MemeCardMedia } from '../meme/MemeCardMedia';
-import { MemeCardMeta } from '../meme/MemeCardMeta';
 import { MoreButton } from '../meme/MoreButton';
 import { CopyButton } from '../meme/CopyButton';
 
 interface MemeCardProps {
     meme: Meme;
     isSelected: boolean;
-    viewMode: 'grid' | 'masonry' | 'list';
+    viewMode: 'grid' | 'masonry';
     imageFit: 'contain' | 'cover';
     showTags: boolean;
     disableLayoutAnimation?: boolean;
@@ -156,12 +155,6 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags, disableL
                     />
                 </div>
             </div>
-
-            <MemeCardMeta
-                meme={meme}
-                isSelected={isSelected}
-                showTags={showTags}
-            />
 
             {/* Subtle glow effect for selected item */}
             {isSelected && (

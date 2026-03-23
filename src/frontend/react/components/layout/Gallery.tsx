@@ -40,6 +40,7 @@ export function Gallery() {
         selectedMemeIds,
         toggleImportModal,
         galleryItemSize,
+        galleryGap,
         goBack,
         goForward,
         navHistory,
@@ -58,6 +59,7 @@ export function Gallery() {
             selectedMemeIds: state.selectedMemeIds,
             toggleImportModal: state.toggleImportModal,
             galleryItemSize: state.galleryItemSize,
+            galleryGap: state.galleryGap,
             goBack: state.goBack,
             goForward: state.goForward,
             navHistory: state.navHistory,
@@ -110,8 +112,8 @@ export function Gallery() {
                     const currentSize = state.galleryItemSize || 200;
                     const newSize = currentSize - delta * step;
                     return {
-                        galleryItemSize: Math.max(GALLERY_ITEM_SIZE_MIN, Math.min(GALLERY_ITEM_SIZE_MAX, newSize)),
-                    };
+                    galleryItemSize: Math.max(GALLERY_ITEM_SIZE_MIN, Math.min(GALLERY_ITEM_SIZE_MAX, newSize)),
+                };
                 });
             }
         };
@@ -283,7 +285,7 @@ export function Gallery() {
                 {memes.length === 0 ? renderEmptyState() : (
                     viewMode === 'masonry' ? (() => {
                         const itemSize = galleryItemSize || 200;
-                        const gap = 16;
+                        const gap = galleryGap || 16;
                         const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemSize + gap)));
                         const masonryWidth = containerWidth > 0 ? columns * itemSize + (columns - 1) * gap : '100%';
 
@@ -308,7 +310,7 @@ export function Gallery() {
                         <VirtuosoGrid
                             totalCount={memes.length}
                             listClassName={clsx(
-                                'grid gap-4 w-full pb-8 justify-start content-start',
+                                'grid gap-[var(--gallery-gap)] w-full pb-8 justify-start content-start',
                                 'grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
                             )}
                             itemContent={(index) => {

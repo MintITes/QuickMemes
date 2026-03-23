@@ -11,7 +11,7 @@ interface MemeCardMediaProps {
     src: string | null;
     isLoading: boolean;
     isSelected: boolean;
-    viewMode: 'grid' | 'masonry' | 'list';
+    viewMode: 'grid' | 'masonry';
     imageFit: 'contain' | 'cover';
     showTags: boolean;
     onImageLoad: () => void;

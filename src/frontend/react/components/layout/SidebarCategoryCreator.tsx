@@ -5,26 +5,7 @@ import { useUiStore } from '../../stores/UiStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { createCategory } from '../../services/categoryService';
 import { useTranslation } from 'react-i18next';
-
-export const categoryComposerStyle: React.CSSProperties = {
-    backgroundColor: 'var(--bg-surface)',
-    borderColor: 'color-mix(in srgb, var(--accent-color), transparent 80%)',
-    boxShadow: '0 8px 32px -12px color-mix(in srgb, var(--accent-color), transparent 70%), 0 4px 12px -4px rgba(0,0,0,0.1)',
-    borderWidth: '1px',
-};
-
-export const getCategoryInputStyle = (isFocused: boolean): React.CSSProperties => ({
-    backgroundColor: isFocused
-        ? 'color-mix(in srgb, var(--accent-color) 4%, var(--bg-surface))'
-        : 'color-mix(in srgb, var(--accent-color) 2%, var(--bg-surface))',
-    borderColor: isFocused
-        ? 'color-mix(in srgb, var(--accent-color), transparent 60%)'
-        : 'color-mix(in srgb, var(--accent-color), transparent 85%)',
-    boxShadow: isFocused
-        ? '0 0 0 4px color-mix(in srgb, var(--accent-color), transparent 92%)'
-        : 'none',
-    caretColor: 'var(--accent-color)',
-});
+import { categoryComposerStyle, getCategoryInputStyle } from './sidebarShared';
 
 interface SidebarCategoryCreatorProps {
     sidebarExpanded: boolean;

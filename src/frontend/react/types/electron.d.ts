@@ -1,6 +1,6 @@
 declare global {
     type ThemeMode = 'light' | 'dark' | 'system';
-    type ViewMode = 'grid' | 'list';
+    type ViewMode = 'grid' | 'masonry';
     type LanguageMode = 'zh-CN' | 'en-US' | 'system';
 
     interface AppConfig {

@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
 interface SkeletonCardProps {
-    viewMode: 'grid' | 'masonry' | 'list';
+    viewMode: 'grid' | 'masonry';
     index?: number;
 }
 

@@ -45,7 +45,7 @@ export interface UiState {
     activeTaskId: string | null;
     selectedMemeIds: number[]; // Support multi-select, replaced selectedMemeId
     searchQuery: SearchQuery;
-    viewMode: 'grid' | 'masonry' | 'list';
+    viewMode: 'grid' | 'masonry';
     theme: 'light' | 'dark' | 'system';
     resolvedTheme: 'light' | 'dark';
     isSettingsOpen: boolean;
@@ -80,7 +80,7 @@ export interface UiState {
     goBack: () => void;
     goForward: () => void;
     setSearchQuery: (query: Partial<SearchQuery>) => void;
-    setViewMode: (mode: 'grid' | 'masonry' | 'list') => void;
+    setViewMode: (mode: 'grid' | 'masonry') => void;
     setTheme: (theme: 'light' | 'dark' | 'system') => void;
     setResolvedTheme: (theme: 'light' | 'dark') => void;
     toggleSettings: (isOpen?: boolean) => void;
@@ -344,10 +344,14 @@ export const useUiStore = create<UiState>()(
                 searchHistory: state.searchHistory,
                 browsingHistory: state.browsingHistory,
             }),
-            version: 1,
+            version: 2,
             migrate: (persistedState: unknown, version: number) => {
+                const state = persistedState as {
+                    searchHistory?: unknown[];
+                    viewMode?: unknown;
+                };
+
                 if (version === 0) {
-                    const state = persistedState as { searchHistory?: unknown[] };
                     // Migrate searchHistory from string[] to SearchHistoryItem[]
                     if (state && Array.isArray(state.searchHistory)) {
                         state.searchHistory = state.searchHistory.map((item: unknown) => {
@@ -362,7 +366,12 @@ export const useUiStore = create<UiState>()(
                         });
                     }
                 }
-                return persistedState;
+
+                if (state && state.viewMode !== 'grid' && state.viewMode !== 'masonry') {
+                    state.viewMode = 'grid';
+                }
+
+                return state;
             },
         }
     )

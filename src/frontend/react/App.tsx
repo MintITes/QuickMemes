@@ -18,6 +18,7 @@ import {
 } from './utils/taskEvents';
 import { shouldRefreshVisibleMemes } from './utils/visibleMemes';
 import { FpsOverlay } from './components/common/FpsOverlay';
+import { useShallow } from 'zustand/react/shallow';
 import './index.css';
 
 function ThemeTokenSync() {
@@ -47,7 +48,14 @@ function App() {
         activeNav,
         searchQuery,
         language,
-    } = useUiStore();
+    } = useUiStore(useShallow((state) => ({
+        theme: state.theme,
+        setResolvedTheme: state.setResolvedTheme,
+        toggleImportModal: state.toggleImportModal,
+        activeNav: state.activeNav,
+        searchQuery: state.searchQuery,
+        language: state.language,
+    })));
 
     const { addNotification, clearAll: clearNotifications } = useNotificationStore();
     const { setTask, clearTask } = useTaskStore();

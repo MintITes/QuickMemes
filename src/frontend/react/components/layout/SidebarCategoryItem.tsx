@@ -10,13 +10,10 @@ import { useCategoryStore } from '../../stores/CategoryStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { useUiStore } from '../../stores/UiStore';
 import { useTranslation } from 'react-i18next';
-import { categoryComposerStyle, getCategoryInputStyle } from './SidebarCategoryCreator';
-
-export const PRESET_COLORS = [
-    '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
-    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e',
-    '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6', '#2563eb'
-];
+import { categoryComposerStyle, getCategoryInputStyle, PRESET_COLORS } from './sidebarShared';
+import type { DraggableAttributes } from '@dnd-kit/core';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
+import type { CSSProperties } from 'react';
 
 type CategoryMenuPanel = 'actions' | 'confirmDelete' | 'customColor';
 
@@ -43,7 +40,13 @@ const layoutTransition = {
 interface SidebarCategoryItemProps {
     cat: Category;
     index: number;
-    sortableProps: any;
+    sortableProps: {
+        attributes: DraggableAttributes;
+        listeners: SyntheticListenerMap | undefined;
+        setNodeRef: (node: HTMLElement | null) => void;
+        style: CSSProperties;
+        isDragging: boolean;
+    };
     sidebarExpanded: boolean;
     refreshCategoriesInBackground: () => void;
 }

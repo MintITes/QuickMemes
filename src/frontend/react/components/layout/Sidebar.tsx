@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
-import { LayoutList, Tag, Trash2, Clock, Star, ArchiveRestore, PanelLeft, PanelLeftClose, Plus } from 'lucide-react';
+import { LayoutList, Tag, Trash2, Clock, Star, ArchiveRestore, PanelLeft, PanelLeftClose, Plus, type LucideIcon } from 'lucide-react';
 import { IconButton } from '../common/IconButton';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { CSS } from '@dnd-kit/utilities';
 import type { DraggableAttributes } from '@dnd-kit/core';
 import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
+import type { CSSProperties, ReactNode } from 'react';
 
 import { SidebarCategoryCreator } from './SidebarCategoryCreator';
 import { SidebarCategoryItem } from './SidebarCategoryItem';
@@ -33,9 +34,9 @@ function SortableItem({
         attributes: DraggableAttributes;
         listeners: SyntheticListenerMap | undefined;
         setNodeRef: (node: HTMLElement | null) => void;
-        style: React.CSSProperties;
+        style: CSSProperties;
         isDragging: boolean;
-    }) => React.ReactNode;
+    }) => ReactNode;
 }) {
     const {
         attributes,
@@ -55,7 +56,14 @@ function SortableItem({
     return <>{children({ attributes, listeners, setNodeRef, style, isDragging })}</>;
 }
 
-const SidebarNavItem = memo(({ item, sidebarExpanded }: { item: any, sidebarExpanded: boolean }) => {
+type SidebarNavItemData = {
+    id: string;
+    label: string;
+    title?: string;
+    icon: LucideIcon;
+};
+
+const SidebarNavItem = memo(({ item, sidebarExpanded }: { item: SidebarNavItemData, sidebarExpanded: boolean }) => {
     const activeNav = useUiStore(state => state.activeNav);
     const setActiveNav = useUiStore(state => state.setActiveNav);
     const isActive = activeNav === String(item.id);
@@ -185,18 +193,18 @@ export function Sidebar() {
         setIsAddingCategory(true);
     };
 
-    const MAIN_NAV_ITEMS = [
+    const MAIN_NAV_ITEMS: SidebarNavItemData[] = [
         { id: 'all', label: t('sidebar.all_memes_nav'), title: !sidebarExpanded ? t('sidebar.all_memes_nav') : undefined, icon: LayoutList },
         { id: 'untagged', label: t('sidebar.untagged'), title: !sidebarExpanded ? t('sidebar.untagged') : undefined, icon: Tag },
         { id: 'trash', label: t('sidebar.trash'), title: !sidebarExpanded ? t('common.trash') : undefined, icon: Trash2 },
     ];
 
-    const SHORTCUT_NAV_ITEMS = [
+    const SHORTCUT_NAV_ITEMS: SidebarNavItemData[] = [
         { id: 'recent', label: t('sidebar.recent'), title: !sidebarExpanded ? t('common.recent') : undefined, icon: Clock },
         { id: 'starred', label: t('sidebar.starred'), title: !sidebarExpanded ? t('common.starred') : undefined, icon: Star },
     ];
 
-    const renderNavSection = (items: typeof MAIN_NAV_ITEMS) => (
+    const renderNavSection = (items: readonly SidebarNavItemData[]) => (
         <>
             {items.map(item => (
                 <SidebarNavItem key={item.id} item={item} sidebarExpanded={sidebarExpanded} />
