@@ -279,7 +279,10 @@ int64_t Database::insertMeme(const MemeEntry &meme) {
 		return lastInsertId;
 
 	} catch (const SQLite::Exception &e) {
-		if (e.getErrorCode() == SQLITE_CONSTRAINT_UNIQUE) {
+		const int errorCode = e.getErrorCode();
+		const int extendedCode = e.getExtendedErrorCode();
+		if (errorCode == SQLITE_CONSTRAINT &&
+		    (extendedCode == SQLITE_CONSTRAINT_UNIQUE || extendedCode == SQLITE_CONSTRAINT_PRIMARYKEY)) {
 			throw ApiException(ERR_DUPLICATE, "Meme with hash " + meme.fileHash + " already exists.");
 		}
 		LOG_ERROR("persist", std::string("insertMeme failed: ") + e.what());
@@ -784,7 +787,10 @@ int64_t Database::insertTag(const Tag &tag) {
 		stmt.exec();
 		return db_->getLastInsertRowid();
 	} catch (const SQLite::Exception &e) {
-		if (e.getErrorCode() == SQLITE_CONSTRAINT_UNIQUE) {
+		const int errorCode = e.getErrorCode();
+		const int extendedCode = e.getExtendedErrorCode();
+		if (errorCode == SQLITE_CONSTRAINT &&
+		    (extendedCode == SQLITE_CONSTRAINT_UNIQUE || extendedCode == SQLITE_CONSTRAINT_PRIMARYKEY)) {
 			throw ApiException(ERR_DUPLICATE, "Tag name '" + tag.name + "' already exists");
 		}
 		LOG_ERROR("persist", std::string("insertTag failed: ") + e.what());

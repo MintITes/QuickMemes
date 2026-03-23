@@ -35,7 +35,8 @@ private:
 	void markItemDone(std::shared_ptr<TaskState> state,
 	                  const std::string         &taskId,
 	                  bool                       success  = true,
-	                  const std::string         &errorMsg = "");
+	                  const std::string         &errorMsg = "",
+	                  int                        errorCode = 0);
 
 	std::unique_ptr<TaskQueueImpl> impl_;
 };

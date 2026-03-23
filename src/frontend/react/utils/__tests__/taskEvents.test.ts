@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isForegroundImportTaskId, mergeImportTaskUpdate } from '../taskEvents';
+import {
+    isDuplicateImportErrorMessage,
+    isDuplicateImportTaskError,
+    isForegroundImportTaskId,
+    mergeImportTaskUpdate,
+} from '../taskEvents';
 
 describe('taskEvents', () => {
     it('ignores thumbnail background tasks', () => {
@@ -49,5 +54,21 @@ describe('taskEvents', () => {
             inputs: ['a.png', 'b.png'],
             source: 'LOCAL_FILE',
         });
+    });
+
+    it('detects duplicate meme import errors', () => {
+        expect(isDuplicateImportTaskError({
+            taskId: 'import-job-3',
+            error: 'Meme already exists: deadbeef',
+            code: 1003,
+        })).toBe(true);
+
+        expect(isDuplicateImportTaskError({
+            taskId: 'import-job-3',
+            error: 'Meme already exists: deadbeef',
+        })).toBe(true);
+
+        expect(isDuplicateImportErrorMessage('Meme already exists: deadbeef')).toBe(true);
+        expect(isDuplicateImportErrorMessage('Failed to download image from URL')).toBe(false);
     });
 });

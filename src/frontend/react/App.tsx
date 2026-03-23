@@ -11,7 +11,11 @@ import { fetchCategories } from './services/categoryService';
 import { fetchTags } from './services/tagService';
 import { buildBackendSearchQuery, fetchTrashMemes, searchMemes } from './services/memeService';
 import { connectWebSocket, disconnectWebSocket, onEvent } from './api/wsClient';
-import { mergeImportTaskUpdate } from './utils/taskEvents';
+import {
+    isDuplicateImportErrorMessage,
+    isDuplicateImportTaskError,
+    mergeImportTaskUpdate,
+} from './utils/taskEvents';
 import './index.css';
 
 function ThemeTokenSync() {
@@ -198,6 +202,20 @@ function App() {
             }
 
             setTask(nextTask);
+            const duplicateOnlyFailures = nextTask.failed > 0
+                && nextTask.succeeded === 0
+                && nextTask.errors.length > 0
+                && nextTask.errors.every((message) => isDuplicateImportErrorMessage(message));
+
+            if (duplicateOnlyFailures) {
+                addNotification({
+                    type: 'info',
+                    title: 'Meme已存在',
+                    description: `已跳过 ${nextTask.failed} 张重复图片`,
+                });
+                return;
+            }
+
             addNotification({
                 type: 'success',
                 title: '导入完成',
@@ -211,6 +229,9 @@ function App() {
             }
 
             setTask(nextTask);
+            if (isDuplicateImportTaskError(task)) {
+                return;
+            }
             addNotification({
                 type: 'error',
                 title: '导入失败',

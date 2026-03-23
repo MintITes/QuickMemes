@@ -4,6 +4,7 @@
  */
 
 #include "../mocks.hpp"
+#include "error_codes.hpp"
 #include "utils/logger.hpp"
 
 namespace quickmemes { namespace testing {
@@ -34,7 +35,12 @@ TEST_F(MemeDbTest, InsertMeme_DuplicateHash_ThrowsDuplicate) {
 	db->insertMeme(meme);
 
 	MemeEntry dup = meme;
-	EXPECT_THROW(db->insertMeme(dup), ApiException);
+	try {
+		(void)db->insertMeme(dup);
+		FAIL() << "Expected duplicate hash to throw ApiException";
+	} catch (const ApiException &e) {
+		EXPECT_EQ(e.code(), ERR_DUPLICATE);
+	}
 }
 
 TEST_F(MemeDbTest, GetMeme_ValidId_ReturnsEntryWithTags) {

@@ -604,7 +604,8 @@ ImportTask TaskQueue::getTask(const std::string &taskId) {
 void TaskQueue::markItemDone(std::shared_ptr<TaskState> state,
                              const std::string         &taskId,
                              bool                       success,
-                             const std::string         &errorMsg) {
+                             const std::string         &errorMsg,
+                             int                        errorCode) {
 	if (success) {
 		state->succeededItems++;
 	} else {
@@ -618,6 +619,9 @@ void TaskQueue::markItemDone(std::shared_ptr<TaskState> state,
 			    {"taskId",   taskId},
 			    { "error", errorMsg}
             };
+			if (errorCode != 0) {
+				errEvent.payload["code"] = errorCode;
+			}
 			WsPusher::get().broadcast(errEvent);
 		}
 	}
@@ -736,15 +740,15 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	meme.filePath            = relDir + pureHashName;
 
 	Database &db = Database::get();
-	try {
-		meme.id = db.insertMeme(meme);
-	} catch (const ApiException &e) {
-		if (e.code() == ERR_DUPLICATE) {
-			LOG_INFO("queue", "Meme already exists: " + hash);
-			if (isTempDownloaded) std::filesystem::remove(actualPath);
-			markItemDone(state, pipeline.taskId, false, "Meme already exists: " + hash);
-			return;
-		}
+		try {
+			meme.id = db.insertMeme(meme);
+		} catch (const ApiException &e) {
+			if (e.code() == ERR_DUPLICATE) {
+				LOG_INFO("queue", "Meme already exists: " + hash);
+				if (isTempDownloaded) std::filesystem::remove(actualPath);
+				markItemDone(state, pipeline.taskId, false, "Meme already exists: " + hash, ERR_DUPLICATE);
+				return;
+			}
 		LOG_ERROR("queue", "Failed to initially save DB record: " + std::string(e.what()));
 		if (isTempDownloaded) std::filesystem::remove(actualPath);
 		markItemDone(state, pipeline.taskId, false, "Failed to base DB record: " + std::string(e.what()));

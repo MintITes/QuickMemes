@@ -11,10 +11,13 @@ export interface RawTaskEvent {
     failed?: number;
     errors?: string[];
     error?: string;
+    code?: number;
     source?: ImportSource;
     inputs?: string[];
     createdAt?: number;
 }
+
+export const ERR_DUPLICATE = 1003;
 
 export function isForegroundImportTaskId(taskId: string | undefined): taskId is string {
     return typeof taskId === 'string'
@@ -76,4 +79,18 @@ export function mergeImportTaskUpdate(update: RawTaskEvent, previous: ImportTask
         errors,
         createdAt: normalizeCount(update.createdAt, previous?.createdAt ?? Date.now()),
     };
+}
+
+export function isDuplicateImportTaskError(update: RawTaskEvent): boolean {
+    if (update.code === ERR_DUPLICATE) {
+        return true;
+    }
+
+    const message = update.error?.toLowerCase().trim() ?? '';
+    return message.includes('meme already exists') || (message.includes('already exists') && message.includes('hash'));
+}
+
+export function isDuplicateImportErrorMessage(message: string | undefined): boolean {
+    const normalized = message?.toLowerCase().trim() ?? '';
+    return normalized.includes('meme already exists') || (normalized.includes('already exists') && normalized.includes('hash'));
 }
