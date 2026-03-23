@@ -20,17 +20,17 @@ import { EmptyState } from '../common/EmptyState';
 import { GALLERY_ITEM_SIZE_MAX, GALLERY_ITEM_SIZE_MIN, useUiStore } from '../../stores/UiStore';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import { useShallow } from 'zustand/react/shallow';
 import { MemeCard } from './MemeCard';
 
 
 export function Gallery() {
     const { t } = useTranslation();
     const memes = useMemeStore((state) => state.memes);
-    const activeNav = useUiStore((state) => state.activeNav);
-    const searchQuery = useUiStore((state) => state.searchQuery);
-    const setSearchQuery = useUiStore((state) => state.setSearchQuery);
-
     const {
+        activeNav,
+        searchQuery,
+        setSearchQuery,
         viewMode,
         setViewMode,
         imageFit,
@@ -44,7 +44,26 @@ export function Gallery() {
         goForward,
         navHistory,
         navHistoryIndex,
-    } = useUiStore();
+    } = useUiStore(
+        useShallow((state) => ({
+            activeNav: state.activeNav,
+            searchQuery: state.searchQuery,
+            setSearchQuery: state.setSearchQuery,
+            viewMode: state.viewMode,
+            setViewMode: state.setViewMode,
+            imageFit: state.imageFit,
+            setImageFit: state.setImageFit,
+            showTags: state.showTags,
+            setShowTags: state.setShowTags,
+            selectedMemeIds: state.selectedMemeIds,
+            toggleImportModal: state.toggleImportModal,
+            galleryItemSize: state.galleryItemSize,
+            goBack: state.goBack,
+            goForward: state.goForward,
+            navHistory: state.navHistory,
+            navHistoryIndex: state.navHistoryIndex,
+        }))
+    );
 
     const mainRef = useRef<HTMLElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -54,7 +73,10 @@ export function Gallery() {
 
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el) return;
+        if (!el || viewMode !== 'masonry') {
+            return;
+        }
+
         const observer = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 setContainerWidth(entry.contentRect.width);
@@ -62,7 +84,7 @@ export function Gallery() {
         });
         observer.observe(el);
         return () => observer.disconnect();
-    }, []);
+    }, [viewMode]);
 
     useEffect(() => {
         const el = mainRef.current;

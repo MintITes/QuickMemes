@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Portal } from '../common/Portal';
+import { useShallow } from 'zustand/react/shallow';
 
 interface LayoutSwitcherProps {
     isOpen: boolean;
@@ -12,7 +13,14 @@ interface LayoutSwitcherProps {
 }
 
 export function LayoutSwitcher({ isOpen, onClose, anchorRef }: LayoutSwitcherProps) {
-    const { sidebarExpanded, setSidebarExpanded, isPanelOpen, togglePanel } = useUiStore();
+    const { sidebarExpanded, setSidebarExpanded, isPanelOpen, togglePanel } = useUiStore(
+        useShallow((state) => ({
+            sidebarExpanded: state.sidebarExpanded,
+            setSidebarExpanded: state.setSidebarExpanded,
+            isPanelOpen: state.isPanelOpen,
+            togglePanel: state.togglePanel,
+        }))
+    );
     const panelRef = useRef<HTMLDivElement>(null);
     const [coords, setCoords] = useState({ top: 0, right: 0 });
 

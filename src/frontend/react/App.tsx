@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { MainShell } from './components/layout/MainShell';
 import { useUiStore } from './stores/UiStore';
 import i18n from './i18n/config';
@@ -16,6 +16,7 @@ import {
     isDuplicateImportTaskError,
     mergeImportTaskUpdate,
 } from './utils/taskEvents';
+import { FpsOverlay } from './components/common/FpsOverlay';
 import './index.css';
 
 function ThemeTokenSync() {
@@ -53,9 +54,15 @@ function App() {
     const { setTags, addTag, removeTag } = useTagStore();
     const { setCategories, addCategory, updateCategory, removeCategory } = useCategoryStore();
     const [backendReady, setBackendReady] = useState(false);
+    const [fpsEnabled, setFpsEnabled] = useState(false);
+    const fpsEnabledRef = useRef(false);
 
     useEffect(() => {
-        (window as typeof window & { debug?: unknown }).debug = {
+        fpsEnabledRef.current = fpsEnabled;
+    }, [fpsEnabled]);
+
+    useEffect(() => {
+        (window as Window & { debug?: NonNullable<Window['debug']> }).debug = {
             notify: (type: NotificationType, title: string, description?: string) => {
                 addNotification({ type, title, description });
                 return `[${type}] ${title}`;
@@ -64,10 +71,16 @@ function App() {
                 clearNotifications();
                 return 'ok';
             },
+            fps: (enabled?: boolean) => {
+                const nextValue = typeof enabled === 'boolean' ? enabled : !fpsEnabledRef.current;
+                fpsEnabledRef.current = nextValue;
+                setFpsEnabled(nextValue);
+                return nextValue ? 'fps:on' : 'fps:off';
+            },
         };
 
         return () => {
-            delete (window as typeof window & { debug?: unknown }).debug;
+            delete (window as Window & { debug?: NonNullable<Window['debug']> }).debug;
         };
     }, [addNotification, clearNotifications]);
 
@@ -384,6 +397,7 @@ function App() {
         <>
             <ThemeTokenSync />
             <MainShell />
+            {fpsEnabled && <FpsOverlay />}
         </>
     );
 }

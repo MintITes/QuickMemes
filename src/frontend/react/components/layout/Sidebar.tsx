@@ -170,7 +170,7 @@ export function Sidebar() {
     };
 
     const getSectionLabelClass = (tone: 'default' | 'muted' = 'default') => clsx(
-        "block px-3 text-[10px] font-bold uppercase tracking-[0.15em] whitespace-nowrap overflow-hidden leading-4 transition-[height,margin,opacity] duration-180",
+        "block px-3 text-[10px] font-bold uppercase tracking-[0.15em] whitespace-nowrap overflow-hidden leading-4 transition-[height,margin,opacity] duration-300",
         tone === 'default' ? "text-textSecondary" : "text-textSecondary",
         sidebarExpanded
             ? clsx(tone === 'default' ? "opacity-60 h-4 mb-3" : "opacity-50 h-4 mb-3")
@@ -247,7 +247,7 @@ export function Sidebar() {
     }, [categoryMenu]);
 
     const layoutTransition = {
-        duration: 0.18,
+        duration: 0.3,
         ease: [0.23, 1, 0.32, 1] as const,
     };
 
@@ -272,14 +272,18 @@ export function Sidebar() {
     } as const;
 
     const renderNavLabel = (label: string) => (
-        <span
-            className={clsx(
-                "flex-1 truncate whitespace-nowrap overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]",
-                sidebarExpanded ? "opacity-100 max-w-[160px] ml-4" : "opacity-0 max-w-0 ml-0"
-            )}
+        <motion.span
+            initial={false}
+            animate={{
+                opacity: sidebarExpanded ? 1 : 0,
+                maxWidth: sidebarExpanded ? 160 : 0,
+                marginLeft: sidebarExpanded ? 16 : 0,
+            }}
+            transition={layoutTransition}
+            className="flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden"
         >
             {label}
-        </span>
+        </motion.span>
     );
 
     const renderActiveIndicator = (id: string) => {
@@ -681,22 +685,46 @@ export function Sidebar() {
 
     return (
         <motion.aside
+            initial={false}
             animate={{ width: sidebarExpanded ? 256 : 68 }}
             transition={layoutTransition}
-            className="flex-shrink-0 h-full surface-effect gpu-transform flex flex-col p-3 relative select-none no-drag"
+            className="flex-shrink-0 h-full surface-effect gpu-transform flex flex-col p-3 relative select-none no-drag overflow-hidden"
+            style={{ willChange: 'width' }}
         >
             {/* Sidebar Toggle Header */}
-            <div className={clsx("flex items-center mb-4 px-1", sidebarExpanded ? "justify-between" : "justify-center")}>
-                {sidebarExpanded && <span className="text-xs font-bold text-textPrimary/50 px-2 tracking-widest uppercase">{t('common.all_memes')}</span>}
-                <IconButton
-                    icon={sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarExpanded(!sidebarExpanded)}
-                    className="opacity-50 hover:opacity-100"
-                    title={sidebarExpanded ? "折叠侧边栏" : "展开侧边栏"}
-                />
-            </div>
+            <motion.div
+                layout
+                transition={layoutTransition}
+                className={clsx("flex items-center mb-4 px-1 h-8", sidebarExpanded ? "justify-between" : "justify-center")}
+            >
+                <AnimatePresence mode="popLayout">
+                    {sidebarExpanded && (
+                        <motion.div
+                            key="title"
+                            layout
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 0.5, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={layoutTransition}
+                            className="flex items-center min-w-0 overflow-hidden"
+                        >
+                            <span className="text-xs font-bold text-textPrimary px-2 tracking-widest uppercase truncate">
+                                {t('common.all_memes')}
+                            </span>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+                <motion.div layout transition={layoutTransition}>
+                    <IconButton
+                        icon={sidebarExpanded ? <PanelLeftClose size={18} /> : <PanelLeft size={18} />}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSidebarExpanded(!sidebarExpanded)}
+                        className="opacity-50 hover:opacity-100 shrink-0"
+                        title={sidebarExpanded ? "折叠侧边栏" : "展开侧边栏"}
+                    />
+                </motion.div>
+            </motion.div>
 
             <LayoutGroup id="sidebar-active-nav">
                 <div className="flex flex-col space-y-1">
@@ -893,7 +921,7 @@ export function Sidebar() {
                                                                         initial={{ opacity: 0, x: -10 }}
                                                                         animate={{ opacity: 1, x: 0 }}
                                                                         exit={{ opacity: 0, scale: 0.95 }}
-                                                                        transition={{ duration: 0.2, delay: index * 0.03 }}
+                                                                        transition={{ duration: 0.3, delay: index * 0.03 }}
                                                                         className={clsx("relative group/category px-1 gpu-transform-opacity", sortableProps.isDragging && "z-50")}
                                                                         data-category-menu-root="true"
                                                                     >

@@ -24,6 +24,7 @@ import { updateMeme as updateMemeRemote, triggerMemeOcr } from '../../services/m
 import { addTagToMeme, createTag, fetchTags, removeTagFromMeme } from '../../services/tagService';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { HttpError } from '../../api/httpClient';
+import { useShallow } from 'zustand/react/shallow';
 
 const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -498,21 +499,55 @@ function BatchActions({ selectedIds }: { selectedIds: number[] }) {
 
 export function Inspector() {
     const { t } = useTranslation();
-    const { selectedMemeIds, togglePanel, inspectorWidth, setInspectorWidth } = useUiStore();
+    const { selectedMemeIds, togglePanel, inspectorWidth, setInspectorWidth } = useUiStore(
+        useShallow((state) => ({
+            selectedMemeIds: state.selectedMemeIds,
+            togglePanel: state.togglePanel,
+            inspectorWidth: state.inspectorWidth,
+            setInspectorWidth: state.setInspectorWidth,
+        }))
+    );
     const memes = useMemeStore((state) => state.memes);
     const [isResizing, setIsResizing] = useState(false);
+    const resizeFrameRef = useRef<number | null>(null);
+    const pendingWidthRef = useRef<number | null>(null);
 
     const selectedMemes = useMemo(() => memes.filter((meme) => selectedMemeIds.includes(meme.id)), [memes, selectedMemeIds]);
     const currentMeme = selectedMemes.length === 1 ? selectedMemes[0] : null;
 
-    const stopResizing = useCallback(() => setIsResizing(false), []);
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+
+        if (resizeFrameRef.current !== null) {
+            window.cancelAnimationFrame(resizeFrameRef.current);
+            resizeFrameRef.current = null;
+        }
+
+        if (pendingWidthRef.current !== null) {
+            setInspectorWidth(pendingWidthRef.current);
+            pendingWidthRef.current = null;
+        }
+    }, [setInspectorWidth]);
     const resize = useCallback((event: MouseEvent) => {
         if (!isResizing) {
             return;
         }
         const newWidth = window.innerWidth - event.clientX;
         if (newWidth > 240 && newWidth < 600) {
-            setInspectorWidth(newWidth);
+            pendingWidthRef.current = newWidth;
+
+            if (resizeFrameRef.current !== null) {
+                return;
+            }
+
+            resizeFrameRef.current = window.requestAnimationFrame(() => {
+                resizeFrameRef.current = null;
+
+                if (pendingWidthRef.current !== null) {
+                    setInspectorWidth(pendingWidthRef.current);
+                    pendingWidthRef.current = null;
+                }
+            });
         }
     }, [isResizing, setInspectorWidth]);
 
@@ -527,6 +562,10 @@ export function Inspector() {
         return () => {
             window.removeEventListener('mousemove', resize);
             window.removeEventListener('mouseup', stopResizing);
+            if (resizeFrameRef.current !== null) {
+                window.cancelAnimationFrame(resizeFrameRef.current);
+                resizeFrameRef.current = null;
+            }
         };
     }, [resize, stopResizing]);
 

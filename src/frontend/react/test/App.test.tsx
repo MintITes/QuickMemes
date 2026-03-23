@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import App from '../App';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useUiStore } from '../stores/UiStore';
@@ -32,5 +32,24 @@ describe('App', () => {
         });
 
         expect(useUiStore.getState().toggleImportModal).toHaveBeenCalledWith(true);
+    });
+
+    it('toggles the fps overlay from the debug console hook', () => {
+        render(<App />);
+
+        let enableResult = '';
+        act(() => {
+            enableResult = window.debug?.fps(true) ?? '';
+        });
+        expect(enableResult).toBe('fps:on');
+        expect(screen.getByText('FPS')).toBeInTheDocument();
+
+        let disableResult = '';
+        act(() => {
+            disableResult = window.debug?.fps(false) ?? '';
+        });
+        expect(disableResult).toBe('fps:off');
+
+        expect(screen.queryByText('FPS')).not.toBeInTheDocument();
     });
 });

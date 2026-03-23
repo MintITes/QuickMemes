@@ -92,7 +92,13 @@ declare global {
             openDevTools: () => void;
             platform: string;
         };
+        debug?: DebugAPI;
     }
 }
 
 export {};
+    interface DebugAPI {
+        notify: (type: NotificationType, title: string, description?: string) => string;
+        clearNotifications: () => string;
+        fps: (enabled?: boolean) => string;
+    }

@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, memo } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { useUiStore } from '../../stores/UiStore';
 import { getThumbnailUrl, revokeAssetUrl } from '../../services/assetService';
 import type { Meme } from '../../types';
+import { useShallow } from 'zustand/react/shallow';
 
 import { MemeCardMedia } from '../meme/MemeCardMedia';
 import { MemeCardMeta } from '../meme/MemeCardMeta';
@@ -20,9 +21,15 @@ interface MemeCardProps {
     disableLayoutAnimation?: boolean;
 }
 
-export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disableLayoutAnimation = false }: MemeCardProps) {
+function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags, disableLayoutAnimation = false }: MemeCardProps) {
     const { t } = useTranslation();
-    const { selectMeme, setContextMenu, setLightboxMemeId, selectedMemeIds } = useUiStore();
+    const { selectMeme, setContextMenu, setLightboxMemeId } = useUiStore(
+        useShallow((state) => ({
+            selectMeme: state.selectMeme,
+            setContextMenu: state.setContextMenu,
+            setLightboxMemeId: state.setLightboxMemeId,
+        }))
+    );
 
     const [src, setSrc] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -88,8 +95,7 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
         e.preventDefault();
 
         // If not already selected, select only this one.
-        // If already part of a multi-selection, keep it.
-        if (!selectedMemeIds.includes(meme.id)) {
+        if (!isSelected) {
             selectMeme(meme.id, false);
         }
 
@@ -171,3 +177,5 @@ export function MemeCard({ meme, isSelected, viewMode, imageFit, showTags, disab
         </motion.div>
     );
 }
+
+export const MemeCard = memo(MemeCardImpl);
