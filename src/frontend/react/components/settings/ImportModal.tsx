@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { importFiles } from '../../services/importService';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { useTaskStore } from '../../stores/TaskStore';
+import { shouldApplyImportTaskSnapshot } from '../../utils/taskEvents';
 
 const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp'];
 
@@ -86,7 +87,10 @@ export function ImportModal() {
             const task = await importFiles(inputPaths);
             setImportStatus('success');
             setImporting(true, task.taskId);
-            useTaskStore.getState().setTask(task);
+            const currentTask = useTaskStore.getState().activeTask;
+            if (shouldApplyImportTaskSnapshot(currentTask, task)) {
+                useTaskStore.getState().setTask(task);
+            }
             addNotification({
                 type: 'info',
                 title: t('import.processing'),

@@ -28,6 +28,8 @@ protected:
 	void SetUp() override {
 		MemeDbTest::SetUp();
 		tempDir_ = std::make_unique<TestDirectory>();
+		importImagePath_ = tempDir_->getSubPath("import.jpg");
+		createTestImage(importImagePath_);
 		TaskQueue::get().initialize(1, 100, tempDir_->getSubPath("storage"));
 
 		mockHttp_ = std::make_shared<NiceMock<MockHttpClient>>();
@@ -45,8 +47,16 @@ protected:
 		tempDir_.reset();
 		MemeDbTest::TearDown();
 	}
+	void createTestImage(const std::string &path) {
+		std::ofstream ofs(path, std::ios::binary);
+		unsigned char data[] = {0xFF, 0xD8, 0xFF, 0xEE, 0x00, 0x0E, 0x41, 0x64, 0x6F, 0x62,
+		                        0x65, 0x00, 0x64, 0x80, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xD9};
+		ofs.write(reinterpret_cast<const char *>(data), sizeof(data));
+		ofs.close();
+	}
 	std::unique_ptr<TestDirectory>            tempDir_;
 	std::shared_ptr<NiceMock<MockHttpClient>> mockHttp_;
+	std::string                               importImagePath_;
 };
 
 /**
@@ -64,6 +74,34 @@ TEST_F(HandlersExtraTest, ImportCancel_NonExistentTask_ReturnsError) {
 	auto j = nlohmann::json::parse(res.body);
 	EXPECT_FALSE(j["success"].get<bool>());
 	EXPECT_EQ(j["code"].get<int>(), 1002); // ERR_NOT_FOUND
+}
+
+TEST_F(HandlersExtraTest, ImportRequest_ReturnsInitialPendingTaskSnapshot) {
+	HttpRequestProxy req;
+	req.path        = "/api/import";
+	req.method      = "POST";
+	nlohmann::json body;
+	body["source"] = "LOCAL_FILE";
+	body["inputs"] = {importImagePath_};
+	body["options"] = {
+	    {"autoOcr", true},
+	    {"autoAiAnalyze", true},
+	    {"sourceName", "test"},
+	    {"sourceUrl", ""}
+    };
+	req.body = body.dump();
+	HttpResponseProxy res;
+
+	handlePostImport(req, res);
+
+	EXPECT_EQ(res.status, 200);
+	auto j = nlohmann::json::parse(res.body);
+	EXPECT_TRUE(j["success"].get<bool>());
+	EXPECT_EQ(j["data"]["status"].get<std::string>(), "PENDING");
+	EXPECT_EQ(j["data"]["total"].get<int>(), 1);
+	EXPECT_EQ(j["data"]["processed"].get<int>(), 0);
+	EXPECT_EQ(j["data"]["inputs"][0].get<std::string>(), importImagePath_);
+	EXPECT_EQ(j["data"]["source"].get<std::string>(), "LOCAL_FILE");
 }
 
 /**

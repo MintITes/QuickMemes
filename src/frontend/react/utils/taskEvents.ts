@@ -94,3 +94,11 @@ export function isDuplicateImportErrorMessage(message: string | undefined): bool
     const normalized = message?.toLowerCase().trim() ?? '';
     return normalized.includes('meme already exists') || (normalized.includes('already exists') && normalized.includes('hash'));
 }
+
+export function isTerminalImportTaskStatus(status: TaskStatus | string | undefined): boolean {
+    return status === 'DONE' || status === 'FAILED' || status === 'CANCELLED';
+}
+
+export function shouldApplyImportTaskSnapshot(currentTask: ImportTask | null, incomingTask: ImportTask): boolean {
+    return currentTask?.taskId !== incomingTask.taskId;
+}

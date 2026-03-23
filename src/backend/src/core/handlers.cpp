@@ -12,6 +12,7 @@
 
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -65,7 +66,17 @@ void handlePostImport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		auto importReq = nlohmann::json::parse(req.body).get<ImportRequest>();
 
 		std::string taskId = TaskQueue::get().submitImportTask(importReq);
-		auto        task   = TaskQueue::get().getTask(taskId);
+		auto        now    = std::chrono::system_clock::now();
+		auto        task   = ImportTask{};
+		task.taskId        = taskId;
+		task.source        = importReq.source;
+		task.inputs        = importReq.inputs;
+		task.status        = TaskStatus::PENDING;
+		task.total         = static_cast<int32_t>(importReq.inputs.size());
+		task.processed     = 0;
+		task.succeeded     = 0;
+		task.failed        = 0;
+		task.createdAt     = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
 		res.status = 200; // Standardized to 200 OK
 		res.body   = makeSuccessResponse(task);

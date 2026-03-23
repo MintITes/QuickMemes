@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTaskStore } from '../../stores/TaskStore';
 import { useEffect, useState } from 'react';
+import { isTerminalImportTaskStatus } from '../../utils/taskEvents';
 
 export function ProgressBar() {
     const activeTask = useTaskStore(state => state.activeTask);
@@ -14,7 +15,7 @@ export function ProgressBar() {
         : null;
 
     useEffect(() => {
-        if (activeTask?.status === 'DONE') {
+        if (isTerminalImportTaskStatus(activeTask?.status)) {
             const timer = setTimeout(() => {
                 setShowShine(true);
             }, 0);
