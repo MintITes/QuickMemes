@@ -43,6 +43,29 @@ struct EmbeddingConfig {
 };
 
 /**
+ * @brief 搜索权重配置
+ */
+struct SearchWeights {
+	double name              = 0.30;
+	double description       = 0.18;
+	double ocrText           = 0.18;
+	double tagName           = 0.12;
+	double categoryName      = 0.08;
+	double vectorDescription = 0.07;
+	double vectorOcr         = 0.07;
+};
+
+/**
+ * @brief 搜索运行时配置
+ */
+struct SearchConfig {
+	int           maxCandidatesPerScorer = 200;
+	int           vectorTopK             = 100;
+	double        minScore               = 0.05;
+	SearchWeights weights;
+};
+
+/**
  * @brief 服务器全局配置
  *
  * 由 main() 中 parseArgs() 解析命令行参数后构建。
@@ -60,6 +83,7 @@ struct ServerConfig {
 	int          logRetentionDays    = 30;       ///< 日志保留天数
 	VisionConfig visionConfig;                   ///< Vision 模块配置
 	EmbeddingConfig embeddingConfig;             ///< Embedding 模块配置
+	SearchConfig searchConfig;                   ///< 搜索配置
 	int          workerCount             = 4;    ///< 导入线程池线程数
 	int          maxQueueSize            = 500;  ///< 处理队列最大深度
 	bool         thumbnailEnabled        = true; ///< 是否启用缩略图生成

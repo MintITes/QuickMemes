@@ -237,7 +237,8 @@ ProcessingStatus : "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
 // 当前 embedding 由独立 Embedding 模块生成，并通过持久化模块分别写入
 // vec_meme_desc / vec_meme_ocr 两张向量表。
 // HTTP 响应中不包含向量数据，以减少网络传输开销。
-// 当前版本 similarityScore 固定为 -1，待后续向量搜索重构后再恢复真实分数。
+// similarityScore 表示向量综合分；未参与向量检索时保持 -1。
+// relevanceScore 表示最终混合相关性分数，scoreBreakdown 展示各 scorer 分项。
 ```
 
 ---
@@ -286,8 +287,8 @@ SearchQuery {
     sizeMax    : int64     // 最大文件大小（字节，0 表示不限）
     regex        : string    // 正则表达式，匹配名称/描述/OCR 文本（可为空）
     enablePinyin : bool      // 关键词搜索是否启用拼音扩展（默认 true，未传也按 true 处理）
-    useVector    : bool      // 当前仅保留兼容字段，不触发实际向量搜索
-    sortBy       : string    // 排序字段："createdAt" | "name" | "fileSize" | "updatedAt" | "lastUsedAt"
+    useVector    : bool      // 允许尝试向量检索；若查询向量构建失败则自动退化为非向量搜索
+    sortBy       : string    // 排序字段："relevance" | "createdAt" | "name" | "fileSize" | "updatedAt" | "lastUsedAt"
     sortOrder    : string    // 排序方向："ASC" | "DESC"
     limit        : int32     // 每页结果数量（默认 50，最大 200）
     offset       : int32     // 分页偏移量（默认 0）

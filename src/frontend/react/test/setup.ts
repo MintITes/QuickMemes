@@ -44,6 +44,7 @@ vi.stubGlobal('electronAPI', {
         maxQueueSize: 500,
         vision: { apiKey: '', apiBaseUrl: 'https://api.openai.com/v1', visionModel: 'gpt-4o', timeoutSeconds: 30, maxRetries: 2 },
         embedding: { provider: 'JinaAI', model: 'jina-embeddings-v5-text-small', apiUrl: 'https://api.jina.ai/v1/embeddings', apiKey: '', dimensions: 512, timeoutSeconds: 30, maxRetries: 2 },
+        search: { maxCandidatesPerScorer: 200, vectorTopK: 100, minScore: 0.05, weights: { name: 0.30, description: 0.18, ocrText: 0.18, tagName: 0.12, categoryName: 0.08, vectorDescription: 0.07, vectorOcr: 0.07 } },
         ocr: { apiKey: '', apiUrl: '', provider: '' },
         ui: { panelShortcut: 'Alt+M', theme: 'system', viewMode: 'grid', language: 'zh-CN' },
         log: { minLevel: 'INFO', retentionEnabled: true, retentionDays: 30 },

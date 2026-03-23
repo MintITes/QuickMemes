@@ -441,6 +441,7 @@ bool Server::start(const ServerConfig &config) {
 
 	try {
 		Database::get().initialize(config.dbPath, EmbeddingModule::get().getDimensions());
+		Database::get().setSearchConfig(config.searchConfig);
 		if (!Database::get().checkIntegrity()) {
 			LOG_ERROR("server", "Database integrity check failed. Attempting to recover from latest backup...");
 			std::string                     latestBackup;

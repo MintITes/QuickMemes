@@ -113,6 +113,20 @@ graph TD
         "timeoutSeconds": 30,
         "maxRetries": 2
     },
+    "search": {
+        "maxCandidatesPerScorer": 200,
+        "vectorTopK": 100,
+        "minScore": 0.05,
+        "weights": {
+            "name": 0.30,
+            "description": 0.18,
+            "ocrText": 0.18,
+            "tagName": 0.12,
+            "categoryName": 0.08,
+            "vectorDescription": 0.07,
+            "vectorOcr": 0.07
+        }
+    },
     "ocr": {
         "apiKey": "",
         "apiUrl": "",
@@ -164,6 +178,10 @@ graph TD
 | `embedding.dimensions`    | `int`    | `512`                          | 向量维度；当前模型仅允许 `1..1024`          |
 | `embedding.timeoutSeconds`| `int`    | `30`                           | Embedding API 单次请求超时秒数              |
 | `embedding.maxRetries`    | `int`    | `2`                            | Embedding API 失败重试次数                  |
+| `search.maxCandidatesPerScorer` | `int` | `200`                    | 每个 scorer 最大候选数量                    |
+| `search.vectorTopK`       | `int`    | `100`                          | 单路向量检索最大候选数量                    |
+| `search.minScore`         | `float`  | `0.05`                         | 最终相关性分数下限                          |
+| `search.weights.*`        | `float`  | 见上方默认值                   | 混合搜索各 scorer 权重                      |
 | `ocr.apiKey`              | `string` | `""`                           | 云端 OCR API 密钥（空表示禁用 OCR）         |
 | `ocr.apiUrl`              | `string` | `""`                           | 云端 OCR API 地址（待适配具体提供商）       |
 | `ocr.provider`            | `string` | `""`                           | 云端 OCR 提供商标识（占位字段）             |
@@ -345,7 +363,7 @@ syncToBackend(patch: RuntimeConfigPatch): Promise<void>
 ```
 
 - **描述**：将可热更新的配置变更实时同步到 C++ 后端。向 `PATCH http://localhost:{port}/api/config` 发送请求，请求体为 `RuntimeConfigPatch`（仅含实际变更的字段）。仅在后端进程运行期间调用，如果后端未运行则跳过。
-- **输入**：`patch`：仅含可热更新字段的 `RuntimeConfigPatch`
+- **输入**：`patch`：仅含可热更新字段的 `RuntimeConfigPatch`，包括 `search` 子配置
 - **输出**：无（失败时记录日志，不向用户报错，配置已写入 config.json 下次重启后仍然生效）
 
 ---

@@ -315,10 +315,10 @@ handleSearch(query: SearchQuery): SearchResult
 
 - **描述**：
   1. 校验并规范化 `SearchQuery` 参数（limit 限制 ≤200，offset ≥0）
-  2. 默认过滤已软删除的 Meme（`deleted_at == 0`）
-  3. 当前版本暂时断开 embedding 搜索路径；即使 `query.useVector == true`，也不会执行向量检索
-  4. 调用 `Persistence.searchMemes(query)` 执行普通搜索（使用 FTS5 全文索引），`similarityScore` 设为 `-1`
-  5. 包装为 `SearchResult` 返回
+  2. 默认过滤已软删除的 Meme（`deleted_at == 0`），并先应用 `time/tag/category/source/format/size/regex` 等硬过滤
+  3. 调用 `Persistence.searchMemes(query)` 执行混合搜索：`name/description/ocr/tag/category/vector` 分项打分后按权重聚合
+  4. 当 `query.useVector == true` 且 Embedding 可用时尝试生成查询向量；若失败则自动回退为非向量搜索，不影响整次请求成功返回
+  5. 包装为 `SearchResult` 返回，其中 `relevanceScore` 为最终总分，`similarityScore` 为向量综合分（未参与时为 `-1`）
 - **输入**：`query`：搜索参数
 - **输出**：`SearchResult`（含 `items` 列表和 `total`）
 

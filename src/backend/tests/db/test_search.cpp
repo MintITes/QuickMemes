@@ -6,6 +6,7 @@
 #include "../mocks.hpp"
 
 #include <SQLiteCpp/SQLiteCpp.h>
+#include <chrono>
 #include <iostream>
 
 namespace {
@@ -321,6 +322,47 @@ TEST_F(MemeDbTest, SearchMemes_CategoryKeyword_ReturnsMatchingResults) {
 	EXPECT_EQ(results.items[0].categoryId, categoryId);
 }
 
+TEST_F(MemeDbTest, SearchMemes_HybridSearch_PopulatesRelevanceScores) {
+	MemeEntry meme;
+	meme.fileHash = "hash_search_hybrid_score";
+	meme.filePath = getSubPath("hybrid_score.png");
+	meme.mimeType = "image/png";
+	meme.ocrText  = "hybrid search world";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword = "world";
+	auto results = db->searchMemes(q);
+
+	ASSERT_EQ(results.items.size(), 1);
+	ASSERT_EQ(results.scoredItems.size(), 1);
+	EXPECT_GT(results.scoredItems[0].relevanceScore, 0.0f);
+	EXPECT_GT(results.scoredItems[0].scoreBreakdown.ocrText, 0.0f);
+	EXPECT_EQ(results.scoredItems[0].similarityScore, -1.0f);
+}
+
+TEST_F(MemeDbTest, SearchMemes_VectorUnavailable_FallsBackToTextScoring) {
+	MemeEntry meme;
+	meme.fileHash    = "hash_search_vector_fallback";
+	meme.filePath    = getSubPath("vector_fallback.png");
+	meme.mimeType    = "image/png";
+	meme.description = "vector fallback text";
+	db->insertMeme(meme);
+
+	SearchQuery q;
+	q.keyword   = "fallback";
+	q.useVector = true;
+
+	auto results = db->searchMemes(q);
+
+	ASSERT_EQ(results.items.size(), 1);
+	ASSERT_EQ(results.scoredItems.size(), 1);
+	EXPECT_GT(results.scoredItems[0].relevanceScore, 0.0f);
+	EXPECT_EQ(results.scoredItems[0].similarityScore, -1.0f);
+	EXPECT_EQ(results.scoredItems[0].scoreBreakdown.vectorDescription, 0.0f);
+	EXPECT_EQ(results.scoredItems[0].scoreBreakdown.vectorOcr, 0.0f);
+}
+
 TEST_F(MemeDbTest, VectorSearch_ValidEmbedding_ReturnsRankedResults) {
 	MemeEntry meme;
 	meme.fileHash = "hash_vec_1";
@@ -455,6 +497,100 @@ TEST_F(MemeDbTest, SearchMemes_Sorting_Works) {
 	auto res2   = db->searchMemes(q);
 	ASSERT_EQ(res2.items.size(), 2);
 	EXPECT_EQ(res2.items[0].fileHash, "h1");
+}
+
+TEST_F(MemeDbTest, SearchMemes_Performance_100CasesUnder50ms) {
+#ifndef NDEBUG
+	GTEST_SKIP() << "Performance threshold is enforced in Release builds";
+#endif
+
+	std::vector<int64_t> categoryIds;
+	categoryIds.reserve(200);
+	for (int i = 0; i < 200; ++i) {
+		Category category;
+		category.uuid  = "perf-category-" + std::to_string(i);
+		category.name  = "category-key-" + std::to_string(i);
+		category.color = "#ffffff";
+		categoryIds.push_back(db->insertCategory(category));
+	}
+
+	std::vector<int64_t> tagIds;
+	tagIds.reserve(1000);
+	for (int i = 0; i < 1000; ++i) {
+		Tag tag;
+		tag.name  = "tag-key-" + std::to_string(i);
+		tag.color = "#ffffff";
+		tagIds.push_back(db->insertTag(tag));
+	}
+
+	for (int i = 0; i < 10000; ++i) {
+		MemeEntry meme;
+		meme.fileHash    = "perf-hash-" + std::to_string(i);
+		meme.filePath    = getSubPath("perf-" + std::to_string(i) + ".png");
+		meme.mimeType    = "image/png";
+		meme.name        = "name-key-" + std::to_string(i % 500);
+		meme.description = "desc-key-" + std::to_string(i % 300);
+		meme.ocrText     = "ocr-key-" + std::to_string(i % 300);
+		int64_t memeId   = db->insertMeme(meme);
+		ASSERT_TRUE(db->updateMemeCategory(memeId, categoryIds[i % categoryIds.size()]));
+		ASSERT_TRUE(db->addMemeTag(memeId, tagIds[i % tagIds.size()]));
+	}
+
+	std::vector<SearchQuery> warmups;
+	for (int i = 0; i < 10; ++i) {
+		SearchQuery q;
+		q.keyword = "name-key-" + std::to_string(i);
+		q.sortBy  = "relevance";
+		q.limit   = 20;
+		warmups.push_back(q);
+	}
+	for (const auto &q : warmups) { (void)db->searchMemes(q); }
+
+	std::vector<SearchQuery> cases;
+	cases.reserve(100);
+	for (int i = 0; i < 25; ++i) {
+		SearchQuery byName;
+		byName.keyword = "name-key-" + std::to_string(i);
+		byName.sortBy  = "relevance";
+		byName.limit   = 20;
+		cases.push_back(byName);
+
+		SearchQuery byDesc;
+		byDesc.keyword = "desc-key-" + std::to_string(i);
+		byDesc.sortBy  = "relevance";
+		byDesc.limit   = 20;
+		cases.push_back(byDesc);
+
+		SearchQuery byTag;
+		byTag.keyword = "tag-key-" + std::to_string(i);
+		byTag.sortBy  = "relevance";
+		byTag.limit   = 20;
+		cases.push_back(byTag);
+
+		SearchQuery byCategory;
+		byCategory.keyword = "category-key-" + std::to_string(i);
+		byCategory.sortBy  = "relevance";
+		byCategory.limit   = 20;
+		cases.push_back(byCategory);
+	}
+
+	ASSERT_EQ(cases.size(), 100u);
+
+	long long totalMs = 0;
+	long long maxMs   = 0;
+	for (size_t i = 0; i < cases.size(); ++i) {
+		auto started = std::chrono::steady_clock::now();
+		auto results = db->searchMemes(cases[i]);
+		auto elapsed =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+		totalMs = totalMs + elapsed;
+		maxMs   = std::max(maxMs, static_cast<long long>(elapsed));
+		ASSERT_FALSE(results.items.empty()) << "case=" << i << " keyword=" << cases[i].keyword;
+		EXPECT_LE(elapsed, 50) << "case=" << i << " keyword=" << cases[i].keyword;
+	}
+
+	std::cout << "search perf totalMs=" << totalMs << " avgMs=" << (totalMs / static_cast<long long>(cases.size()))
+	          << " maxMs=" << maxMs << '\n';
 }
 
 }} // namespace quickmemes::testing

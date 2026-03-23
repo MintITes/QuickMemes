@@ -123,7 +123,7 @@
 **操作**
 
 - 关键词搜索：`searchMemes()` 中使用 `MATCH`
-- 排序：当 `sortBy=relevance` 且存在 `keyword` 时使用 `bm25(memes_fts)`
+- 混合搜索：`searchMemes()` 会先用 FTS5 产生文本候选，再与 tag/category/vector 候选合并打分
 - 自动同步：由 `memes_ai`、`memes_au`、`memes_ad` 三个触发器维护
 
 ---
@@ -139,7 +139,7 @@
 
 - 插入或更新：`upsertDescriptionEmbedding()`
 - 删除：`deleteDescriptionEmbedding()`
-- 向量检索：`vectorSearch()` 只查询该表
+- 向量检索：`vectorSearch()` 查询该表；`searchMemes()` 在 `useVector=true` 时会将其作为混合打分的一部分
 - 重建：`rebuildEmbeddingTables()`
 
 ---
@@ -226,14 +226,17 @@
 
 ### 关键词搜索实际覆盖范围
 
-`searchMemes()` 的关键词条件会同时匹配：
+`searchMemes()` 的关键词阶段会先基于硬过滤缩小候选集，再分别计算：
 
-- `memes_fts` 的全文索引
-- `memes.name`
-- `memes.description`
-- `memes.ocr_text`
-- `tags.name`
-- `categories.name`
+- `nameScore`
+- `descriptionScore`
+- `ocrScore`
+- `tagNameScore`
+- `categoryNameScore`
+- `vectorDescriptionScore`
+- `vectorOcrScore`
+
+最终通过 `search.weights.*` 做归一化加权，得到 `relevanceScore`。
 
 ### 分类过滤
 

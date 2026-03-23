@@ -63,4 +63,32 @@ TEST_F(ConfigApiTest, PatchConfig_InvalidJson_ReturnsError) {
 	EXPECT_EQ(res.status, 400);
 }
 
+TEST_F(ConfigApiTest, PatchConfig_UpdateSearchConfig_Success) {
+	HttpRequestProxy req;
+	req.path   = "/api/config";
+	req.method = "PATCH";
+	req.body   = R"({"search":{"maxCandidatesPerScorer":150,"vectorTopK":60,"minScore":0.2,"weights":{"name":0.4,"description":0.1,"ocrText":0.1,"tagName":0.1,"categoryName":0.1,"vectorDescription":0.1,"vectorOcr":0.1}}})";
+	HttpResponseProxy res;
+
+	handlePatchConfig(req, res);
+
+	EXPECT_EQ(res.status, 200);
+	EXPECT_EQ(g_server->getConfig().searchConfig.maxCandidatesPerScorer, 150);
+	EXPECT_EQ(g_server->getConfig().searchConfig.vectorTopK, 60);
+	EXPECT_DOUBLE_EQ(g_server->getConfig().searchConfig.minScore, 0.2);
+	EXPECT_DOUBLE_EQ(g_server->getConfig().searchConfig.weights.name, 0.4);
+}
+
+TEST_F(ConfigApiTest, PatchConfig_InvalidSearchWeights_ReturnsError) {
+	HttpRequestProxy req;
+	req.path   = "/api/config";
+	req.method = "PATCH";
+	req.body   = R"({"search":{"weights":{"name":-0.1}}})";
+	HttpResponseProxy res;
+
+	handlePatchConfig(req, res);
+
+	EXPECT_EQ(res.status, 400);
+}
+
 }} // namespace quickmemes::testing

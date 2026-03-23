@@ -50,6 +50,26 @@ TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	                                           "28",
 	                                           "--embedding-retries",
 	                                           "4",
+	                                           "--search-max-candidates-per-scorer",
+	                                           "320",
+	                                           "--search-vector-top-k",
+	                                           "88",
+	                                           "--search-min-score",
+	                                           "0.15",
+	                                           "--search-weight-name",
+	                                           "0.31",
+	                                           "--search-weight-description",
+	                                           "0.17",
+	                                           "--search-weight-ocr-text",
+	                                           "0.16",
+	                                           "--search-weight-tag-name",
+	                                           "0.12",
+	                                           "--search-weight-category-name",
+	                                           "0.08",
+	                                           "--search-weight-vector-description",
+	                                           "0.09",
+	                                           "--search-weight-vector-ocr",
+	                                           "0.07",
 	                                           "--api-timeout",
 	                                           "45",
 	                                           "--api-retries",
@@ -109,6 +129,16 @@ TEST(ConfigParserTest, ParseArgs_ValidArgs_PopulatesConfig) {
 	EXPECT_EQ(config.embeddingConfig.dimensions, 768);
 	EXPECT_EQ(config.embeddingConfig.timeoutSeconds, 28);
 	EXPECT_EQ(config.embeddingConfig.maxRetries, 4);
+	EXPECT_EQ(config.searchConfig.maxCandidatesPerScorer, 320);
+	EXPECT_EQ(config.searchConfig.vectorTopK, 88);
+	EXPECT_DOUBLE_EQ(config.searchConfig.minScore, 0.15);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.name, 0.31);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.description, 0.17);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.ocrText, 0.16);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.tagName, 0.12);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.categoryName, 0.08);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.vectorDescription, 0.09);
+	EXPECT_DOUBLE_EQ(config.searchConfig.weights.vectorOcr, 0.07);
 
 	EXPECT_FALSE(config.thumbnailEnabled);
 	EXPECT_EQ(config.thumbnailMaxSize, 256);

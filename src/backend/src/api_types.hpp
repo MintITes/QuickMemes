@@ -122,9 +122,25 @@ struct ExportResult {
 /**
  * @brief 搜索结果条目
  */
+struct SearchScoreBreakdown {
+	float name              = 0.0f;
+	float description       = 0.0f;
+	float ocrText           = 0.0f;
+	float tagName           = 0.0f;
+	float categoryName      = 0.0f;
+	float vectorDescription = 0.0f;
+	float vectorOcr         = 0.0f;
+	float final             = 0.0f;
+};
+
+/**
+ * @brief 搜索结果条目
+ */
 struct SearchResultItem {
-	MemeEntry meme;                 ///< Meme 数据（不含 embedding）
-	float     similarityScore = -1; ///< 向量搜索相似度分数（-1 表示非向量搜索）
+	MemeEntry            meme;                 ///< Meme 数据（不含 embedding）
+	float                similarityScore = -1; ///< 向量搜索相似度分数（-1 表示非向量搜索）
+	float                relevanceScore  = 0;  ///< 混合搜索相关性分数
+	SearchScoreBreakdown scoreBreakdown;       ///< 搜索打分拆解
 };
 
 /**
@@ -179,6 +195,23 @@ struct HealthStatus {
  *
  * PATCH /api/config 请求体，仅含需要变更的可热更新字段。
  */
+struct RuntimeSearchWeightsPatch {
+	std::optional<double> name;
+	std::optional<double> description;
+	std::optional<double> ocrText;
+	std::optional<double> tagName;
+	std::optional<double> categoryName;
+	std::optional<double> vectorDescription;
+	std::optional<double> vectorOcr;
+};
+
+struct RuntimeSearchConfigPatch {
+	std::optional<int>                     maxCandidatesPerScorer;
+	std::optional<int>                     vectorTopK;
+	std::optional<double>                  minScore;
+	std::optional<RuntimeSearchWeightsPatch> weights;
+};
+
 struct RuntimeConfigPatch {
 	std::optional<std::string> aiApiKey;         ///< AI API 密钥
 	std::optional<std::string> aiApiBaseUrl;     ///< AI API 基础 URL
@@ -196,6 +229,7 @@ struct RuntimeConfigPatch {
 	std::optional<int>         embeddingTimeoutSeconds; ///< Embedding API 超时秒数
 	std::optional<int>         embeddingMaxRetries;     ///< Embedding API 最大重试次数
 	std::optional<std::string> logMinLevel;      ///< 最低日志输出等级
+	std::optional<RuntimeSearchConfigPatch> search;           ///< 搜索热更新配置
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -276,9 +310,60 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BatchCategoryRequest, memeIds, c
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ExportRequest, memeIds, destDir, keepNames)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ExportResult, succeeded, failed, errors)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SearchResultItem, meme, similarityScore)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SearchScoreBreakdown,
+                                                name,
+                                                description,
+                                                ocrText,
+                                                tagName,
+                                                categoryName,
+                                                vectorDescription,
+                                                vectorOcr,
+                                                final)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SearchResultItem,
+                                                meme,
+                                                similarityScore,
+                                                relevanceScore,
+                                                scoreBreakdown)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SearchResult, items, total)
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BatchResult, succeeded, failed, errors)
+
+inline void from_json(const nlohmann::json &j, RuntimeSearchWeightsPatch &p) {
+	if (j.contains("name") && !j.at("name").is_null()) p.name = j.at("name").get<double>();
+	if (j.contains("description") && !j.at("description").is_null()) p.description = j.at("description").get<double>();
+	if (j.contains("ocrText") && !j.at("ocrText").is_null()) p.ocrText = j.at("ocrText").get<double>();
+	if (j.contains("tagName") && !j.at("tagName").is_null()) p.tagName = j.at("tagName").get<double>();
+	if (j.contains("categoryName") && !j.at("categoryName").is_null()) p.categoryName = j.at("categoryName").get<double>();
+	if (j.contains("vectorDescription") && !j.at("vectorDescription").is_null())
+		p.vectorDescription = j.at("vectorDescription").get<double>();
+	if (j.contains("vectorOcr") && !j.at("vectorOcr").is_null()) p.vectorOcr = j.at("vectorOcr").get<double>();
+}
+
+inline void to_json(nlohmann::json &j, const RuntimeSearchWeightsPatch &p) {
+	j = nlohmann::json::object();
+	if (p.name) j["name"] = *p.name;
+	if (p.description) j["description"] = *p.description;
+	if (p.ocrText) j["ocrText"] = *p.ocrText;
+	if (p.tagName) j["tagName"] = *p.tagName;
+	if (p.categoryName) j["categoryName"] = *p.categoryName;
+	if (p.vectorDescription) j["vectorDescription"] = *p.vectorDescription;
+	if (p.vectorOcr) j["vectorOcr"] = *p.vectorOcr;
+}
+
+inline void from_json(const nlohmann::json &j, RuntimeSearchConfigPatch &p) {
+	if (j.contains("maxCandidatesPerScorer") && !j.at("maxCandidatesPerScorer").is_null())
+		p.maxCandidatesPerScorer = j.at("maxCandidatesPerScorer").get<int>();
+	if (j.contains("vectorTopK") && !j.at("vectorTopK").is_null()) p.vectorTopK = j.at("vectorTopK").get<int>();
+	if (j.contains("minScore") && !j.at("minScore").is_null()) p.minScore = j.at("minScore").get<double>();
+	if (j.contains("weights") && !j.at("weights").is_null()) p.weights = j.at("weights").get<RuntimeSearchWeightsPatch>();
+}
+
+inline void to_json(nlohmann::json &j, const RuntimeSearchConfigPatch &p) {
+	j = nlohmann::json::object();
+	if (p.maxCandidatesPerScorer) j["maxCandidatesPerScorer"] = *p.maxCandidatesPerScorer;
+	if (p.vectorTopK) j["vectorTopK"] = *p.vectorTopK;
+	if (p.minScore) j["minScore"] = *p.minScore;
+	if (p.weights) j["weights"] = *p.weights;
+}
 
 inline void from_json(const nlohmann::json &j, RuntimeConfigPatch &p) {
 	if (j.contains("aiApiKey") && !j.at("aiApiKey").is_null()) p.aiApiKey = j.at("aiApiKey").get<std::string>();
@@ -309,6 +394,7 @@ inline void from_json(const nlohmann::json &j, RuntimeConfigPatch &p) {
 		p.embeddingMaxRetries = j.at("embeddingMaxRetries").get<int>();
 	if (j.contains("logMinLevel") && !j.at("logMinLevel").is_null())
 		p.logMinLevel = j.at("logMinLevel").get<std::string>();
+	if (j.contains("search") && !j.at("search").is_null()) p.search = j.at("search").get<RuntimeSearchConfigPatch>();
 }
 inline void to_json(nlohmann::json &j, const RuntimeConfigPatch &p) {
 	j = nlohmann::json::object();
@@ -328,6 +414,7 @@ inline void to_json(nlohmann::json &j, const RuntimeConfigPatch &p) {
 	if (p.embeddingTimeoutSeconds) j["embeddingTimeoutSeconds"] = *p.embeddingTimeoutSeconds;
 	if (p.embeddingMaxRetries) j["embeddingMaxRetries"] = *p.embeddingMaxRetries;
 	if (p.logMinLevel) j["logMinLevel"] = *p.logMinLevel;
+	if (p.search) j["search"] = *p.search;
 }
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(WsEvent, event, payload)

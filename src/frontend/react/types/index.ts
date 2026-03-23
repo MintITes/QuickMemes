@@ -63,9 +63,22 @@ export interface SearchQuery {
     includeTags: boolean;
 }
 
+export interface SearchScoreBreakdown {
+    name: number;
+    description: number;
+    ocrText: number;
+    tagName: number;
+    categoryName: number;
+    vectorDescription: number;
+    vectorOcr: number;
+    final: number;
+}
+
 export interface SearchResultItem {
     meme: Meme;
     similarityScore: number;
+    relevanceScore: number;
+    scoreBreakdown: SearchScoreBreakdown;
 }
 
 export interface SearchResult {
@@ -128,6 +141,20 @@ export interface RuntimeConfigPatch {
     embeddingTimeoutSeconds?: number;
     embeddingMaxRetries?: number;
     logMinLevel?: string;
+    search?: {
+        maxCandidatesPerScorer?: number;
+        vectorTopK?: number;
+        minScore?: number;
+        weights?: {
+            name?: number;
+            description?: number;
+            ocrText?: number;
+            tagName?: number;
+            categoryName?: number;
+            vectorDescription?: number;
+            vectorOcr?: number;
+        };
+    };
 }
 
 export interface ApiResponse<T> {

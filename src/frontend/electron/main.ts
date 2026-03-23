@@ -46,6 +46,20 @@ interface AppConfig {
         timeoutSeconds: number;
         maxRetries: number;
     };
+    search: {
+        maxCandidatesPerScorer: number;
+        vectorTopK: number;
+        minScore: number;
+        weights: {
+            name: number;
+            description: number;
+            ocrText: number;
+            tagName: number;
+            categoryName: number;
+            vectorDescription: number;
+            vectorOcr: number;
+        };
+    };
     ocr: {
         apiKey: string;
         apiUrl: string;
@@ -149,6 +163,16 @@ const HOT_PATCH_KEYS = new Set([
     'embedding.dimensions',
     'embedding.timeoutSeconds',
     'embedding.maxRetries',
+    'search.maxCandidatesPerScorer',
+    'search.vectorTopK',
+    'search.minScore',
+    'search.weights.name',
+    'search.weights.description',
+    'search.weights.ocrText',
+    'search.weights.tagName',
+    'search.weights.categoryName',
+    'search.weights.vectorDescription',
+    'search.weights.vectorOcr',
     'ocr.apiKey',
     'ocr.apiUrl',
     'ocr.provider',
@@ -191,6 +215,20 @@ function getDefaultConfig(): AppConfig {
             dimensions: 512,
             timeoutSeconds: 30,
             maxRetries: 2,
+        },
+        search: {
+            maxCandidatesPerScorer: 200,
+            vectorTopK: 100,
+            minScore: 0.05,
+            weights: {
+                name: 0.30,
+                description: 0.18,
+                ocrText: 0.18,
+                tagName: 0.12,
+                categoryName: 0.08,
+                vectorDescription: 0.07,
+                vectorOcr: 0.07,
+            },
         },
         ocr: {
             apiKey: '',
@@ -380,6 +418,16 @@ function buildBackendArgs(config: AppConfig, token: string): string[] {
         '--embedding-dimensions', String(config.embedding.dimensions),
         '--embedding-timeout', String(config.embedding.timeoutSeconds),
         '--embedding-retries', String(config.embedding.maxRetries),
+        '--search-max-candidates-per-scorer', String(config.search.maxCandidatesPerScorer),
+        '--search-vector-top-k', String(config.search.vectorTopK),
+        '--search-min-score', String(config.search.minScore),
+        '--search-weight-name', String(config.search.weights.name),
+        '--search-weight-description', String(config.search.weights.description),
+        '--search-weight-ocr-text', String(config.search.weights.ocrText),
+        '--search-weight-tag-name', String(config.search.weights.tagName),
+        '--search-weight-category-name', String(config.search.weights.categoryName),
+        '--search-weight-vector-description', String(config.search.weights.vectorDescription),
+        '--search-weight-vector-ocr', String(config.search.weights.vectorOcr),
         '--ocr-api-key', config.ocr.apiKey,
         '--ocr-api-url', config.ocr.apiUrl,
         '--ocr-provider', config.ocr.provider,
@@ -549,6 +597,7 @@ async function patchBackendConfig(config: AppConfig, changedKeys: string[]) {
     if (changedKeys.includes('embedding.dimensions')) payload.embeddingDimensions = config.embedding.dimensions;
     if (changedKeys.includes('embedding.timeoutSeconds')) payload.embeddingTimeoutSeconds = config.embedding.timeoutSeconds;
     if (changedKeys.includes('embedding.maxRetries')) payload.embeddingMaxRetries = config.embedding.maxRetries;
+    if (changedKeys.some((key) => key.startsWith('search.'))) payload.search = config.search;
     if (changedKeys.includes('ocr.apiKey')) payload.ocrApiKey = config.ocr.apiKey;
     if (changedKeys.includes('ocr.apiUrl')) payload.ocrApiUrl = config.ocr.apiUrl;
     if (changedKeys.includes('ocr.provider')) payload.ocrProvider = config.ocr.provider;

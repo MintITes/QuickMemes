@@ -47,6 +47,23 @@ describe('memeService', () => {
         expect(query.enablePinyin).toBe(false);
     });
 
+    it('uses relevance sorting when keyword search is active', () => {
+        const query = buildBackendSearchQuery(
+            {
+                keyword: 'test',
+                categoryId: 0,
+                tagIds: [],
+                matchMode: 'fuzzy',
+                mediaType: 'all',
+                dateRange: 'all',
+            },
+            'all'
+        );
+
+        expect(query.sortBy).toBe('relevance');
+        expect(query.useVector).toBe(true);
+    });
+
     it('uses the backend manual OCR route', async () => {
         await triggerMemeOcr(42);
 

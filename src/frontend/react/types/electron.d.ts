@@ -26,6 +26,20 @@ declare global {
             timeoutSeconds: number;
             maxRetries: number;
         };
+        search: {
+            maxCandidatesPerScorer: number;
+            vectorTopK: number;
+            minScore: number;
+            weights: {
+                name: number;
+                description: number;
+                ocrText: number;
+                tagName: number;
+                categoryName: number;
+                vectorDescription: number;
+                vectorOcr: number;
+            };
+        };
         ocr: {
             apiKey: string;
             apiUrl: string;

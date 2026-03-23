@@ -390,15 +390,20 @@ getMeme(id: int64): MemeEntry
 ### `searchMemes`
 
 ```
-searchMemes(query: SearchQuery): MemeEntry[]
+searchMemes(query: SearchQuery): PagedMemeResults
 ```
 
 - **描述**：
-  1. 调用 `buildSearchSql(query)` 动态构建 SQL 查询
-  2. 绑定所有参数并执行查询
-  3. 将结果集映射为 `MemeEntry[]` 列表（此处不包含 `tagIds`，若需要需二次查询）
+  1. 先按 `deleted_at/time/tag/category/source/format/size/regex` 构造硬过滤条件
+  2. 当 `keyword` 为空时，直接执行普通过滤查询并返回分页结果
+  3. 当 `keyword` 非空时，进入混合搜索流程：
+     - 使用 FTS5 生成 `name/description/ocr` 文本候选
+     - 使用 `LIKE` / 精确匹配补充 `tag/category/name` 候选
+     - 当 `useVector=true` 且查询向量构建成功时，补充 `vec_meme_desc` / `vec_meme_ocr` 向量候选
+     - 将各候选合并后按 `SearchConfig.weights` 计算 `relevanceScore`
+  4. 返回 `MemeEntry[]` 与对应 `SearchResultItem[]`
 - **输入**：`query`：搜索参数对象
-- **输出**：匹配的 `MemeEntry[]` 列表（含 `total` 总数，通过 `COUNT` 子查询获取）
+- **输出**：`PagedMemeResults`（含 `items`、`scoredItems`、`totalCount`）
 
 ---
 
@@ -408,10 +413,10 @@ searchMemes(query: SearchQuery): MemeEntry[]
 buildSearchSql(query: SearchQuery): SearchSql
 ```
 
-- **描述**：根据 `SearchQuery` 中非空的过滤字段，动态组装 SQL 的 WHERE 子句、ORDER BY 和 LIMIT / OFFSET。处理规则：
-  - `keyword`：使用 `simple_query(keyword, enablePinyin)` 生成 FTS5 查询串，匹配 `name`、`description`、`ocr_text`
+- **描述**：根据 `SearchQuery` 中非空的过滤字段，动态组装硬过滤 SQL 的 WHERE 子句、ORDER BY 和 LIMIT / OFFSET。处理规则：
+  - `keyword`：非空时由混合搜索编排层单独处理，不再直接拼入 `buildSearchSql`
   - `enablePinyin`：默认 `true`；关闭时仍保留中文检索，只禁用拼音扩展查询
-  - ASCII 中间子串兼容仅保留在 `name` 字段；`description` 与 `ocr_text` 不再做 `LIKE '%keyword%'` fallback
+  - ASCII 中间子串兼容仅保留在 `name` 字段；`description` 与 `ocr_text` 不做 `LIKE '%keyword%'` fallback
   - `tagIds`：子查询 `EXISTS (SELECT 1 FROM meme_tags WHERE meme_id = memes.id AND tag_id IN (...))`
   - `source`：`source_name = ?`（按来源名称精确匹配）
   - `timeFrom` / `timeTo`：`created_at BETWEEN ? AND ?`
@@ -430,7 +435,7 @@ buildSearchSql(query: SearchQuery): SearchSql
 vectorSearch(embedding: float[], limit: int): MemeEntry[]
 ```
 
-- **描述**：当前实现中该接口仅保留为后续搜索算法重构预留；现有业务路径不再调用 embedding 检索，搜索接口统一走普通搜索并返回 `similarityScore = -1`。
+- **描述**：按单路向量相似度执行查询。业务主搜索会在 `useVector=true` 时把 `vec_meme_desc` 与 `vec_meme_ocr` 的结果作为混合打分的一部分；若查询向量构建失败，则自动退化为非向量搜索。
 - **输入**：`embedding`：查询向量；`limit`：返回结果数量上限
 - **输出**：按相似度排序的 `MemeEntry[]` 列表
 

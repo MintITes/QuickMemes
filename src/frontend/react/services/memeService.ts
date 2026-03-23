@@ -49,6 +49,9 @@ export function buildBackendSearchQuery(
             activeNav.startsWith('category-') ? Number(activeNav.replace('category-', '')) :
                 uiQuery.categoryId ?? 0;
 
+    const useVector = uiQuery.matchMode === 'fuzzy' && uiQuery.keyword.trim().length > 0;
+    const useRelevanceSort = uiQuery.keyword.trim().length > 0 || useVector;
+
     return {
         keyword: uiQuery.matchMode === 'regex' ? '' : uiQuery.keyword,
         tagIds: uiQuery.tagIds,
@@ -61,8 +64,8 @@ export function buildBackendSearchQuery(
         sizeMax: 0,
         regex: uiQuery.matchMode === 'regex' ? uiQuery.keyword : '',
         enablePinyin: options?.enablePinyin ?? true,
-        useVector: uiQuery.matchMode === 'fuzzy' && uiQuery.keyword.trim().length > 0,
-        sortBy: activeNav === 'recent' ? 'lastUsedAt' : 'createdAt',
+        useVector,
+        sortBy: useRelevanceSort ? 'relevance' : activeNav === 'recent' ? 'lastUsedAt' : 'createdAt',
         sortOrder: 'DESC',
         limit: options?.limit ?? 100,
         offset: options?.offset ?? 0,

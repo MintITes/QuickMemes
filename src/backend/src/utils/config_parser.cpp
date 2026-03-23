@@ -52,6 +52,16 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 		}
 	};
 
+	auto getDouble = [&](const std::string &key, double &out, bool required = false) {
+		if (auto it = args.find(key); it != args.end()) {
+			try {
+				out = std::stod(it->second);
+			} catch (...) { throw std::invalid_argument("invalid number value for " + key); }
+		} else if (required) {
+			throw std::invalid_argument("missing required argument " + key);
+		}
+	};
+
 	// 辅助：获取 bool 参数
 	auto getBool = [&](const std::string &key, bool &out, bool required = false) {
 		if (auto it = args.find(key); it != args.end()) {
@@ -91,6 +101,17 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	getInt("--embedding-dimensions", config.embeddingConfig.dimensions, true);
 	getInt("--embedding-timeout", config.embeddingConfig.timeoutSeconds, true);
 	getInt("--embedding-retries", config.embeddingConfig.maxRetries, true);
+
+	getInt("--search-max-candidates-per-scorer", config.searchConfig.maxCandidatesPerScorer, true);
+	getInt("--search-vector-top-k", config.searchConfig.vectorTopK, true);
+	getDouble("--search-min-score", config.searchConfig.minScore, true);
+	getDouble("--search-weight-name", config.searchConfig.weights.name, true);
+	getDouble("--search-weight-description", config.searchConfig.weights.description, true);
+	getDouble("--search-weight-ocr-text", config.searchConfig.weights.ocrText, true);
+	getDouble("--search-weight-tag-name", config.searchConfig.weights.tagName, true);
+	getDouble("--search-weight-category-name", config.searchConfig.weights.categoryName, true);
+	getDouble("--search-weight-vector-description", config.searchConfig.weights.vectorDescription, true);
+	getDouble("--search-weight-vector-ocr", config.searchConfig.weights.vectorOcr, true);
 
 	getBool("--thumbnail-enabled", config.thumbnailEnabled, true);
 	getInt("--thumbnail-max-size", config.thumbnailMaxSize, true);

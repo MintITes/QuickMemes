@@ -77,7 +77,10 @@ export function Header() {
     // Debounced search logic
     useEffect(() => {
         const handler = setTimeout(() => {
-            setSearchQuery({ keyword: searchValue });
+            setSearchQuery({
+                keyword: searchValue,
+                matchMode: 'fuzzy',
+            });
         }, 300);
 
         return () => clearTimeout(handler);

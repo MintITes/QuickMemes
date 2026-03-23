@@ -49,8 +49,9 @@ struct SearchSql {
  * @brief 分页搜索结果
  */
 struct PagedMemeResults {
-	std::vector<MemeEntry> items;          ///< 当前页结果
-	int32_t                totalCount = 0; ///< 匹配的总记录数
+	std::vector<MemeEntry>          items;          ///< 当前页结果
+	std::vector<SearchResultItem>   scoredItems;    ///< 结果对应的搜索分数
+	int32_t                         totalCount = 0; ///< 匹配的总记录数
 };
 
 /**
@@ -347,6 +348,9 @@ public:
 		return db_.get();
 	}
 
+	void setSearchConfig(const SearchConfig &config);
+	[[nodiscard]] const SearchConfig &getSearchConfig() const;
+
 private:
 	/**
 	 * @brief 执行 Schema 迁移
@@ -369,6 +373,7 @@ private:
 	std::unique_ptr<SQLite::Database> db_;                   ///< SQLiteCpp 数据库实例
 	std::string                       dbPath_;               ///< 数据库文件路径
 	int                               embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
+	SearchConfig                      searchConfig_{};
 	mutable DatabaseMutex             dbMutex_;              ///< MinGW 下退回互斥锁，其它平台使用共享锁
 };
 

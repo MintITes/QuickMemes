@@ -12,6 +12,7 @@
 
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -43,6 +44,49 @@ std::string makeErrorResponse(int code, const std::string &error) {
 	resp.code        = code;
 	nlohmann::json j = resp;
 	return j.dump();
+}
+
+void validateSearchConfig(const SearchConfig &config) {
+	if (config.maxCandidatesPerScorer <= 0) { throw ApiException(ERR_INVALID_PARAMS, "search.maxCandidatesPerScorer must be > 0"); }
+	if (config.vectorTopK <= 0) { throw ApiException(ERR_INVALID_PARAMS, "search.vectorTopK must be > 0"); }
+	if (!std::isfinite(config.minScore) || config.minScore < 0.0 || config.minScore > 1.0) {
+		throw ApiException(ERR_INVALID_PARAMS, "search.minScore must be within [0, 1]");
+	}
+
+	const auto &weights = config.weights;
+	const std::vector<std::pair<const char *, double>> weightValues = {
+	    {"search.weights.name", weights.name},
+	    {"search.weights.description", weights.description},
+	    {"search.weights.ocrText", weights.ocrText},
+	    {"search.weights.tagName", weights.tagName},
+	    {"search.weights.categoryName", weights.categoryName},
+	    {"search.weights.vectorDescription", weights.vectorDescription},
+	    {"search.weights.vectorOcr", weights.vectorOcr},
+	};
+
+	double weightSum = 0.0;
+	for (const auto &[key, value] : weightValues) {
+		if (!std::isfinite(value) || value < 0.0) { throw ApiException(ERR_INVALID_PARAMS, std::string(key) + " must be >= 0"); }
+		weightSum += value;
+	}
+
+	if (weightSum <= 0.0) { throw ApiException(ERR_INVALID_PARAMS, "search.weights sum must be > 0"); }
+}
+
+void applySearchConfigPatch(SearchConfig &config, const RuntimeSearchConfigPatch &patch) {
+	if (patch.maxCandidatesPerScorer) config.maxCandidatesPerScorer = *patch.maxCandidatesPerScorer;
+	if (patch.vectorTopK) config.vectorTopK = *patch.vectorTopK;
+	if (patch.minScore) config.minScore = *patch.minScore;
+	if (patch.weights) {
+		const auto &weights = *patch.weights;
+		if (weights.name) config.weights.name = *weights.name;
+		if (weights.description) config.weights.description = *weights.description;
+		if (weights.ocrText) config.weights.ocrText = *weights.ocrText;
+		if (weights.tagName) config.weights.tagName = *weights.tagName;
+		if (weights.categoryName) config.weights.categoryName = *weights.categoryName;
+		if (weights.vectorDescription) config.weights.vectorDescription = *weights.vectorDescription;
+		if (weights.vectorOcr) config.weights.vectorOcr = *weights.vectorOcr;
+	}
 }
 } // namespace
 
@@ -108,15 +152,17 @@ void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res) 
 		// TODO: 搜索算法重构时，用 description / OCR 双向量检索重新接入 embedding 搜索。
 
 		auto    dbResults      = Database::get().searchMemes(query);
-		auto   &keywordResults = dbResults.items;
 		int32_t total          = dbResults.totalCount;
 
 		SearchResult data;
-		for (const auto &meme : keywordResults) {
-			SearchResultItem item;
-			item.meme = meme; // Use full meme and let json handle it (it won't include tags unless specified)
-			item.similarityScore = -1.0f;
-			data.items.push_back(item);
+		if (!dbResults.scoredItems.empty()) {
+			data.items = dbResults.scoredItems;
+		} else {
+			for (const auto &meme : dbResults.items) {
+				SearchResultItem item;
+				item.meme = meme;
+				data.items.push_back(item);
+			}
 		}
 		data.total = total;
 		res.status = 200;
@@ -685,6 +731,7 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			bool         changed = false;
 			bool         embeddingChanged = false;
 			bool         embeddingDimensionsChanged = false;
+			bool         searchChanged = false;
 
 			if (patch.logMinLevel) { Logger::get().setMinLevel(logLevelFromString(*patch.logMinLevel)); }
 			if (patch.aiApiKey) {
@@ -756,6 +803,12 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 				changed                           = true;
 				embeddingChanged                  = true;
 			}
+			if (patch.search) {
+				applySearchConfigPatch(config.searchConfig, *patch.search);
+				validateSearchConfig(config.searchConfig);
+				changed       = true;
+				searchChanged = true;
+			}
 
 			if (changed) {
 				VisionModule::get().reconfigure(config.visionConfig);
@@ -766,6 +819,7 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 						Database::get().rebuildEmbeddingTables(EmbeddingModule::get().getDimensions());
 					}
 				}
+				if (searchChanged) { Database::get().setSearchConfig(config.searchConfig); }
 				g_server->updateConfig(config);
 			}
 		}

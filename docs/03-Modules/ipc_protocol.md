@@ -179,7 +179,18 @@ SearchResult {
 
 SearchResultItem {
     meme            : MemeEntry  // Meme 数据（不含 embedding）
-    similarityScore : float      // 当前版本统一为 -1；后续向量搜索重构后再恢复真实分数
+    similarityScore : float      // 向量综合分；未参与向量检索时为 -1
+    relevanceScore  : float      // 混合搜索最终相关性分数
+    scoreBreakdown  : {
+        name              : float
+        description       : float
+        ocrText           : float
+        tagName           : float
+        categoryName      : float
+        vectorDescription : float
+        vectorOcr         : float
+        final             : float
+    }
 }
 ```
 
@@ -225,6 +236,20 @@ RuntimeConfigPatch {
     ocrApiUrl?         : string  // 云端 OCR API 地址（可选）
     ocrProvider?       : string  // 云端 OCR 提供商（可选，当前支持 "PaddleOCR" 与 "OcrSpace"）
     logMinLevel?       : string  // 最低日志输出等级（可选）
+    search?            : {       // 搜索配置热更新（可选）
+        maxCandidatesPerScorer? : int
+        vectorTopK?             : int
+        minScore?               : float
+        weights?                : {
+            name?              : float
+            description?       : float
+            ocrText?           : float
+            tagName?           : float
+            categoryName?      : float
+            vectorDescription? : float
+            vectorOcr?         : float
+        }
+    }
 }
 
 // 需要重启后生效的字段（无法通过此接口修改）：
@@ -267,9 +292,9 @@ RuntimeConfigPatch {
 
 ### `POST /api/memes/search` — 搜索 Meme 列表
 
-- **描述**：按 `SearchQuery` 参数搜索 Meme，支持中文全文检索、拼音检索、标签过滤、来源过滤、时间/大小/格式过滤、正则匹配。默认不返回已软删除的 Meme。`enablePinyin` 未传时默认按 `true` 处理；关闭后仅禁用拼音扩展，不影响中文搜索。`useVector` 字段当前仅保留协议兼容，不触发实际向量搜索
+- **描述**：按 `SearchQuery` 参数执行混合搜索。默认先应用硬过滤（标签、分类、来源、时间、大小、格式、正则、软删除），再计算 `name/description/ocr/tag/category/vector` 分项匹配度，并按 `search.weights` 聚合排序。`enablePinyin` 未传时默认按 `true` 处理；关闭后仅禁用拼音扩展，不影响中文搜索。`useVector=true` 时允许尝试查询向量；若构建失败则自动降级为非向量搜索
 - **请求体**：`SearchQuery`
-- **成功响应**：`ApiResponse<SearchResult>` — 包含 `items`（带 `similarityScore`）和 `total`
+- **成功响应**：`ApiResponse<SearchResult>` — 包含 `items`（带 `similarityScore`、`relevanceScore`、`scoreBreakdown`）和 `total`
 - **可能错误**：`ERR_INVALID_PARAMS`（非法 regex）、`ERR_INTERNAL`
 
 ---
@@ -489,7 +514,7 @@ RuntimeConfigPatch {
 
 ### `PATCH /api/config` — 运行时配置热更新
 
-- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。仅允许修改 `RuntimeConfigPatch` 中定义的字段（Vision 配置、Embedding 配置、OCR 配置、日志等级）
+- **描述**：将无需重启就能生效的配置变更实时同步到 C++ 后端，无需重启后端进程即可生效。除 Vision / Embedding / OCR / 日志等级外，也支持更新 `search` 配置（权重、最小分数、候选集大小）
 - **请求体**：`RuntimeConfigPatch`（仅传入需要变更的字段，其余字段保持不变）
 - **成功响应**：`ApiResponse<null>`
 - **可能错误**：`ERR_INVALID_PARAMS`（字段值非法，如 `logMinLevel` 不在有效等级内）

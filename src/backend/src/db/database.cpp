@@ -8,10 +8,13 @@
 #include "error_codes.hpp"
 #include "utils/logger.hpp"
 #include <SQLiteCpp/SQLiteCpp.h>
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <random>
 #include <regex>
 #include <set>
@@ -154,6 +157,345 @@ static void appendKeywordWhereClause(const quickmemes::SearchQuery &query, quick
 	keywordClause += ")";
 	res.whereClauses.push_back(keywordClause);
 }
+
+struct CandidateRow {
+	quickmemes::MemeEntry          meme;
+	std::string                    categoryName;
+	std::vector<std::string>       tagNames;
+	quickmemes::SearchResultItem   scored;
+};
+
+static std::string trimCopy(const std::string &value) {
+	auto begin = value.find_first_not_of(" \t\r\n");
+	if (begin == std::string::npos) return "";
+	auto end = value.find_last_not_of(" \t\r\n");
+	return value.substr(begin, end - begin + 1);
+}
+
+static std::string lowerAsciiCopy(std::string value) {
+	std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+		return static_cast<char>(std::tolower(ch));
+	});
+	return value;
+}
+
+static bool equalsCaseInsensitive(const std::string &lhs, const std::string &rhs) {
+	return lowerAsciiCopy(trimCopy(lhs)) == lowerAsciiCopy(trimCopy(rhs));
+}
+
+static bool containsCaseInsensitive(const std::string &haystack, const std::string &needle) {
+	if (needle.empty()) return false;
+	return lowerAsciiCopy(haystack).find(lowerAsciiCopy(needle)) != std::string::npos;
+}
+
+static float clampScore(double value) {
+	return static_cast<float>(std::clamp(value, 0.0, 1.0));
+}
+
+static float normalizeBm25(double rank) {
+	double positive = rank < 0.0 ? -rank : rank;
+	if (positive <= 0.0) return 0.0f;
+	return clampScore(positive / (positive + 1.0));
+}
+
+static float normalizeVectorDistance(double distance) {
+	if (!std::isfinite(distance)) return 0.0f;
+	return clampScore(1.0 / (1.0 + std::max(0.0, distance)));
+}
+
+static quickmemes::SearchConfig sanitizeSearchConfig(quickmemes::SearchConfig config) {
+	quickmemes::SearchConfig defaults;
+	config.maxCandidatesPerScorer = std::clamp(config.maxCandidatesPerScorer, 1, 1000);
+	config.vectorTopK             = std::clamp(config.vectorTopK, 1, 1000);
+	config.minScore               = std::clamp(config.minScore, 0.0, 1.0);
+
+	auto sanitizeWeight = [](double &weight) {
+		if (!std::isfinite(weight) || weight < 0.0) weight = 0.0;
+	};
+
+	sanitizeWeight(config.weights.name);
+	sanitizeWeight(config.weights.description);
+	sanitizeWeight(config.weights.ocrText);
+	sanitizeWeight(config.weights.tagName);
+	sanitizeWeight(config.weights.categoryName);
+	sanitizeWeight(config.weights.vectorDescription);
+	sanitizeWeight(config.weights.vectorOcr);
+
+	double sum = config.weights.name + config.weights.description + config.weights.ocrText + config.weights.tagName +
+	             config.weights.categoryName + config.weights.vectorDescription + config.weights.vectorOcr;
+	if (sum <= 0.0) { return defaults; }
+
+	config.weights.name /= sum;
+	config.weights.description /= sum;
+	config.weights.ocrText /= sum;
+	config.weights.tagName /= sum;
+	config.weights.categoryName /= sum;
+	config.weights.vectorDescription /= sum;
+	config.weights.vectorOcr /= sum;
+	return config;
+}
+
+static quickmemes::SearchSql buildFilterSql(const quickmemes::SearchQuery &query) {
+	quickmemes::SearchSql res;
+	if (query.tagIds.size() > 900) { throw quickmemes::ApiException(quickmemes::ERR_INVALID_PARAMS, "Too many tags in query (limit 900)"); }
+
+	res.whereClauses.push_back("m.deleted_at = 0");
+
+	if (!query.source.empty()) {
+		res.whereClauses.push_back("m.source_name = ?");
+		res.params.push_back(query.source);
+	}
+
+	if (query.categoryId != 0) {
+		if (query.categoryId == -1) {
+			res.whereClauses.push_back("m.category_id = 0");
+			res.whereClauses.push_back(
+			    "NOT EXISTS (SELECT 1 FROM meme_tags mt_uncategorized WHERE mt_uncategorized.meme_id = m.id)");
+			res.whereClauses.push_back("trim(m.ocr_text) = ''");
+		} else {
+			res.whereClauses.push_back("m.category_id = ?");
+			res.params.push_back(std::to_string(query.categoryId));
+		}
+	}
+
+	if (!query.tagIds.empty()) {
+		std::string clause = "EXISTS (SELECT 1 FROM meme_tags mt_filter WHERE mt_filter.meme_id = m.id AND mt_filter.tag_id IN (";
+		for (size_t i = 0; i < query.tagIds.size(); ++i) {
+			clause += (i == 0) ? "?" : ", ?";
+			res.params.push_back(std::to_string(query.tagIds[i]));
+		}
+		clause += "))";
+		res.whereClauses.push_back(clause);
+	}
+
+	if (!query.formats.empty()) {
+		std::string formatClause = "m.mime_type IN (";
+		for (size_t i = 0; i < query.formats.size(); ++i) {
+			formatClause += (i == 0) ? "?" : ", ?";
+			res.params.push_back(query.formats[i]);
+		}
+		formatClause += ")";
+		res.whereClauses.push_back(formatClause);
+	}
+
+	if (query.sizeMin > 0) {
+		res.whereClauses.push_back("m.file_size >= ?");
+		res.params.push_back(std::to_string(query.sizeMin));
+	}
+
+	if (query.sizeMax > 0) {
+		res.whereClauses.push_back("m.file_size <= ?");
+		res.params.push_back(std::to_string(query.sizeMax));
+	}
+
+	if (query.timeFrom > 0) {
+		res.whereClauses.push_back("m.created_at >= ?");
+		res.params.push_back(std::to_string(query.timeFrom));
+	}
+
+	if (query.timeTo > 0) {
+		res.whereClauses.push_back("m.created_at <= ?");
+		res.params.push_back(std::to_string(query.timeTo));
+	}
+
+	if (!query.regex.empty()) {
+		res.whereClauses.push_back("(regexp(?, m.name) OR regexp(?, m.description) OR regexp(?, m.ocr_text))");
+		res.params.push_back(query.regex);
+		res.params.push_back(query.regex);
+		res.params.push_back(query.regex);
+	}
+
+	return res;
+}
+
+static void appendWhereClauses(std::string &sql, const quickmemes::SearchSql &filterSql) {
+	if (filterSql.whereClauses.empty()) return;
+	sql += " WHERE " + filterSql.whereClauses.front();
+	for (size_t i = 1; i < filterSql.whereClauses.size(); ++i) {
+		sql += " AND " + filterSql.whereClauses[i];
+	}
+}
+
+static void bindParams(SQLite::Statement &stmt, const std::vector<std::string> &params, int startIndex = 1) {
+	int bindIdx = startIndex;
+	for (const auto &param : params) {
+		stmt.bind(bindIdx++, param);
+	}
+}
+
+template <typename Setter>
+static void collectFtsScores(SQLite::Database               &db,
+                             const quickmemes::SearchSql    &filterSql,
+                             const quickmemes::SearchQuery  &query,
+                             const std::string              &columnName,
+                             const std::string              &bm25Weights,
+                             int                             limit,
+                             Setter                          setScore) {
+	(void)columnName;
+	std::string sql = "SELECT m.id, bm25(memes_fts, " + bm25Weights + ") AS rank "
+	                  "FROM memes_fts JOIN memes m ON m.id = memes_fts.rowid";
+	appendWhereClauses(sql, filterSql);
+	if (filterSql.whereClauses.empty()) {
+		sql += " WHERE ";
+	} else {
+		sql += " AND ";
+	}
+	sql += "memes_fts MATCH simple_query(?, ?) ORDER BY rank ASC LIMIT ?";
+
+	SQLite::Statement stmt(db, sql);
+	bindParams(stmt, filterSql.params);
+	int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+	stmt.bind(bindIdx++, query.keyword);
+	stmt.bind(bindIdx++, query.enablePinyin ? "1" : "0");
+	stmt.bind(bindIdx, limit);
+
+	while (stmt.executeStep()) {
+		auto  memeId = stmt.getColumn(0).getInt64();
+		float score  = std::max(normalizeBm25(stmt.getColumn(1).getDouble()), 0.85f);
+		if (score > 0.0f) setScore(memeId, score);
+	}
+}
+
+template <typename Setter>
+static void collectScalarScores(SQLite::Database              &db,
+                                const quickmemes::SearchSql   &filterSql,
+                                std::string                    sql,
+                                const std::vector<std::string> &extraParams,
+                                int                            limit,
+                                Setter                         setScore) {
+	appendWhereClauses(sql, filterSql);
+	if (filterSql.whereClauses.empty()) {
+		sql += " WHERE ";
+	} else {
+		sql += " AND ";
+	}
+
+	sql += extraParams.empty() ? "1 = 1" : "";
+	sql += " LIMIT ?";
+
+	SQLite::Statement stmt(db, sql);
+	bindParams(stmt, filterSql.params);
+	int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+	for (const auto &param : extraParams) {
+		stmt.bind(bindIdx++, param);
+	}
+	stmt.bind(bindIdx, limit);
+
+	while (stmt.executeStep()) {
+		auto memeId = stmt.getColumn(0).getInt64();
+		setScore(memeId);
+	}
+}
+
+static std::string buildIdPlaceholders(size_t count) {
+	std::string placeholders;
+	for (size_t i = 0; i < count; ++i) {
+		if (i > 0) placeholders += ", ";
+		placeholders += "?";
+	}
+	return placeholders;
+}
+
+static std::vector<CandidateRow> loadCandidateRows(SQLite::Database &db, const std::vector<int64_t> &candidateIds) {
+	if (candidateIds.empty()) return {};
+
+	std::string sql =
+	    "SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height, "
+	    "m.source_name, m.source_url, m.name, m.description, m.ocr_text, "
+	    "m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at, "
+	    "m.category_id, c.name, "
+	    "(SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at)) "
+	    " FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) AS tags_json "
+	    "FROM memes m "
+	    "LEFT JOIN categories c ON c.id = m.category_id "
+	    "WHERE m.id IN (" +
+	    buildIdPlaceholders(candidateIds.size()) + ")";
+
+	SQLite::Statement stmt(db, sql);
+	for (size_t i = 0; i < candidateIds.size(); ++i) {
+		stmt.bind(static_cast<int>(i + 1), candidateIds[i]);
+	}
+
+	std::vector<CandidateRow> rows;
+	while (stmt.executeStep()) {
+		CandidateRow row;
+		row.meme.id       = stmt.getColumn(0).getInt64();
+		row.meme.fileHash = stmt.getColumn(1).getString();
+		row.meme.filePath = stmt.getColumn(2).getString();
+		row.meme.mimeType = stmt.getColumn(3).getString();
+		row.meme.fileSize = stmt.getColumn(4).getInt64();
+		row.meme.width    = stmt.getColumn(5).getInt();
+		row.meme.height   = stmt.getColumn(6).getInt();
+
+		if (!stmt.getColumn(7).isNull()) row.meme.sourceName = stmt.getColumn(7).getString();
+		if (!stmt.getColumn(8).isNull()) row.meme.sourceUrl = stmt.getColumn(8).getString();
+		if (!stmt.getColumn(9).isNull()) row.meme.name = stmt.getColumn(9).getString();
+		if (!stmt.getColumn(10).isNull()) row.meme.description = stmt.getColumn(10).getString();
+		if (!stmt.getColumn(11).isNull()) row.meme.ocrText = stmt.getColumn(11).getString();
+
+		row.meme.ocrStatus  = static_cast<quickmemes::ProcessingStatus>(stmt.getColumn(12).getInt());
+		row.meme.aiStatus   = static_cast<quickmemes::ProcessingStatus>(stmt.getColumn(13).getInt());
+		row.meme.createdAt  = stmt.getColumn(14).getInt64();
+		row.meme.updatedAt  = stmt.getColumn(15).getInt64();
+		row.meme.lastUsedAt = stmt.getColumn(16).getInt64();
+		row.meme.deletedAt  = stmt.getColumn(17).getInt64();
+		row.meme.categoryId = stmt.getColumn(18).getInt64();
+		if (!stmt.getColumn(19).isNull()) row.categoryName = stmt.getColumn(19).getString();
+
+		if (!stmt.getColumn(20).isNull()) {
+			std::string tagsJson = stmt.getColumn(20).getString();
+			auto        jTags    = nlohmann::json::parse(tagsJson);
+			for (const auto &jt : jTags) {
+				quickmemes::Tag tag;
+				tag.id        = jt["id"];
+				tag.name      = jt["name"];
+				tag.color     = jt["color"];
+				tag.createdAt = jt["createdAt"];
+				row.meme.tags.push_back(tag);
+				row.meme.tagIds.push_back(tag.id);
+				row.tagNames.push_back(tag.name);
+			}
+		}
+
+		row.scored.meme = row.meme;
+		rows.push_back(std::move(row));
+	}
+
+	return rows;
+}
+
+static float computeFinalScore(quickmemes::SearchResultItem &item,
+                               const quickmemes::SearchConfig &config,
+                               bool includeVectorScores) {
+	double weightedSum = 0.0;
+	double activeSum   = 0.0;
+
+	auto apply = [&](double weight, float value) {
+		if (weight <= 0.0) return;
+		activeSum += weight;
+		weightedSum += weight * value;
+	};
+
+	apply(config.weights.name, item.scoreBreakdown.name);
+	apply(config.weights.description, item.scoreBreakdown.description);
+	apply(config.weights.ocrText, item.scoreBreakdown.ocrText);
+	apply(config.weights.tagName, item.scoreBreakdown.tagName);
+	apply(config.weights.categoryName, item.scoreBreakdown.categoryName);
+	if (includeVectorScores) {
+		apply(config.weights.vectorDescription, item.scoreBreakdown.vectorDescription);
+		apply(config.weights.vectorOcr, item.scoreBreakdown.vectorOcr);
+	}
+
+	if (activeSum <= 0.0) {
+		item.relevanceScore = 0.0f;
+		item.scoreBreakdown.final = 0.0f;
+		return 0.0f;
+	}
+
+	item.relevanceScore      = clampScore(weightedSum / activeSum);
+	item.scoreBreakdown.final = item.relevanceScore;
+	return item.relevanceScore;
+}
 } // namespace
 
 namespace quickmemes {
@@ -213,6 +555,10 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 		if (errMsg) sqlite3_free(errMsg);
 
 		runMigrations();
+		db_->exec("CREATE INDEX IF NOT EXISTS idx_memes_source_name ON memes(source_name);");
+		db_->exec("CREATE INDEX IF NOT EXISTS idx_meme_tags_tag_meme ON meme_tags(tag_id, meme_id);");
+		db_->exec("CREATE INDEX IF NOT EXISTS idx_tags_name_lower ON tags(lower(name));");
+		db_->exec("CREATE INDEX IF NOT EXISTS idx_categories_name_lower ON categories(lower(name));");
 		ensureEmbeddingTableSchema();
 
 		LOG_INFO("persist", "Database initialized successfully.");
@@ -234,6 +580,15 @@ void Database::shutdown() {
 		db_.reset();
 		LOG_INFO("persist", "Database connection closed.");
 	}
+}
+
+void Database::setSearchConfig(const SearchConfig &config) {
+	std::unique_lock lock(dbMutex_);
+	searchConfig_ = sanitizeSearchConfig(config);
+}
+
+const SearchConfig &Database::getSearchConfig() const {
+	return searchConfig_;
 }
 
 int64_t Database::insertMeme(const MemeEntry &meme) {
@@ -342,99 +697,326 @@ MemeEntry Database::getMeme(int64_t id) {
 PagedMemeResults Database::searchMemes(const SearchQuery &query) {
 	DatabaseReadLock lock(dbMutex_);
 	try {
-		SearchSql searchSql = buildSearchSql(query);
+		const bool hasHybridSearch = !trimCopy(query.keyword).empty();
+		if (!hasHybridSearch) {
+			SearchSql searchSql = buildSearchSql(query);
 
-		std::string sql = R"(
-            SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
-                   m.source_name, m.source_url, m.name, m.description, m.ocr_text,
-                   m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
-                   m.category_id,
-                   (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
-                    FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json,
-                   COUNT(*) OVER() as total_count
-            FROM memes m
-        )";
+			std::string sql = R"(
+                SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
+                       m.source_name, m.source_url, m.name, m.description, m.ocr_text,
+                       m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
+                       m.category_id,
+                       (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
+                        FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) AS tags_json,
+                       COUNT(*) OVER() AS total_count
+                FROM memes m
+            )";
 
-		if (!query.keyword.empty()) { sql += " LEFT JOIN memes_fts ON m.id = memes_fts.rowid "; }
+			appendWhereClauses(sql, searchSql);
+			sql += " " + searchSql.orderBy;
+			sql += " " + searchSql.limitOffset;
 
-		if (!query.tagIds.empty()) {
-			sql += " JOIN (SELECT meme_id FROM meme_tags WHERE tag_id IN (";
-			for (size_t i = 0; i < query.tagIds.size(); ++i) {
-				sql += (i == 0) ? "?" : ", ?";
+			SQLite::Statement stmt(*db_, sql);
+			bindParams(stmt, searchSql.params);
+
+			PagedMemeResults results;
+			bool             countSet = false;
+
+			while (stmt.executeStep()) {
+				MemeEntry meme;
+				meme.id       = stmt.getColumn(0).getInt64();
+				meme.fileHash = stmt.getColumn(1).getString();
+				meme.filePath = stmt.getColumn(2).getString();
+				meme.mimeType = stmt.getColumn(3).getString();
+				meme.fileSize = stmt.getColumn(4).getInt64();
+				meme.width    = stmt.getColumn(5).getInt();
+				meme.height   = stmt.getColumn(6).getInt();
+
+				if (!stmt.getColumn(7).isNull()) meme.sourceName = stmt.getColumn(7).getString();
+				if (!stmt.getColumn(8).isNull()) meme.sourceUrl = stmt.getColumn(8).getString();
+				if (!stmt.getColumn(9).isNull()) meme.name = stmt.getColumn(9).getString();
+				if (!stmt.getColumn(10).isNull()) meme.description = stmt.getColumn(10).getString();
+				if (!stmt.getColumn(11).isNull()) meme.ocrText = stmt.getColumn(11).getString();
+
+				meme.ocrStatus  = static_cast<ProcessingStatus>(stmt.getColumn(12).getInt());
+				meme.aiStatus   = static_cast<ProcessingStatus>(stmt.getColumn(13).getInt());
+				meme.createdAt  = stmt.getColumn(14).getInt64();
+				meme.updatedAt  = stmt.getColumn(15).getInt64();
+				meme.lastUsedAt = stmt.getColumn(16).getInt64();
+				meme.deletedAt  = stmt.getColumn(17).getInt64();
+				meme.categoryId = stmt.getColumn(18).getInt64();
+
+				if (!stmt.getColumn(19).isNull()) {
+					std::string tagsJson = stmt.getColumn(19).getString();
+					auto        jTags    = nlohmann::json::parse(tagsJson);
+					for (const auto &jt : jTags) {
+						Tag tag;
+						tag.id        = jt["id"];
+						tag.name      = jt["name"];
+						tag.color     = jt["color"];
+						tag.createdAt = jt["createdAt"];
+						meme.tags.push_back(tag);
+						meme.tagIds.push_back(tag.id);
+					}
+				}
+
+				if (!countSet) {
+					results.totalCount = stmt.getColumn(20).getInt();
+					countSet           = true;
+				}
+
+				SearchResultItem scoredItem;
+				scoredItem.meme = meme;
+				results.items.push_back(meme);
+				results.scoredItems.push_back(std::move(scoredItem));
 			}
-			sql += ") GROUP BY meme_id) mt ON m.id = mt.meme_id ";
+
+			return results;
 		}
 
-		if (!searchSql.whereClauses.empty()) {
-			sql += " WHERE " + searchSql.whereClauses[0];
-			for (size_t i = 1; i < searchSql.whereClauses.size(); ++i) {
-				sql += " AND " + searchSql.whereClauses[i];
+		const SearchConfig activeConfig = sanitizeSearchConfig(searchConfig_);
+		const SearchSql    filterSql    = buildFilterSql(query);
+
+		std::unordered_map<int64_t, SearchResultItem> scoredById;
+		auto ensureItem = [&](int64_t memeId) -> SearchResultItem & {
+			auto &item = scoredById[memeId];
+			item.similarityScore = -1.0f;
+			return item;
+		};
+
+		{
+			std::string sql =
+			    "SELECT m.id, bm25(memes_fts, 1.0, 1.0, 1.0) AS rank, "
+			    "highlight(memes_fts, 0, '[[', ']]') AS name_hit, "
+			    "highlight(memes_fts, 1, '[[', ']]') AS description_hit, "
+			    "highlight(memes_fts, 2, '[[', ']]') AS ocr_hit "
+			    "FROM memes_fts JOIN memes m ON m.id = memes_fts.rowid";
+			appendWhereClauses(sql, filterSql);
+			sql += filterSql.whereClauses.empty() ? " WHERE " : " AND ";
+			sql += "memes_fts MATCH simple_query(?, ?) ORDER BY rank ASC LIMIT ?";
+
+			SQLite::Statement stmt(*db_, sql);
+			bindParams(stmt, filterSql.params);
+			int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+			stmt.bind(bindIdx++, query.keyword);
+			stmt.bind(bindIdx++, query.enablePinyin ? "1" : "0");
+			stmt.bind(bindIdx, activeConfig.maxCandidatesPerScorer);
+
+			while (stmt.executeStep()) {
+				auto        memeId    = stmt.getColumn(0).getInt64();
+				const float ftsScore  = std::max(normalizeBm25(stmt.getColumn(1).getDouble()), 0.85f);
+				const auto &nameHit   = stmt.getColumn(2).getString();
+				const auto &descHit   = stmt.getColumn(3).getString();
+				const auto &ocrHit    = stmt.getColumn(4).getString();
+				auto       &item      = ensureItem(memeId);
+				if (nameHit.find("[[") != std::string::npos) {
+					item.scoreBreakdown.name = std::max(item.scoreBreakdown.name, ftsScore);
+				}
+				if (descHit.find("[[") != std::string::npos) {
+					item.scoreBreakdown.description = std::max(item.scoreBreakdown.description, ftsScore);
+				}
+				if (ocrHit.find("[[") != std::string::npos) {
+					item.scoreBreakdown.ocrText = std::max(item.scoreBreakdown.ocrText, ftsScore);
+				}
 			}
 		}
 
-		sql += " " + searchSql.orderBy;
-		sql += " " + searchSql.limitOffset;
+		if (isAsciiKeyword(query.keyword)) {
+			std::string sql = "SELECT m.id FROM memes m";
+			appendWhereClauses(sql, filterSql);
+			sql += filterSql.whereClauses.empty() ? " WHERE " : " AND ";
+			sql += "lower(m.name) LIKE lower(?) LIMIT ?";
 
-		SQLite::Statement stmt(*db_, sql);
-
-		int bindIdx = 1;
-		if (!query.tagIds.empty()) {
-			for (int64_t tagId : query.tagIds) {
-				stmt.bind(bindIdx++, tagId);
+			SQLite::Statement stmt(*db_, sql);
+			bindParams(stmt, filterSql.params);
+			int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+			stmt.bind(bindIdx++, "%" + query.keyword + "%");
+			stmt.bind(bindIdx, activeConfig.maxCandidatesPerScorer);
+			while (stmt.executeStep()) {
+				auto &item = ensureItem(stmt.getColumn(0).getInt64());
+				item.scoreBreakdown.name = std::max(item.scoreBreakdown.name, 0.7f);
 			}
 		}
 
-		for (const auto &param : searchSql.params) {
-			stmt.bind(bindIdx++, param);
+		{
+			std::string sql =
+			    "SELECT DISTINCT m.id FROM memes m JOIN meme_tags mt ON mt.meme_id = m.id JOIN tags t ON t.id = mt.tag_id";
+			appendWhereClauses(sql, filterSql);
+			sql += filterSql.whereClauses.empty() ? " WHERE " : " AND ";
+			sql += "lower(t.name) LIKE lower(?) LIMIT ?";
+
+			SQLite::Statement stmt(*db_, sql);
+			bindParams(stmt, filterSql.params);
+			int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+			stmt.bind(bindIdx++, "%" + query.keyword + "%");
+			stmt.bind(bindIdx, activeConfig.maxCandidatesPerScorer);
+			while (stmt.executeStep()) { ensureItem(stmt.getColumn(0).getInt64()); }
 		}
+
+		{
+			std::string sql = "SELECT DISTINCT m.id FROM memes m JOIN categories c ON c.id = m.category_id";
+			appendWhereClauses(sql, filterSql);
+			sql += filterSql.whereClauses.empty() ? " WHERE " : " AND ";
+			sql += "lower(c.name) LIKE lower(?) LIMIT ?";
+
+			SQLite::Statement stmt(*db_, sql);
+			bindParams(stmt, filterSql.params);
+			int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+			stmt.bind(bindIdx++, "%" + query.keyword + "%");
+			stmt.bind(bindIdx, activeConfig.maxCandidatesPerScorer);
+			while (stmt.executeStep()) { ensureItem(stmt.getColumn(0).getInt64()); }
+		}
+
+		bool vectorIncluded = false;
+		if (query.useVector && EmbeddingModule::get().isAvailable()) {
+			try {
+				auto queryEmbedding = EmbeddingModule::get().generateEmbedding(query.keyword);
+				if (!queryEmbedding.empty() &&
+				    queryEmbedding.size() == static_cast<size_t>(EmbeddingModule::get().getDimensions())) {
+					auto collectVectorScores = [&](const char *tableName, bool isDescription) {
+						std::string sql = std::string("SELECT m.id, v.distance FROM ") + tableName +
+						                  " v JOIN memes m ON m.id = v.meme_id";
+						appendWhereClauses(sql, filterSql);
+						sql += filterSql.whereClauses.empty() ? " WHERE " : " AND ";
+						sql += "v.embedding MATCH ? AND v.k = ? ORDER BY v.distance LIMIT ?";
+
+						SQLite::Statement stmt(*db_, sql);
+						bindParams(stmt, filterSql.params);
+						int bindIdx = static_cast<int>(filterSql.params.size()) + 1;
+						stmt.bind(bindIdx++, queryEmbedding.data(), queryEmbedding.size() * sizeof(float));
+						stmt.bind(bindIdx++, activeConfig.vectorTopK);
+						stmt.bind(bindIdx, activeConfig.vectorTopK);
+
+						while (stmt.executeStep()) {
+							auto  memeId = stmt.getColumn(0).getInt64();
+							float score  = normalizeVectorDistance(stmt.getColumn(1).getDouble());
+							auto &item   = ensureItem(memeId);
+							if (isDescription) {
+								item.scoreBreakdown.vectorDescription =
+								    std::max(item.scoreBreakdown.vectorDescription, score);
+							} else {
+								item.scoreBreakdown.vectorOcr = std::max(item.scoreBreakdown.vectorOcr, score);
+							}
+						}
+					};
+
+					collectVectorScores("vec_meme_desc", true);
+					collectVectorScores("vec_meme_ocr", false);
+					vectorIncluded = true;
+				}
+			} catch (const std::exception &e) {
+				LOG_WARN("persist", std::string("Failed to build query embedding, fallback to non-vector search: ") + e.what());
+			}
+		}
+
+		std::vector<int64_t> candidateIds;
+		candidateIds.reserve(scoredById.size());
+		for (const auto &[memeId, _] : scoredById) {
+			(void)_;
+			candidateIds.push_back(memeId);
+		}
+		std::sort(candidateIds.begin(), candidateIds.end());
 
 		PagedMemeResults results;
-		bool             countSet = false;
+		if (candidateIds.empty()) { return results; }
 
-		while (stmt.executeStep()) {
-			MemeEntry meme;
-			meme.id       = stmt.getColumn(0).getInt64();
-			meme.fileHash = stmt.getColumn(1).getString();
-			meme.filePath = stmt.getColumn(2).getString();
-			meme.mimeType = stmt.getColumn(3).getString();
-			meme.fileSize = stmt.getColumn(4).getInt64();
-			meme.width    = stmt.getColumn(5).getInt();
-			meme.height   = stmt.getColumn(6).getInt();
+		auto candidateRows = loadCandidateRows(*db_, candidateIds);
+		std::vector<SearchResultItem> rankedItems;
+		rankedItems.reserve(candidateRows.size());
 
-			if (!stmt.getColumn(7).isNull()) meme.sourceName = stmt.getColumn(7).getString();
-			if (!stmt.getColumn(8).isNull()) meme.sourceUrl = stmt.getColumn(8).getString();
-			if (!stmt.getColumn(9).isNull()) meme.name = stmt.getColumn(9).getString();
-			if (!stmt.getColumn(10).isNull()) meme.description = stmt.getColumn(10).getString();
-			if (!stmt.getColumn(11).isNull()) meme.ocrText = stmt.getColumn(11).getString();
+		for (auto &row : candidateRows) {
+			auto it = scoredById.find(row.meme.id);
+			if (it == scoredById.end()) continue;
 
-			meme.ocrStatus  = static_cast<ProcessingStatus>(stmt.getColumn(12).getInt());
-			meme.aiStatus   = static_cast<ProcessingStatus>(stmt.getColumn(13).getInt());
-			meme.createdAt  = stmt.getColumn(14).getInt64();
-			meme.updatedAt  = stmt.getColumn(15).getInt64();
-			meme.lastUsedAt = stmt.getColumn(16).getInt64();
-			meme.deletedAt  = stmt.getColumn(17).getInt64();
-			meme.categoryId = stmt.getColumn(18).getInt64();
+			auto item = it->second;
+			item.meme = row.meme;
 
-			if (!stmt.getColumn(19).isNull()) {
-				std::string tagsJson = stmt.getColumn(19).getString();
-				auto        jTags    = nlohmann::json::parse(tagsJson);
-				for (const auto &jt : jTags) {
-					Tag t;
-					t.id        = jt["id"];
-					t.name      = jt["name"];
-					t.color     = jt["color"];
-					t.createdAt = jt["createdAt"];
-					meme.tags.push_back(t);
-					meme.tagIds.push_back(t.id);
+			if (equalsCaseInsensitive(row.meme.name, query.keyword)) {
+				item.scoreBreakdown.name = std::max(item.scoreBreakdown.name, 1.0f);
+			}
+
+			if (equalsCaseInsensitive(row.meme.description, query.keyword)) {
+				item.scoreBreakdown.description = std::max(item.scoreBreakdown.description, 1.0f);
+			}
+
+			if (equalsCaseInsensitive(row.meme.ocrText, query.keyword)) {
+				item.scoreBreakdown.ocrText = std::max(item.scoreBreakdown.ocrText, 1.0f);
+			}
+
+			for (const auto &tagName : row.tagNames) {
+				if (equalsCaseInsensitive(tagName, query.keyword)) {
+					item.scoreBreakdown.tagName = std::max(item.scoreBreakdown.tagName, 1.0f);
+				} else if (containsCaseInsensitive(tagName, query.keyword)) {
+					item.scoreBreakdown.tagName = std::max(item.scoreBreakdown.tagName, 0.75f);
 				}
 			}
 
-			if (!countSet) {
-				results.totalCount = stmt.getColumn(20).getInt();
-				countSet           = true;
+			if (equalsCaseInsensitive(row.categoryName, query.keyword)) {
+				item.scoreBreakdown.categoryName = std::max(item.scoreBreakdown.categoryName, 1.0f);
+			} else if (containsCaseInsensitive(row.categoryName, query.keyword)) {
+				item.scoreBreakdown.categoryName = std::max(item.scoreBreakdown.categoryName, 0.75f);
 			}
 
-			results.items.push_back(meme);
+			if (vectorIncluded &&
+			    (item.scoreBreakdown.vectorDescription > 0.0f || item.scoreBreakdown.vectorOcr > 0.0f)) {
+				item.similarityScore =
+				    std::max(item.scoreBreakdown.vectorDescription, item.scoreBreakdown.vectorOcr);
+			}
+
+			if (computeFinalScore(item, activeConfig, vectorIncluded) < activeConfig.minScore) { continue; }
+			rankedItems.push_back(std::move(item));
+		}
+
+		auto compareByField = [&](const SearchResultItem &lhs, const SearchResultItem &rhs) {
+			const bool ascending = query.sortOrder == "ASC" || query.sortOrder == "asc";
+			auto compareString = [&](const std::string &a, const std::string &b) {
+				if (lowerAsciiCopy(a) == lowerAsciiCopy(b)) return 0;
+				return lowerAsciiCopy(a) < lowerAsciiCopy(b) ? -1 : 1;
+			};
+			auto compareInt64 = [](int64_t a, int64_t b) {
+				if (a == b) return 0;
+				return a < b ? -1 : 1;
+			};
+			auto decide = [&](int cmp) {
+				if (cmp == 0) return false;
+				return ascending ? (cmp < 0) : (cmp > 0);
+			};
+
+			if (query.sortBy == "relevance") {
+				if (lhs.relevanceScore != rhs.relevanceScore) { return lhs.relevanceScore > rhs.relevanceScore; }
+			} else if (query.sortBy == "size" || query.sortBy == "fileSize") {
+				int cmp = compareInt64(lhs.meme.fileSize, rhs.meme.fileSize);
+				if (cmp != 0) return decide(cmp);
+			} else if (query.sortBy == "name") {
+				int cmp = compareString(lhs.meme.name, rhs.meme.name);
+				if (cmp != 0) return decide(cmp);
+			} else if (query.sortBy == "updatedAt") {
+				int cmp = compareInt64(lhs.meme.updatedAt, rhs.meme.updatedAt);
+				if (cmp != 0) return decide(cmp);
+			} else if (query.sortBy == "lastUsedAt") {
+				int cmp = compareInt64(lhs.meme.lastUsedAt, rhs.meme.lastUsedAt);
+				if (cmp != 0) return decide(cmp);
+			} else {
+				int cmp = compareInt64(lhs.meme.createdAt, rhs.meme.createdAt);
+				if (cmp != 0) return decide(cmp);
+			}
+
+			if (lhs.relevanceScore != rhs.relevanceScore) { return lhs.relevanceScore > rhs.relevanceScore; }
+			if (lhs.meme.lastUsedAt != rhs.meme.lastUsedAt) { return lhs.meme.lastUsedAt > rhs.meme.lastUsedAt; }
+			if (lhs.meme.createdAt != rhs.meme.createdAt) { return lhs.meme.createdAt > rhs.meme.createdAt; }
+			return lhs.meme.id > rhs.meme.id;
+		};
+
+		std::sort(rankedItems.begin(), rankedItems.end(), compareByField);
+		results.totalCount = static_cast<int32_t>(rankedItems.size());
+
+		const int limit  = std::max(1, std::min(200, query.limit > 0 ? query.limit : 50));
+		const int offset = std::max(0, query.offset);
+		const int end    = std::min(static_cast<int>(rankedItems.size()), offset + limit);
+
+		for (int i = offset; i < end; ++i) {
+			results.items.push_back(rankedItems[i].meme);
+			results.scoredItems.push_back(rankedItems[i]);
 		}
 
 		return results;
@@ -1376,81 +1958,12 @@ void Database::ensureEmbeddingTableSchema() {
 }
 
 SearchSql Database::buildSearchSql(const SearchQuery &query) {
-	SearchSql res;
-
-	if (query.tagIds.size() > 900) { throw ApiException(ERR_INVALID_PARAMS, "Too many tags in query (limit 900)"); }
-
-	// 未删除的文件默认会被搜索，如果没有指定特殊的标志
-	// 因为最初的结构体中没有 includeDeleted 字段，使用基本的策略：
-	res.whereClauses.push_back("m.deleted_at = 0");
-
-	if (!query.keyword.empty()) {
-		appendKeywordWhereClause(query, res);
-	}
-
-	if (!query.source.empty()) {
-		// Assume mapping of enum to string happens in handler, or we use source matching natively
-		res.whereClauses.push_back("m.source_name = ?");
-		res.params.push_back(query.source);
-	}
-
-	if (query.categoryId != 0) {
-		if (query.categoryId == -1) {
-			res.whereClauses.push_back("m.category_id = 0");
-			res.whereClauses.push_back(
-			    "NOT EXISTS (SELECT 1 FROM meme_tags mt_uncategorized WHERE mt_uncategorized.meme_id = m.id)");
-			res.whereClauses.push_back("trim(m.ocr_text) = ''");
-		} else {
-			res.whereClauses.push_back("m.category_id = ?");
-			res.params.push_back(std::to_string(query.categoryId));
-		}
-	}
-
-	// No processingStatus filter in standard query currently.
-
-	if (!query.formats.empty()) {
-		std::string formatClause = "m.mime_type IN (";
-		for (size_t i = 0; i < query.formats.size(); ++i) {
-			formatClause += (i == 0) ? "?" : ", ?";
-			res.params.push_back(query.formats[i]);
-		}
-		formatClause += ")";
-		res.whereClauses.push_back(formatClause);
-	}
-
-	if (query.sizeMin > 0) {
-		res.whereClauses.push_back("m.file_size >= ?");
-		res.params.push_back(std::to_string(query.sizeMin));
-	}
-
-	if (query.sizeMax > 0) {
-		res.whereClauses.push_back("m.file_size <= ?");
-		res.params.push_back(std::to_string(query.sizeMax));
-	}
-
-	if (query.timeFrom > 0) {
-		res.whereClauses.push_back("m.created_at >= ?");
-		res.params.push_back(std::to_string(query.timeFrom));
-	}
-
-	if (query.timeTo > 0) {
-		res.whereClauses.push_back("m.created_at <= ?");
-		res.params.push_back(std::to_string(query.timeTo));
-	}
-
-	if (!query.regex.empty()) {
-		res.whereClauses.push_back("(regexp(?, m.name) OR regexp(?, m.description) OR regexp(?, m.ocr_text))");
-		res.params.push_back(query.regex);
-		res.params.push_back(query.regex);
-		res.params.push_back(query.regex);
-	}
+	SearchSql res = buildFilterSql(query);
 
 	// ORDER BY
 	std::string orderField = "m.created_at"; // default
 	if (!query.sortBy.empty()) {
-		if (query.sortBy == "relevance" && !query.keyword.empty()) {
-			orderField = "-bm25(memes_fts)";
-		} else if (query.sortBy == "size" || query.sortBy == "fileSize") {
+		if (query.sortBy == "size" || query.sortBy == "fileSize") {
 			orderField = "m.file_size";
 		} else if (query.sortBy == "name") {
 			orderField = "m.name";
