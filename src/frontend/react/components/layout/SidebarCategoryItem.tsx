@@ -10,6 +10,7 @@ import { useCategoryStore } from '../../stores/CategoryStore';
 import { useNotificationStore } from '../../stores/NotificationStore';
 import { useUiStore } from '../../stores/UiStore';
 import { useTranslation } from 'react-i18next';
+import { categoryComposerStyle, getCategoryInputStyle } from './SidebarCategoryCreator';
 
 export const PRESET_COLORS = [
     '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e',
@@ -34,16 +35,16 @@ const clampCategoryMenuPosition = (
     };
 };
 
+const layoutTransition = {
+    duration: 0.3,
+    ease: [0.23, 1, 0.32, 1] as const,
+};
+
 interface SidebarCategoryItemProps {
     cat: Category;
     index: number;
     sortableProps: any;
     sidebarExpanded: boolean;
-    getNavClass: (id: string) => string;
-    renderActiveIndicator: (id: string) => React.ReactNode;
-    renderNavLabel: (label: string) => React.ReactNode;
-    categoryComposerStyle: React.CSSProperties;
-    categoryInputStyle: React.CSSProperties | ((focused: boolean) => React.CSSProperties);
     refreshCategoriesInBackground: () => void;
 }
 
@@ -52,11 +53,6 @@ export const SidebarCategoryItem = memo(({
     index,
     sortableProps,
     sidebarExpanded,
-    getNavClass,
-    renderActiveIndicator,
-    renderNavLabel,
-    categoryComposerStyle,
-    categoryInputStyle,
     refreshCategoriesInBackground
 }: SidebarCategoryItemProps) => {
     const { t } = useTranslation();
@@ -206,13 +202,12 @@ export const SidebarCategoryItem = memo(({
             refreshCategoriesInBackground();
         } catch (error) {
             addNotification({ type: 'error', title: t('common.save_failed'), description: error instanceof Error ? error.message : String(error) });
-            setIsActionPending(false); // Only reset on failure since success unmounts component
+            setIsActionPending(false);
         }
     };
 
     const isDeleteConfirmOpen = menuPanel === 'confirmDelete';
     const isCustomColorPickerOpen = menuPanel === 'customColor';
-    const dynamicInputStyle = typeof categoryInputStyle === 'function' ? categoryInputStyle(isInputFocused) : categoryInputStyle;
 
     return (
         <div ref={sortableProps.setNodeRef} style={sortableProps.style}>
@@ -243,7 +238,7 @@ export const SidebarCategoryItem = memo(({
                                 }}
                                 autoFocus
                                 className="w-full h-10 rounded-xl border px-3 text-sm text-textPrimary placeholder:text-textSecondary/60 outline-none transition-all duration-300"
-                                style={dynamicInputStyle}
+                                style={getCategoryInputStyle(isInputFocused)}
                             />
                             <div className="flex items-center justify-end gap-2">
                                 <button
@@ -269,10 +264,24 @@ export const SidebarCategoryItem = memo(({
                     <>
                         <button
                             onClick={() => setActiveNav(navId)}
-                            className={clsx(getNavClass(navId), sidebarExpanded && "pr-10", sortableProps.isDragging && "bg-black/[0.03] dark:bg-white/[0.03] text-textPrimary shadow-sm")}
+                            className={clsx(
+                                "w-full flex h-9 items-center text-left rounded-lg text-[13px] transition-all duration-300 group relative no-drag mb-0.5 px-3 select-none",
+                                isActive
+                                    ? "font-semibold text-textPrimary z-10"
+                                    : "text-textPrimary/60 hover:text-textPrimary hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:translate-x-1",
+                                sidebarExpanded && "pr-10",
+                                sortableProps.isDragging && "bg-black/[0.03] dark:bg-white/[0.03] text-textPrimary shadow-sm"
+                            )}
                             title={!sidebarExpanded ? cat.name : undefined}
                         >
-                            {renderActiveIndicator(navId)}
+                            {isActive && (
+                                <motion.div
+                                    layoutId="active-indicator"
+                                    transition={layoutTransition}
+                                    className="absolute left-0 w-1 h-5 bg-accent rounded-r-full"
+                                    style={{ boxShadow: '0 0 8px var(--accent-color)' }}
+                                />
+                            )}
                             <span className="flex w-[16px] shrink-0 justify-center">
                                 <Folder
                                     size={18}
@@ -284,7 +293,18 @@ export const SidebarCategoryItem = memo(({
                                     }}
                                 />
                             </span>
-                            {renderNavLabel(cat.name)}
+                            <motion.span
+                                initial={false}
+                                animate={{
+                                    opacity: sidebarExpanded ? 1 : 0,
+                                    maxWidth: sidebarExpanded ? 160 : 0,
+                                    marginLeft: sidebarExpanded ? 16 : 0,
+                                }}
+                                transition={layoutTransition}
+                                className="flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden"
+                            >
+                                {cat.name}
+                            </motion.span>
                         </button>
 
                         {sidebarExpanded && (

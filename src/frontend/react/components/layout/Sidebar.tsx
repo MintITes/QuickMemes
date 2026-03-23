@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useState, memo } from 'react';
 import { useUiStore } from '../../stores/UiStore';
 import { useCategoryStore } from '../../stores/CategoryStore';
 import { LayoutList, Tag, Trash2, Clock, Star, ArchiveRestore, PanelLeft, PanelLeftClose, Plus } from 'lucide-react';
@@ -18,6 +18,11 @@ import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
 
 import { SidebarCategoryCreator } from './SidebarCategoryCreator';
 import { SidebarCategoryItem } from './SidebarCategoryItem';
+
+const layoutTransition = {
+    duration: 0.3,
+    ease: [0.23, 1, 0.32, 1] as const,
+};
 
 function SortableItem({
     id,
@@ -50,10 +55,54 @@ function SortableItem({
     return <>{children({ attributes, listeners, setNodeRef, style, isDragging })}</>;
 }
 
-export function Sidebar() {
-    const { t } = useTranslation();
+const SidebarNavItem = memo(({ item, sidebarExpanded }: { item: any, sidebarExpanded: boolean }) => {
     const activeNav = useUiStore(state => state.activeNav);
     const setActiveNav = useUiStore(state => state.setActiveNav);
+    const isActive = activeNav === String(item.id);
+
+    return (
+        <button
+            onClick={() => setActiveNav(item.id)}
+            className={clsx(
+                "w-full flex h-9 items-center text-left rounded-lg text-[13px] transition-all duration-300 group relative no-drag mb-0.5 px-3 select-none",
+                isActive
+                    ? "font-semibold text-textPrimary z-10"
+                    : "text-textPrimary/60 hover:text-textPrimary hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:translate-x-1"
+            )}
+            title={item.title}
+        >
+            {isActive && (
+                <motion.div
+                    layoutId="active-indicator"
+                    transition={layoutTransition}
+                    className="absolute left-0 w-1 h-5 bg-accent rounded-r-full"
+                    style={{ boxShadow: '0 0 8px var(--accent-color)' }}
+                />
+            )}
+            <span className="flex w-[16px] shrink-0 justify-center">
+                <item.icon size={18} className={clsx(
+                    "transition-all duration-300 flex-shrink-0",
+                    isActive ? "scale-110 text-accent opacity-100" : "opacity-50 group-hover:opacity-100 group-hover:scale-105"
+                )} />
+            </span>
+            <motion.span
+                initial={false}
+                animate={{
+                    opacity: sidebarExpanded ? 1 : 0,
+                    maxWidth: sidebarExpanded ? 160 : 0,
+                    marginLeft: sidebarExpanded ? 16 : 0,
+                }}
+                transition={layoutTransition}
+                className="flex-1 min-w-0 truncate whitespace-nowrap overflow-hidden"
+            >
+                {item.label}
+            </motion.span>
+        </button>
+    );
+});
+
+export function Sidebar() {
+    const { t } = useTranslation();
     const sidebarExpanded = useUiStore(state => state.sidebarExpanded);
     const setSidebarExpanded = useUiStore(state => state.setSidebarExpanded);
     const categories = useCategoryStore(state => state.categories);
@@ -106,49 +155,6 @@ export function Sidebar() {
         }
     };
 
-    const layoutTransition = {
-        duration: 0.3,
-        ease: [0.23, 1, 0.32, 1] as const,
-    };
-
-    const categoryComposerStyle = {
-        backgroundColor: 'var(--bg-surface)',
-        borderColor: 'color-mix(in srgb, var(--accent-color), transparent 80%)',
-        boxShadow: '0 8px 32px -12px color-mix(in srgb, var(--accent-color), transparent 70%), 0 4px 12px -4px rgba(0,0,0,0.1)',
-        borderWidth: '1px',
-    } as const;
-
-    const categoryInputStyle = (isFocused: boolean) => ({
-        backgroundColor: isFocused
-            ? 'color-mix(in srgb, var(--accent-color) 4%, var(--bg-surface))'
-            : 'color-mix(in srgb, var(--accent-color) 2%, var(--bg-surface))',
-        borderColor: isFocused
-            ? 'color-mix(in srgb, var(--accent-color), transparent 60%)'
-            : 'color-mix(in srgb, var(--accent-color), transparent 85%)',
-        boxShadow: isFocused
-            ? '0 0 0 4px color-mix(in srgb, var(--accent-color), transparent 92%)'
-            : 'none',
-        caretColor: 'var(--accent-color)',
-    } as React.CSSProperties);
-
-    const getNavClass = (id: string | number) => {
-        const isActive = activeNav === String(id);
-        return clsx(
-            "w-full flex h-9 items-center text-left rounded-lg text-[13px] transition-all duration-300 group relative no-drag mb-0.5 px-3 select-none",
-            isActive
-                ? "font-semibold text-textPrimary z-10"
-                : "text-textPrimary/60 hover:text-textPrimary hover:bg-black/[0.03] dark:hover:bg-white/[0.03] hover:translate-x-1"
-        );
-    };
-
-    const getIconClass = (id: string | number) => {
-        const isActive = activeNav === String(id);
-        return clsx(
-            "transition-all duration-300 flex-shrink-0",
-            isActive ? "scale-110 text-accent opacity-100" : "opacity-50 group-hover:opacity-100 group-hover:scale-105"
-        );
-    };
-
     const getSectionLabelClass = (tone: 'default' | 'muted' = 'default') => clsx(
         "block px-3 text-[10px] font-bold uppercase tracking-[0.15em] whitespace-nowrap overflow-hidden leading-4 transition-[height,margin,opacity] duration-300",
         tone === 'default' ? "text-textSecondary" : "text-textSecondary",
@@ -172,20 +178,6 @@ export function Sidebar() {
         </motion.span>
     );
 
-    const renderActiveIndicator = (id: string | number) => {
-        const isActive = activeNav === String(id);
-        if (!isActive) return null;
-
-        return (
-            <motion.div
-                layoutId="active-indicator"
-                transition={layoutTransition}
-                className="absolute left-0 w-1 h-5 bg-accent rounded-r-full"
-                style={{ boxShadow: '0 0 8px var(--accent-color)' }}
-            />
-        );
-    };
-
     const handleStartCreateCategory = () => {
         if (!sidebarExpanded) {
             setSidebarExpanded(true);
@@ -207,18 +199,7 @@ export function Sidebar() {
     const renderNavSection = (items: typeof MAIN_NAV_ITEMS) => (
         <>
             {items.map(item => (
-                <button
-                    key={item.id}
-                    onClick={() => setActiveNav(item.id)}
-                    className={getNavClass(item.id)}
-                    title={item.title}
-                >
-                    {renderActiveIndicator(item.id)}
-                    <span className="flex w-[16px] shrink-0 justify-center">
-                        <item.icon size={18} className={getIconClass(item.id)} />
-                    </span>
-                    {renderNavLabel(item.label)}
-                </button>
+                <SidebarNavItem key={item.id} item={item} sidebarExpanded={sidebarExpanded} />
             ))}
         </>
     );
@@ -311,8 +292,6 @@ export function Sidebar() {
                                 sidebarExpanded={sidebarExpanded}
                                 isAddingCategory={isAddingCategory}
                                 setIsAddingCategory={setIsAddingCategory}
-                                categoryComposerStyle={categoryComposerStyle}
-                                categoryInputStyle={categoryInputStyle}
                                 refreshCategoriesInBackground={refreshCategoriesInBackground}
                             />
 
@@ -336,11 +315,6 @@ export function Sidebar() {
                                                                 index={index}
                                                                 sortableProps={sortableProps}
                                                                 sidebarExpanded={sidebarExpanded}
-                                                                getNavClass={getNavClass}
-                                                                renderActiveIndicator={renderActiveIndicator}
-                                                                renderNavLabel={renderNavLabel}
-                                                                categoryComposerStyle={categoryComposerStyle}
-                                                                categoryInputStyle={categoryInputStyle}
                                                                 refreshCategoriesInBackground={refreshCategoriesInBackground}
                                                             />
                                                         )}
