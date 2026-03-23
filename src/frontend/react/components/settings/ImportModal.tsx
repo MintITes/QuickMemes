@@ -13,7 +13,10 @@ const SUPPORTED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'i
 
 function extractPathsFromFileList(files: File[]) {
     return files
-        .map((file) => (file as File & { path?: string }).path)
+        .map((file) => {
+            const path = window.electronAPI.getPathForFile(file);
+            return path?.trim() ?? '';
+        })
         .filter((value): value is string => typeof value === 'string' && value.length > 0);
 }
 
@@ -75,7 +78,7 @@ export function ImportModal() {
     const submitImport = async (inputPaths: string[]) => {
         if (inputPaths.length === 0) {
             setImportStatus('error');
-            setErrorMessage('无法读取文件绝对路径，请使用“选择文件”导入。');
+            setErrorMessage('无法读取文件绝对路径，请改用“选择文件”导入。');
             return;
         }
 
@@ -175,6 +178,7 @@ export function ImportModal() {
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
+                                data-testid="import-drop-zone"
                                 className={clsx(
                                     "relative h-56 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center space-y-3 transition-all duration-300",
                                     isDragging

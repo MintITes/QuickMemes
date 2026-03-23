@@ -83,6 +83,7 @@ declare global {
             setConfig: (patch: Partial<AppConfig>) => Promise<SetConfigResult>;
             readClipboardImage: () => Promise<string | null>;
             writeClipboardImageFromMeme: (memeId: number) => Promise<boolean>;
+            getPathForFile: (file: File) => string;
             openFileDialog: (options?: unknown) => Promise<string[]>;
             openDirectoryDialog: (options?: unknown) => Promise<string | null>;
             saveFileDialog: (options?: unknown) => Promise<string | null>;

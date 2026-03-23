@@ -29,6 +29,7 @@ afterAll(() => server.close());
 vi.stubGlobal('electronAPI', {
     readClipboardImage: vi.fn(),
     writeClipboardImageFromMeme: vi.fn(),
+    getPathForFile: vi.fn().mockReturnValue(''),
     openFileDialog: vi.fn().mockResolvedValue([]),
     openDirectoryDialog: vi.fn().mockResolvedValue(null),
     saveFileDialog: vi.fn().mockResolvedValue(null),

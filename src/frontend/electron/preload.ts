@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
     getBackendConfig: () => ipcRenderer.invoke('backend:get-config'),
@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readClipboardImage: () => ipcRenderer.invoke('clipboard:read-image'),
     writeClipboardImageFromMeme: (memeId: number) =>
         ipcRenderer.invoke('clipboard:write-image-from-meme', memeId),
+    getPathForFile: (file: File) => webUtils.getPathForFile(file),
     openFileDialog: (options: unknown) => ipcRenderer.invoke('open-file-dialog', options),
     openDirectoryDialog: (options: unknown) => ipcRenderer.invoke('open-directory-dialog', options),
     saveFileDialog: (options: unknown) => ipcRenderer.invoke('save-file-dialog', options),
