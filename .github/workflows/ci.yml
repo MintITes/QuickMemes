@@ -68,16 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            shell: bash
-            test_script: ./scripts/test.sh
-          - os: macos-latest
-            shell: bash
-            test_script: ./scripts/test.sh
-          - os: windows-latest
-            shell: pwsh
-            test_script: ./scripts/test.ps1
+        os: [ubuntu-latest, macos-latest, windows-latest]
     timeout-minutes: 60
     steps:
       - name: Checkout
@@ -109,9 +100,15 @@ jobs:
           restore-keys: |
             backend-vcpkg-${{ matrix.os }}-
 
-      - name: Build and Test
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.test_script }}
+      - name: Build and Test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/test.sh
+
+      - name: Build and Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test.ps1
 
       - name: Upload backend diagnostics
         if: failure()
@@ -133,25 +130,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            shell: bash
-            install_script: ./scripts/frontend-install.sh
-            lint_script: ./scripts/frontend-lint.sh
-            test_script: ./scripts/frontend-test.sh
-            build_script: ./scripts/frontend-build.sh
-          - os: macos-latest
-            shell: bash
-            install_script: ./scripts/frontend-install.sh
-            lint_script: ./scripts/frontend-lint.sh
-            test_script: ./scripts/frontend-test.sh
-            build_script: ./scripts/frontend-build.sh
-          - os: windows-latest
-            shell: pwsh
-            install_script: ./scripts/frontend-install.ps1
-            lint_script: ./scripts/frontend-lint.ps1
-            test_script: ./scripts/frontend-test.ps1
-            build_script: ./scripts/frontend-build.ps1
+        os: [ubuntu-latest, macos-latest, windows-latest]
     timeout-minutes: 40
     steps:
       - name: Checkout
@@ -164,21 +143,45 @@ jobs:
           cache: npm
           cache-dependency-path: src/frontend/package-lock.json
 
-      - name: Install dependencies
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.install_script }}
+      - name: Install dependencies (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-install.sh
 
-      - name: Lint
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.lint_script }}
+      - name: Lint (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-lint.sh
 
-      - name: Test
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.test_script }}
+      - name: Test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-test.sh
 
-      - name: Build
-        shell: ${{ matrix.shell }}
-        run: ${{ matrix.build_script }}
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-build.sh
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-install.ps1
+
+      - name: Lint (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-lint.ps1
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-test.ps1
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-build.ps1
 
       - name: Upload frontend diagnostics
         if: failure()
