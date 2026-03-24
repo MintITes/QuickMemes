@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <gtest/gtest.h>
+#include <vector>
 
 namespace quickmemes { namespace testing {
 
@@ -24,11 +25,11 @@ protected:
 		imagePath3_ = tempDir_->getSubPath("wait.jpg");
 
 		createTestImage(imagePath1_);
-		createTestImage(imagePath2_);
+		createSlowInput(imagePath2_);
 		createTestImage(imagePath3_);
 
 		Database::get().initialize(":memory:");
-		TaskQueue::get().initialize(2, 5, tempDir_->getSubPath("storage"));
+		TaskQueue::get().initialize(2, 1, tempDir_->getSubPath("storage"));
 	}
 
 	void TearDown() override {
@@ -43,6 +44,14 @@ protected:
 		                        0x65, 0x00, 0x64, 0x80, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xD9};
 		ofs.write(reinterpret_cast<const char *>(data), sizeof(data));
 		ofs.close();
+	}
+
+	void createSlowInput(const std::string &path) {
+		std::ofstream ofs(path, std::ios::binary);
+		std::vector<char> chunk(1024 * 1024, '\0');
+		for (int i = 0; i < 64; ++i) {
+			ofs.write(chunk.data(), static_cast<std::streamsize>(chunk.size()));
+		}
 	}
 
 	std::unique_ptr<TestDirectory> tempDir_;
@@ -61,16 +70,13 @@ TEST_F(TaskQueueTest, SubmitTask_ValidRequest_ReturnsTaskId) {
 }
 
 TEST_F(TaskQueueTest, SubmitTask_QueueFull_ThrowsQuotaExceeded) {
-	// TaskQueue initialized with max size 5 in SetUp
+	// Use a blocking input so the first task keeps the only pending slot occupied
+	// long enough for the quota check to run deterministically in CI.
 	ImportRequest req;
-	for (int i = 0; i < 5; ++i) {
-		req.inputs.push_back(imagePath2_);
-	}
+	req.inputs = {imagePath2_};
 
-	// First 5 should succeed (if currentPending starts at 0)
 	TaskQueue::get().submitImportTask(req);
 
-	// The 6th should fail
 	ImportRequest req2;
 	req2.inputs = {"extra.jpg"};
 	EXPECT_THROW(TaskQueue::get().submitImportTask(req2), ApiException);
