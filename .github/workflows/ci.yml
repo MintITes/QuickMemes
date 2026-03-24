@@ -207,7 +207,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint GitHub Actions workflow files
-        uses: rhysd/actionlint@v1
+        uses: rhysd/actionlint@v1.7.8
 
       - name: Dependency review
         if: github.event_name == 'pull_request'
