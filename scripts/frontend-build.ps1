@@ -7,8 +7,8 @@ $FrontendDir = [IO.Path]::GetFullPath($FrontendDir)
 Push-Location $FrontendDir
 try {
     if (-not (Test-Path "node_modules")) {
-        Write-Host "Dependencies not found. Running npm install..."
-        npm install
+        Write-Host "Dependencies not found. Running npm ci..."
+        npm ci --no-audit --prefer-offline
     }
 
     Write-Host "Building QuickMemes Frontend (React + Electron)..."

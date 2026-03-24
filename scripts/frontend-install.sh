@@ -5,5 +5,5 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../src/frontend >/dev/null 2>&1 &&
 
 echo "Installing frontend dependencies..."
 cd "$DIR"
-npm install
+npm ci --no-audit --prefer-offline
 echo "Dependencies installed."

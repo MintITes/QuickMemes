@@ -30,6 +30,31 @@ else
     echo "Ninja not found, falling back to system default generator."
 fi
 
+if [[ "$(uname -s)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
+    OPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null || true)"
+    if [ -n "$OPENSSL_ROOT_DIR" ]; then
+        echo "Using Homebrew OpenSSL at $OPENSSL_ROOT_DIR"
+        GENERATOR_ARGS="$GENERATOR_ARGS -DOPENSSL_ROOT_DIR=$OPENSSL_ROOT_DIR"
+    fi
+fi
+
+cpu_count() {
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+        return
+    fi
+
+    if command -v getconf >/dev/null 2>&1; then
+        getconf _NPROCESSORS_ONLN 2>/dev/null && return
+    fi
+
+    if command -v sysctl >/dev/null 2>&1; then
+        sysctl -n hw.ncpu 2>/dev/null && return
+    fi
+
+    echo 2
+}
+
 # Generate build files
 # Using -DFETCHCONTENT_BASE_DIR to keep dependency sources outside of the build folder
 cd "$BUILD_DIR"
@@ -39,6 +64,6 @@ cmake $GENERATOR_ARGS \
       ..
 
 # Build
-cmake --build . --parallel $(nproc)
+cmake --build . --parallel "$(cpu_count)"
 
 echo "Build finished successfully."

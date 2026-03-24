@@ -7,7 +7,7 @@ $FrontendDir = [IO.Path]::GetFullPath($FrontendDir)
 Write-Host "Installing frontend dependencies..."
 Push-Location $FrontendDir
 try {
-    npm install
+    npm ci --no-audit --prefer-offline
 } finally {
     Pop-Location
 }

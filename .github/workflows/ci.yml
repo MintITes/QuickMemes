@@ -1,53 +1,158 @@
 name: CI
 
 on:
-  push:
   pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docs: ${{ steps.filter.outputs.docs }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect impacted areas
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'src/backend/**'
+              - 'scripts/build.sh'
+              - 'scripts/build.ps1'
+              - 'scripts/test.sh'
+              - 'scripts/test.ps1'
+            frontend:
+              - 'src/frontend/**'
+              - 'scripts/frontend-*.sh'
+              - 'scripts/frontend-*.ps1'
+            docs:
+              - 'docs/**'
+              - '**/*.md'
+            workflow:
+              - '.github/workflows/**'
+
+      - name: Write change summary
+        run: |
+          {
+            echo "### Change Detection"
+            echo ""
+            echo "- backend: ${{ steps.filter.outputs.backend }}"
+            echo "- frontend: ${{ steps.filter.outputs.frontend }}"
+            echo "- docs: ${{ steps.filter.outputs.docs }}"
+            echo "- workflow: ${{ steps.filter.outputs.workflow }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   backend:
     name: Backend (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            shell: bash
+            test_script: ./scripts/test.sh
+          - os: macos-latest
+            shell: bash
+            test_script: ./scripts/test.sh
+          - os: windows-latest
+            shell: pwsh
+            test_script: ./scripts/test.ps1
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        run: ./scripts/build.sh
+      - name: Cache backend FetchContent
+        uses: actions/cache@v4
+        with:
+          path: src/backend/.deps
+          key: backend-deps-${{ matrix.os }}-${{ hashFiles('src/backend/CMakeLists.txt', 'src/backend/tests/CMakeLists.txt', 'scripts/build.sh', 'scripts/build.ps1', 'scripts/test.sh', 'scripts/test.ps1') }}
+          restore-keys: |
+            backend-deps-${{ matrix.os }}-
+
+      - name: Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
         shell: bash
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
 
-      - name: Test (Linux)
-        if: runner.os == 'Linux'
-        run: ./scripts/test.sh
-        shell: bash
-        
-      - name: Install Dependencies (Windows)
+      - name: Cache vcpkg (Windows)
         if: runner.os == 'Windows'
-        run: vcpkg install openssl:x64-windows
-        shell: pwsh
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\vcpkg\downloads
+            C:\vcpkg\buildtrees
+            C:\vcpkg\packages
+            C:\vcpkg\installed
+          key: backend-vcpkg-${{ matrix.os }}-${{ hashFiles('src/backend/CMakeLists.txt', 'src/backend/tests/CMakeLists.txt', 'scripts/build.sh', 'scripts/build.ps1', 'scripts/test.sh', 'scripts/test.ps1') }}
+          restore-keys: |
+            backend-vcpkg-${{ matrix.os }}-
 
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: ./scripts/build.ps1
-        shell: pwsh
+      - name: Build and Test
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.test_script }}
 
-      - name: Test (Windows)
-        if: runner.os == 'Windows'
-        run: ./scripts/test.ps1
-        shell: pwsh
+      - name: Upload backend diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-${{ matrix.os }}-logs
+          path: |
+            src/backend/build/Testing/**
+            src/backend/build/**/*.log
+            src/backend/build/**/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
 
   frontend:
     name: Frontend (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            shell: bash
+            install_script: ./scripts/frontend-install.sh
+            lint_script: ./scripts/frontend-lint.sh
+            test_script: ./scripts/frontend-test.sh
+            build_script: ./scripts/frontend-build.sh
+          - os: macos-latest
+            shell: bash
+            install_script: ./scripts/frontend-install.sh
+            lint_script: ./scripts/frontend-lint.sh
+            test_script: ./scripts/frontend-test.sh
+            build_script: ./scripts/frontend-build.sh
+          - os: windows-latest
+            shell: pwsh
+            install_script: ./scripts/frontend-install.ps1
+            lint_script: ./scripts/frontend-lint.ps1
+            test_script: ./scripts/frontend-test.ps1
+            build_script: ./scripts/frontend-build.ps1
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,42 +164,79 @@ jobs:
           cache: npm
           cache-dependency-path: src/frontend/package-lock.json
 
-      - name: Install (Linux)
-        if: runner.os == 'Linux'
-        run: ./scripts/frontend-install.sh
+      - name: Install dependencies
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.install_script }}
+
+      - name: Lint
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.lint_script }}
+
+      - name: Test
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.test_script }}
+
+      - name: Build
+        shell: ${{ matrix.shell }}
+        run: ${{ matrix.build_script }}
+
+      - name: Upload frontend diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ matrix.os }}-logs
+          path: |
+            src/frontend/test-results/**
+            src/frontend/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  security-lite:
+    name: Security Lite
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint GitHub Actions workflow files
+        uses: rhysd/actionlint@v1
+
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+
+  summary:
+    name: CI Summary
+    needs:
+      - changes
+      - backend
+      - frontend
+      - security-lite
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Summarize results
         shell: bash
-
-      - name: Lint (Linux)
-        if: runner.os == 'Linux'
-        run: ./scripts/frontend-lint.sh
-        shell: bash
-
-      - name: Test (Linux)
-        if: runner.os == 'Linux'
-        run: ./scripts/frontend-test.sh
-        shell: bash
-
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        run: ./scripts/frontend-build.sh
-        shell: bash
-
-      - name: Install (Windows)
-        if: runner.os == 'Windows'
-        run: ./scripts/frontend-install.ps1
-        shell: pwsh
-
-      - name: Lint (Windows)
-        if: runner.os == 'Windows'
-        run: ./scripts/frontend-lint.ps1
-        shell: pwsh
-
-      - name: Test (Windows)
-        if: runner.os == 'Windows'
-        run: ./scripts/frontend-test.ps1
-        shell: pwsh
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: ./scripts/frontend-build.ps1
-        shell: pwsh
+        run: |
+          {
+            echo "### CI Summary"
+            echo ""
+            echo "- backend changed: ${{ needs.changes.outputs.backend }}"
+            echo "- frontend changed: ${{ needs.changes.outputs.frontend }}"
+            echo "- docs changed: ${{ needs.changes.outputs.docs }}"
+            echo "- workflow changed: ${{ needs.changes.outputs.workflow }}"
+            echo ""
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            echo "| backend | ${{ needs.backend.result }} |"
+            echo "| frontend | ${{ needs.frontend.result }} |"
+            echo "| security-lite | ${{ needs.security-lite.result }} |"
+            echo ""
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

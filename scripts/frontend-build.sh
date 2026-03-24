@@ -6,8 +6,8 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../src/frontend >/dev/null 2>&1 &&
 cd "$DIR"
 
 if [ ! -d "node_modules" ]; then
-    echo "Dependencies not found. Running npm install..."
-    npm install
+    echo "Dependencies not found. Running npm ci..."
+    npm ci --no-audit --prefer-offline
 fi
 
 echo "Building QuickMemes Frontend (React + Electron)..."
