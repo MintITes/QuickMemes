@@ -22,15 +22,34 @@ jobs:
       frontend: ${{ steps.filter.outputs.frontend }}
       docs: ${{ steps.filter.outputs.docs }}
       workflow: ${{ steps.filter.outputs.workflow }}
+      full_ci: ${{ steps.full_ci.outputs.full_ci }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
+      - name: Detect full CI marker
+        id: full_ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            commit_sha="${{ github.event.pull_request.head.sha }}"
+          else
+            commit_sha="${{ github.sha }}"
+          fi
+
+          message="$(git log -1 --pretty=%B "$commit_sha")"
+          if printf '%s' "$message" | grep -Eqi '\[full-ci\]'; then
+            echo "full_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Detect impacted areas
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           base: ${{ github.ref }}
           filters: |
@@ -55,6 +74,7 @@ jobs:
           {
             echo "### Change Detection"
             echo ""
+            echo "- full_ci: ${{ steps.full_ci.outputs.full_ci }}"
             echo "- backend: ${{ steps.filter.outputs.backend }}"
             echo "- frontend: ${{ steps.filter.outputs.frontend }}"
             echo "- docs: ${{ steps.filter.outputs.docs }}"
@@ -64,7 +84,7 @@ jobs:
   backend:
     name: Backend (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.full_ci == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -73,7 +93,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Cache backend FetchContent
         uses: actions/cache@v4
@@ -126,7 +146,7 @@ jobs:
   frontend:
     name: Frontend (${{ matrix.os }})
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    if: needs.changes.outputs.full_ci == 'true' || needs.changes.outputs.frontend == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -135,10 +155,10 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -205,7 +225,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Lint GitHub Actions workflow files
         uses: rhysd/actionlint@v1.7.8
