@@ -6,6 +6,7 @@
 #include "../mocks.hpp"
 #include "../test_utils.hpp"
 #include "core/handlers.hpp"
+#include "core/server.hpp"
 #include "core/task_queue.hpp"
 #include "db/database.hpp"
 #include "vision/vision.hpp"
@@ -44,6 +45,7 @@ protected:
 	void TearDown() override {
 		VisionModule::get().shutdown();
 		TaskQueue::get().shutdown();
+		g_server.reset();
 		tempDir_.reset();
 		MemeDbTest::TearDown();
 	}
@@ -245,6 +247,38 @@ TEST_F(HandlersExtraTest, ManualOcr_ByMemeId_UpdatesDatabaseAndReturnsTaskId) {
 	auto updatedMeme = db->getMeme(memeId);
 	EXPECT_EQ(updatedMeme.ocrStatus, ProcessingStatus::DONE);
 	EXPECT_EQ(updatedMeme.ocrText, "manual\nocr");
+}
+
+TEST_F(HandlersExtraTest, GetMemeThumbnail_TaskQueueUnavailableFallsBackToOriginalFile) {
+	tempDir_->createSubDirs("storage/2026-03");
+	const auto imagePath = tempDir_->getSubPath("storage/2026-03/thumb-source.jpg");
+	createTestImage(imagePath);
+
+	ServerConfig config;
+	config.thumbnailEnabled = true;
+	g_server                = std::make_unique<Server>();
+	g_server->updateConfig(config);
+
+	MemeEntry meme;
+	meme.fileHash = "thumb-fallback-hash";
+	meme.filePath = "2026-03/thumb-source.jpg";
+	meme.mimeType = "image/jpeg";
+	const int64_t memeId = db->insertMeme(meme);
+
+	TaskQueue::get().shutdown();
+	TaskQueue::get().initialize(1, 100, tempDir_->getSubPath("storage"));
+	TaskQueue::get().shutdown();
+
+	HttpRequestProxy req;
+	req.path   = "/api/meme/" + std::to_string(memeId) + "/thumbnail";
+	req.method = "GET";
+	HttpResponseProxy res;
+
+	handleGetMemeThumbnail(req, res);
+
+	EXPECT_EQ(res.status, 200);
+	EXPECT_EQ(std::filesystem::path(res.filePath), std::filesystem::path(imagePath));
+	EXPECT_EQ(res.contentType, "image/jpeg");
 }
 
 }} // namespace quickmemes::testing

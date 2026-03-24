@@ -8,6 +8,7 @@
  */
 
 #include <cstdint>
+#include <atomic>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -83,6 +84,13 @@ public:
 	void log(LogLevel level, const std::string &module, const std::string &message);
 
 	/**
+	 * @brief 刷新当前已打开的日志文件流
+	 *
+	 * 用于测试或需要明确落盘时主动调用；正常日志热路径不再每条都 flush。
+	 */
+	void flush();
+
+	/**
 	 * @brief 设置最低输出等级
 	 * @param level LogLevel 新的最低输出等级
 	 */
@@ -106,7 +114,7 @@ private:
 	Logger() = default;
 
 	std::string                                                     logDir_;                       ///< 日志文件输出目录
-	LogLevel                                                        minLevel_ = LogLevel::LL_INFO; ///< 最低输出等级
+	std::atomic<LogLevel>                                           minLevel_{LogLevel::LL_INFO}; ///< 最低输出等级
 	bool                                                            retentionEnabled_ = true;      ///< 是否启用日志清理
 	int                                                             retentionDays_    = 30;        ///< 日志保留天数
 	bool                                                            initialized_      = false;     ///< 是否已初始化

@@ -88,4 +88,34 @@ TEST_F(BackupRestoreTest, IntegrityCheck_DetectsCorruption) {
 	EXPECT_FALSE(db->checkIntegrity());
 }
 
+TEST(BackupRestoreStandaloneTest, BackupRestore_SupportsQuotedDatabasePath) {
+	auto tempDir = std::make_unique<TestDirectory>();
+	auto dbPath  = tempDir->getSubPath("quoted'database.db");
+
+	Database localDb;
+	ASSERT_TRUE(localDb.initialize(dbPath));
+
+	MemeEntry meme;
+	meme.fileHash = "quoted_backup_hash";
+	meme.filePath = "quoted_backup_path";
+	meme.mimeType = "image/png";
+	int64_t id    = localDb.insertMeme(meme);
+
+	const std::string backupPath = localDb.backupDatabase();
+	ASSERT_FALSE(backupPath.empty());
+	ASSERT_TRUE(std::filesystem::exists(backupPath));
+
+	MemeEntry extraMeme;
+	extraMeme.fileHash = "quoted_backup_hash_extra";
+	extraMeme.filePath = "quoted_backup_path_extra";
+	extraMeme.mimeType = "image/jpeg";
+	localDb.insertMeme(extraMeme);
+
+	ASSERT_TRUE(localDb.restoreDatabase(backupPath));
+	EXPECT_EQ(localDb.countMemes(SearchQuery()), 1);
+	EXPECT_EQ(localDb.getMeme(id).fileHash, "quoted_backup_hash");
+
+	localDb.shutdown();
+}
+
 }} // namespace quickmemes::testing

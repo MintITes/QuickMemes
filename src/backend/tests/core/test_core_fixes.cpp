@@ -217,6 +217,65 @@ TEST_F(CoreFixesTest, Database_Restore_Atomic_Verification) {
 	EXPECT_EQ(target.getMeme(id).fileHash, "atomic_restore_h1");
 }
 
+TEST_F(CoreFixesTest, Database_InitializeFailure_LeavesCleanStateForRetry) {
+	Database localDb;
+	ASSERT_FALSE(localDb.initialize(tempDir_->getPath()));
+
+	const auto validDbPath = tempDir_->getSubPath("clean_retry.db");
+	ASSERT_TRUE(localDb.initialize(validDbPath));
+
+	MemeEntry meme;
+	meme.fileHash = "clean_retry_hash";
+	meme.filePath = "clean_retry_path";
+	meme.mimeType = "image/png";
+	const auto id = localDb.insertMeme(meme);
+
+	EXPECT_EQ(localDb.getMeme(id).fileHash, "clean_retry_hash");
+	localDb.shutdown();
+}
+
+TEST_F(CoreFixesTest, Database_InitializeDimensionMismatchDoesNotAutoDropEmbeddingTables) {
+	const auto dbFile = tempDir_->getSubPath("embedding_dimension_mismatch.db");
+
+	{
+		Database localDb;
+		ASSERT_TRUE(localDb.initialize(dbFile, 256));
+
+		MemeEntry meme;
+		meme.fileHash = "embedding_mismatch_hash";
+		meme.filePath = "embedding_mismatch_path";
+		meme.mimeType = "image/png";
+		const auto memeId = localDb.insertMeme(meme);
+
+		std::vector<float> embedding(256, 0.25f);
+		ASSERT_NO_THROW(localDb.upsertDescriptionEmbedding(memeId, embedding));
+
+		{
+			SQLite::Statement rowCountStmt(*localDb.getRawDatabase(), "SELECT COUNT(*) FROM vec_meme_desc");
+			ASSERT_TRUE(rowCountStmt.executeStep());
+			EXPECT_EQ(rowCountStmt.getColumn(0).getInt(), 1);
+		}
+		localDb.shutdown();
+	}
+
+	Database reopenedDb;
+	ASSERT_TRUE(reopenedDb.initialize(dbFile, 512));
+
+	{
+		SQLite::Statement schemaStmt(*reopenedDb.getRawDatabase(), "SELECT sql FROM sqlite_master WHERE name = 'vec_meme_desc'");
+		ASSERT_TRUE(schemaStmt.executeStep());
+		EXPECT_TRUE(schemaStmt.getColumn(0).getString().find("float[256]") != std::string::npos);
+	}
+
+	{
+		SQLite::Statement rowCountStmt(*reopenedDb.getRawDatabase(), "SELECT COUNT(*) FROM vec_meme_desc");
+		ASSERT_TRUE(rowCountStmt.executeStep());
+		EXPECT_EQ(rowCountStmt.getColumn(0).getInt(), 1);
+	}
+
+	reopenedDb.shutdown();
+}
+
 TEST_F(CoreFixesTest, Server_StartBackup_DoesNotCreateDuplicateRecentBackups) {
 	db->shutdown();
 
@@ -264,6 +323,32 @@ TEST_F(CoreFixesTest, Server_StartBackup_DoesNotCreateDuplicateRecentBackups) {
 		server.waitForStop();
 	}
 	EXPECT_EQ(countBackups(), firstCount);
+}
+
+TEST_F(CoreFixesTest, Server_StartFailure_RollsBackInitializedSubsystems) {
+	db->shutdown();
+
+	ServerConfig config;
+	config.bindAddress             = "invalid-address";
+	config.port                    = 18080;
+	config.authToken               = "test-token";
+	config.storagePath             = tempDir_->getSubPath("storage");
+	config.dbPath                  = tempDir_->getSubPath("rollback.db");
+	config.logDir                  = tempDir_->getSubPath("logs");
+	config.logLevel                = "info";
+	config.workerCount             = 1;
+	config.maxQueueSize            = 16;
+	config.thumbnailEnabled        = false;
+	config.backupEnabled           = false;
+	config.backupRetentionDays     = 30;
+	config.recycleBinRetentionDays = 30;
+
+	std::filesystem::create_directories(config.storagePath);
+	std::filesystem::create_directories(config.logDir);
+
+	Server server;
+	EXPECT_FALSE(server.start(config));
+	EXPECT_EQ(Database::get().getRawDatabase(), nullptr);
 }
 
 } // namespace quickmemes::testing

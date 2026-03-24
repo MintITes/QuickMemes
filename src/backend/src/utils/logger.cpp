@@ -42,10 +42,12 @@ Logger &Logger::get() {
 void Logger::initialize(const std::string &logDir, LogLevel minLevel, bool retentionEnabled, int retentionDays) {
 	std::lock_guard lock(mutex_);
 	logDir_           = logDir;
-	minLevel_         = minLevel;
+	minLevel_.store(minLevel, std::memory_order_relaxed);
 	retentionEnabled_ = retentionEnabled;
 	retentionDays_    = retentionDays;
 	initialized_      = true;
+	fileStreams_.clear();
+	currentLogDate_.clear();
 
 	// 创建日志目录（若不存在）
 	std::error_code ec;
@@ -63,7 +65,7 @@ void Logger::initialize(const std::string &logDir, LogLevel minLevel, bool reten
 }
 
 void Logger::log(LogLevel level, const std::string &module, const std::string &message) {
-	if (level < minLevel_) return;
+	if (level < minLevel_.load(std::memory_order_relaxed)) return;
 
 	// 格式化时间戳
 	auto    now   = std::chrono::system_clock::now();
@@ -117,7 +119,6 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 
 			if (it != fileStreams_.end() && it->second->is_open()) {
 				*(it->second) << logLine;
-				it->second->flush();
 			}
 		}
 	}
@@ -126,9 +127,17 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 	if (level == LogLevel::LL_FATAL) { std::abort(); }
 }
 
-void Logger::setMinLevel(LogLevel level) {
+void Logger::flush() {
 	std::lock_guard lock(mutex_);
-	minLevel_ = level;
+	for (auto &[module, stream] : fileStreams_) {
+		(void)module;
+		if (stream && stream->is_open()) { stream->flush(); }
+	}
+	std::cerr.flush();
+}
+
+void Logger::setMinLevel(LogLevel level) {
+	minLevel_.store(level, std::memory_order_relaxed);
 }
 
 int Logger::cleanOldLogs(int retentionDays) {

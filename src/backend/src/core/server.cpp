@@ -15,6 +15,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/websocket.hpp>
+#include <atomic>
 #include <filesystem>
 #include <mutex>
 #include <thread>
@@ -28,7 +29,7 @@ using tcp     = boost::asio::ip::tcp;
 namespace beast = boost::beast;
 namespace http  = beast::http;
 
-using WsSendCallback = std::function<void(std::shared_ptr<std::string>)>;
+class ServerImpl;
 
 namespace {
 bool hasRecentDatabaseBackup(const std::string &dbPath, std::chrono::hours maxAge) {
@@ -63,14 +64,18 @@ template <typename Body> void applyCorsHeaders(http::response<Body> &res) {
 class WsSession : public std::enable_shared_from_this<WsSession> {
 	beast::websocket::stream<beast::tcp_stream> ws_;
 	beast::flat_buffer                          buffer_;
-	WsSendCallback                              sendCb_;
+	WsPusher::Registration                      subscription_;
 	std::mutex                                  mtx_;
 	std::vector<std::shared_ptr<std::string>>   sendQueue_;
 	bool                                        isWriting_ = false;
+	std::atomic<bool>                           closed_{false};
 
 public:
 	explicit WsSession(beast::tcp_stream stream)
 	    : ws_(std::move(stream)) {}
+	~WsSession() {
+		closeSession();
+	}
 
 	template <class Body, class Allocator> void run(http::request<Body, http::basic_fields<Allocator>> req) {
 		beast::websocket::stream_base::timeout opt{
@@ -86,11 +91,10 @@ public:
 	void onAccept(beast::error_code ec) {
 		if (ec) return;
 
-		sendCb_ = [self = shared_from_this()](std::shared_ptr<std::string> msg) {
-			self->enqueueMsg(msg);
-		};
-		// Verification already happened in HttpSession::handleRequest before creating this session
-		WsPusher::get().addSession(&sendCb_);
+		auto weakSelf = weak_from_this();
+		subscription_ = WsPusher::get().addSession([weakSelf](std::shared_ptr<std::string> msg) {
+			if (auto self = weakSelf.lock()) { self->enqueueMsg(std::move(msg)); }
+		});
 
 		doRead();
 	}
@@ -102,11 +106,11 @@ public:
 	void onRead(beast::error_code ec, std::size_t bytes_transferred) {
 		boost::ignore_unused(bytes_transferred);
 		if (ec == beast::websocket::error::closed) {
-			WsPusher::get().removeSession(&sendCb_);
+			closeSession();
 			return;
 		}
 		if (ec) {
-			WsPusher::get().removeSession(&sendCb_);
+			closeSession();
 			return;
 		}
 
@@ -147,10 +151,17 @@ public:
 	void onWrite(beast::error_code ec, std::size_t bytes_transferred) {
 		boost::ignore_unused(bytes_transferred);
 		if (ec) {
-			WsPusher::get().removeSession(&sendCb_);
+			closeSession();
 			return;
 		}
 		doWrite();
+	}
+
+	void closeSession() {
+		bool expected = false;
+		if (!closed_.compare_exchange_strong(expected, true)) { return; }
+		if (subscription_) { subscription_->reset(); }
+		subscription_.reset();
 	}
 };
 
@@ -376,6 +387,7 @@ public:
 	std::vector<std::thread>           ioThreads;
 	std::shared_ptr<Router>            router;
 	std::shared_ptr<net::steady_timer> maintTimer;
+	std::atomic<bool>                  stopped{true};
 
 	void doAccept() {
 		if (!acceptor || !acceptor->is_open()) return;
@@ -426,6 +438,36 @@ public:
 	}
 };
 
+namespace {
+void rollbackServerStart(ServerImpl &impl,
+                         bool        taskQueueInitialized,
+                         bool        visionInitialized,
+                         bool        databaseInitialized,
+                         bool        embeddingInitialized) {
+	try {
+		if (impl.maintTimer) {
+			impl.maintTimer->cancel();
+			impl.maintTimer.reset();
+		}
+		if (impl.acceptor) {
+			boost::beast::error_code ec;
+			impl.acceptor->close(ec);
+			impl.acceptor.reset();
+		}
+		impl.ioc.stop();
+		for (auto &thread : impl.ioThreads) {
+			if (thread.joinable()) { thread.join(); }
+		}
+		impl.ioThreads.clear();
+		WsPusher::get().clearSessions();
+		if (taskQueueInitialized) { TaskQueue::get().shutdown(); }
+		if (visionInitialized) { VisionModule::get().shutdown(); }
+		if (databaseInitialized) { Database::get().shutdown(); }
+		if (embeddingInitialized) { EmbeddingModule::get().shutdown(); }
+	} catch (...) {}
+}
+} // namespace
+
 Server::Server()
     : impl_(std::make_unique<ServerImpl>()) {}
 Server::~Server() = default;
@@ -434,13 +476,26 @@ bool Server::start(const ServerConfig &config) {
 	impl_->config = config;
 	impl_->router = std::make_shared<Router>();
 	impl_->router->setAuthToken(config.authToken);
+	impl_->stopped.store(false);
+
+	bool embeddingInitialized = false;
+	bool databaseInitialized  = false;
+	bool visionInitialized    = false;
+	bool taskQueueInitialized = false;
 
 	LOG_INFO("server", "Starting Server initialization...");
 	EmbeddingModule::get().initialize(config.embeddingConfig);
+	embeddingInitialized = true;
 	impl_->config.embeddingConfig = EmbeddingModule::get().getConfig();
 
 	try {
-		Database::get().initialize(config.dbPath, EmbeddingModule::get().getDimensions());
+		if (!Database::get().initialize(config.dbPath, EmbeddingModule::get().getDimensions())) {
+			LOG_ERROR("server", "Database initialization returned false.");
+			rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+			impl_->stopped.store(true);
+			return false;
+		}
+		databaseInitialized = true;
 		if (!Database::get().checkIntegrity()) {
 			LOG_ERROR("server", "Database integrity check failed. Attempting to recover from latest backup...");
 			std::string                     latestBackup;
@@ -462,10 +517,14 @@ bool Server::start(const ServerConfig &config) {
 				LOG_INFO("server", "Successfully recovered from backup: " + latestBackup);
 				if (!Database::get().checkIntegrity()) {
 					LOG_ERROR("server", "Integrity check still failed after restore.");
+					rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+					impl_->stopped.store(true);
 					return false;
 				}
 			} else {
 				LOG_ERROR("server", "No valid backup available or restore failed.");
+				rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+				impl_->stopped.store(true);
 				return false;
 			}
 		} else if (config.backupEnabled) {
@@ -479,12 +538,16 @@ bool Server::start(const ServerConfig &config) {
 		Database::get().recoverFromCrash();
 	} catch (const std::exception &e) {
 		LOG_ERROR("server", std::string("Database init failed: ") + e.what());
+		rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+		impl_->stopped.store(true);
 		return false;
 	}
 
 	VisionModule::get().initialize(config.visionConfig);
+	visionInitialized = true;
 
 	TaskQueue::get().initialize(config.workerCount, config.maxQueueSize, config.storagePath);
+	taskQueueInitialized = true;
 
 	try {
 		auto address    = net::ip::make_address(config.bindAddress);
@@ -503,6 +566,8 @@ bool Server::start(const ServerConfig &config) {
 
 	} catch (const std::exception &e) {
 		LOG_ERROR("server", std::string("Server failed to bind/start: ") + e.what());
+		rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+		impl_->stopped.store(true);
 		return false;
 	}
 
@@ -510,10 +575,22 @@ bool Server::start(const ServerConfig &config) {
 }
 
 void Server::stop() {
+	if (impl_->stopped.exchange(true)) { return; }
+
 	LOG_INFO("server", "Server stopping...");
 
+	if (impl_->maintTimer) {
+		impl_->maintTimer->cancel();
+		impl_->maintTimer.reset();
+	}
+	if (impl_->acceptor) {
+		boost::beast::error_code ec;
+		impl_->acceptor->close(ec);
+		impl_->acceptor.reset();
+	}
 	impl_->ioc.stop();
 
+	WsPusher::get().clearSessions();
 	TaskQueue::get().shutdown();
 	EmbeddingModule::get().shutdown();
 	VisionModule::get().shutdown();

@@ -13,6 +13,7 @@
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -44,6 +45,55 @@ std::string makeErrorResponse(int code, const std::string &error) {
 	resp.code        = code;
 	nlohmann::json j = resp;
 	return j.dump();
+}
+
+std::filesystem::path getStorageRootPath() {
+	std::string storageRoot = TaskQueue::get().getStoragePath();
+	if (storageRoot.empty()) storageRoot = "storage";
+	return std::filesystem::weakly_canonical(std::filesystem::absolute(storageRoot));
+}
+
+std::filesystem::path getHomeDirectory() {
+#ifdef _WIN32
+	if (const char *userProfile = std::getenv("USERPROFILE")) { return std::filesystem::path(userProfile); }
+#endif
+	if (const char *homeEnv = std::getenv("HOME")) { return std::filesystem::path(homeEnv); }
+	return std::filesystem::current_path();
+}
+
+bool isPathWithin(const std::filesystem::path &root, const std::filesystem::path &candidate) {
+	auto normalizedRoot      = root.lexically_normal();
+	auto normalizedCandidate = candidate.lexically_normal();
+
+	auto rootIt      = normalizedRoot.begin();
+	auto candidateIt = normalizedCandidate.begin();
+	for (; rootIt != normalizedRoot.end() && candidateIt != normalizedCandidate.end(); ++rootIt, ++candidateIt) {
+		if (*rootIt != *candidateIt) { return false; }
+	}
+	return rootIt == normalizedRoot.end();
+}
+
+std::filesystem::path resolvePathInsideRoot(const std::filesystem::path &root,
+                                            const std::filesystem::path &relativePath,
+                                            const char                  *errorMessage) {
+	const auto resolved = std::filesystem::weakly_canonical(root / relativePath);
+	if (!isPathWithin(root, resolved)) {
+		LOG_ERROR("security", std::string(errorMessage) + ": " + resolved.string());
+		throw ApiException(ERR_INVALID_PARAMS, "Invalid file access");
+	}
+	return resolved;
+}
+
+std::filesystem::path buildThumbnailPath(const std::filesystem::path &rootPath, const MemeEntry &meme) {
+	return rootPath / "thumbs" / std::filesystem::path(meme.filePath).parent_path() / (meme.fileHash + ".jpg");
+}
+
+void submitThumbnailTaskBestEffort(int64_t memeId, const char *logContext) {
+	try {
+		TaskQueue::get().submitThumbnailTask(memeId);
+	} catch (const std::exception &e) {
+		LOG_WARN("handlers", std::string(logContext) + ": " + e.what());
+	}
 }
 } // namespace
 
@@ -281,38 +331,19 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			throw ApiException(ERR_INVALID_PARAMS, "Invalid file path in database");
 		}
 
-		std::string storageRoot = TaskQueue::get().getStoragePath();
-		if (storageRoot.empty()) storageRoot = "storage";
-
-		std::filesystem::path rootPath = std::filesystem::absolute(storageRoot);
-		std::filesystem::path filePath = rootPath / meme.filePath;
-
-		try {
-			filePath = std::filesystem::weakly_canonical(filePath);
-		} catch (...) { throw ApiException(ERR_IO, "Invalid path resolution"); }
-
-		// Ensure the file is inside the storage root
-		// 修复路径穿越：确保 rootStr 尾部带 /，防止 /storage_evil/ 等同级目录前缀匹配绕过
-		auto rootStr = rootPath.string();
-		if (!rootStr.empty() && rootStr.back() != '/') rootStr += '/';
-		auto fileStr = filePath.string();
-		if (fileStr.length() < rootStr.length() || fileStr.substr(0, rootStr.length()) != rootStr) {
-			LOG_ERROR("security", "Path traversal attempt detected: " + fileStr);
-			throw ApiException(ERR_INVALID_PARAMS, "Invalid file access");
-		}
-
-		std::string fullPath = fileStr;
+		const auto rootPath = getStorageRootPath();
+		const auto filePath =
+		    resolvePathInsideRoot(rootPath, std::filesystem::path(meme.filePath), "Path traversal attempt detected");
 
 		// 异步生成缩略图（若缺失且启用）
 		if (g_server && g_server->getConfig().thumbnailEnabled) {
-			auto        posSlash = meme.filePath.find('/');
-			std::string relDir   = "";
-			if (posSlash != std::string::npos) { relDir = meme.filePath.substr(0, posSlash + 1); }
-			std::string thumbPath = storageRoot + "thumbs/" + relDir + meme.fileHash + ".jpg";
-			if (!std::filesystem::exists(thumbPath)) { TaskQueue::get().submitThumbnailTask(id); }
+			const auto thumbPath = buildThumbnailPath(rootPath, meme);
+			if (!std::filesystem::exists(thumbPath)) {
+				submitThumbnailTaskBestEffort(id, "Thumbnail scheduling skipped while serving file");
+			}
 		}
 
-		res.filePath    = fullPath;
+		res.filePath    = filePath.string();
 		res.contentType = meme.mimeType;
 		res.status      = 200;
 	} catch (const ApiException &e) {
@@ -338,35 +369,20 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 			throw ApiException(ERR_INVALID_PARAMS, "Invalid file path in database");
 		}
 
-		std::string storageRoot = TaskQueue::get().getStoragePath();
-		if (storageRoot.empty()) storageRoot = "storage";
-
-		std::filesystem::path rootPath = std::filesystem::absolute(storageRoot);
-
-		auto        posSlash = meme.filePath.find('/');
-		std::string relDir   = "";
-		if (posSlash != std::string::npos) { relDir = meme.filePath.substr(0, posSlash + 1); }
-
-		std::filesystem::path thumbPath = rootPath / "thumbs" / relDir / (meme.fileHash + ".jpg");
-		try {
-			thumbPath = std::filesystem::weakly_canonical(thumbPath);
-		} catch (...) { throw ApiException(ERR_IO, "Invalid thumb resolution"); }
-
-		// Security Check
-		// 修复路径穿越：确保 rootStr 尾部带 /，防止同级目录名前缀匹配绕过
-		auto rootStr = rootPath.string();
-		if (!rootStr.empty() && rootStr.back() != '/') rootStr += '/';
-		auto thumbStr = thumbPath.string();
-		if (thumbStr.length() < rootStr.length() || thumbStr.substr(0, rootStr.length()) != rootStr) {
-			LOG_ERROR("security", "Thumb path traversal attempt: " + thumbStr);
-			throw ApiException(ERR_INVALID_PARAMS, "Invalid thumb access");
-		}
+		const auto rootPath     = getStorageRootPath();
+		const auto originalPath =
+		    resolvePathInsideRoot(rootPath, std::filesystem::path(meme.filePath), "Original meme path invalid");
+		const auto thumbPath =
+		    resolvePathInsideRoot(rootPath, std::filesystem::path("thumbs") / std::filesystem::path(meme.filePath).parent_path() /
+		                                     (meme.fileHash + ".jpg"),
+		                          "Thumb path traversal attempt");
 
 		if (!std::filesystem::exists(thumbPath)) {
 			// 如果缩略图不存在，且启用了生成功能，则提交异步任务
-			if (g_server && g_server->getConfig().thumbnailEnabled) { TaskQueue::get().submitThumbnailTask(id); }
+			if (g_server && g_server->getConfig().thumbnailEnabled) {
+				submitThumbnailTaskBestEffort(id, "Thumbnail scheduling skipped while serving thumbnail");
+			}
 			// 策略优化：缺失缩略图时立即返回原图作为替代，不阻塞 HTTP 线程
-			std::filesystem::path originalPath = rootPath / meme.filePath;
 			if (std::filesystem::exists(originalPath)) {
 				res.filePath    = originalPath.string();
 				res.contentType = meme.mimeType;
@@ -374,7 +390,7 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 				throw ApiException(ERR_NOT_FOUND, "Original meme file missing");
 			}
 		} else {
-			res.filePath    = thumbStr;
+			res.filePath    = thumbPath.string();
 			res.contentType = "image/jpeg";
 		}
 		res.status = 200;
@@ -511,8 +527,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		}
 
 		std::string           destDir = exportReq.destDir;
-		const char           *homeEnv = std::getenv("HOME");
-		std::filesystem::path homeDir = homeEnv ? std::filesystem::path(homeEnv) : std::filesystem::current_path();
+		std::filesystem::path homeDir = getHomeDirectory();
 
 		// 如果未指定路径，强制使用默认路径
 		if (destDir.empty()) { destDir = (homeDir / "Downloads" / "QuickMemes").string(); }
@@ -524,8 +539,14 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			destDir = homeDir.string();
 		}
 
-		// 路径规范化
 		std::filesystem::path p(destDir);
+		if (!p.is_absolute()) {
+			res.status = 400;
+			res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Export path must be absolute");
+			return;
+		}
+
+		// 路径规范化
 		try {
 			if (std::filesystem::exists(p)) {
 				destDir = std::filesystem::canonical(p).string();
@@ -538,26 +559,16 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			return;
 		}
 
-		if (!std::filesystem::path(destDir).is_absolute()) {
-			res.status = 400;
-			res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Export path must be absolute");
-			return;
-		}
-
-		// 白名单校验：必须在用户主目录下
-		// 修复路径穿越：确保 homeStr 尾部带 /，防止 /home/user_evil/ 等路径绕过
-		std::string homeStr = homeDir.string();
-		if (!homeStr.empty() && homeStr.back() != '/') homeStr += '/';
-		if (!destDir.starts_with(homeStr)) {
-			LOG_ERROR("security", "Export path outside home directory blocked: " + destDir);
+		const auto normalizedHome = std::filesystem::weakly_canonical(homeDir);
+		const auto normalizedDest = std::filesystem::path(destDir);
+		if (!isPathWithin(normalizedHome, normalizedDest)) {
+			LOG_ERROR("security", "Export path outside home directory blocked: " + normalizedDest.string());
 			res.status = 403;
 			res.body   = makeErrorResponse(ERR_INTERNAL, "Export only allowed within home directory for security");
 			return;
 		}
 
-		if (destDir.back() != '/' && destDir.back() != '\\') destDir += "/";
-
-		std::filesystem::create_directories(destDir);
+		std::filesystem::create_directories(normalizedDest);
 
 		ExportResult data;
 
@@ -575,7 +586,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 					continue;
 				}
 
-				std::string srcPath = (rootPath / meme.filePath).string();
+				std::string srcPath = (rootPath / std::filesystem::path(meme.filePath)).string();
 
 				std::string destFileName;
 				if (exportReq.keepNames && !meme.name.empty()) {
@@ -596,7 +607,7 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 					destFileName = std::to_string(id) + ext;
 				}
 
-				std::filesystem::path fullDestPath = std::filesystem::path(destDir) / destFileName;
+				std::filesystem::path fullDestPath = normalizedDest / destFileName;
 				if (copyFile(srcPath, fullDestPath.string())) {
 					data.succeeded++;
 				} else {
@@ -694,6 +705,7 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		if (g_server) {
 			ServerConfig config  = g_server->getConfig();
 			bool         changed = false;
+			bool         visionChanged = false;
 			bool         embeddingChanged = false;
 			bool         embeddingDimensionsChanged = false;
 
@@ -701,35 +713,43 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			if (patch.aiApiKey) {
 				config.visionConfig.apiKey = *patch.aiApiKey;
 				changed                    = true;
+				visionChanged              = true;
 				LOG_INFO("handlers", "Patching config: aiApiKey changed to " + *patch.aiApiKey);
 			}
 			if (patch.aiApiBaseUrl) {
 				config.visionConfig.apiBaseUrl = *patch.aiApiBaseUrl;
 				changed                        = true;
+				visionChanged                  = true;
 			}
 			if (patch.aiVisionModel) {
 				config.visionConfig.visionModel = *patch.aiVisionModel;
 				changed                         = true;
+				visionChanged                   = true;
 			}
 			if (patch.aiTimeoutSeconds) {
 				config.visionConfig.timeoutSeconds = *patch.aiTimeoutSeconds;
 				changed                            = true;
+				visionChanged                      = true;
 			}
 			if (patch.aiMaxRetries) {
 				config.visionConfig.maxRetries = *patch.aiMaxRetries;
 				changed                        = true;
+				visionChanged                  = true;
 			}
 			if (patch.ocrApiKey) {
 				config.visionConfig.ocrApiKey = *patch.ocrApiKey;
 				changed                       = true;
+				visionChanged                 = true;
 			}
 			if (patch.ocrApiUrl) {
 				config.visionConfig.ocrApiUrl = *patch.ocrApiUrl;
 				changed                       = true;
+				visionChanged                 = true;
 			}
 			if (patch.ocrProvider) {
 				config.visionConfig.ocrProvider = *patch.ocrProvider;
 				changed                         = true;
+				visionChanged                   = true;
 			}
 			if (patch.embeddingProvider) {
 				config.embeddingConfig.provider = *patch.embeddingProvider;
@@ -769,9 +789,21 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 			}
 
 			if (changed) {
-				VisionModule::get().reconfigure(config.visionConfig);
+				const auto oldConfig = g_server->getConfig();
+				if (visionChanged && !VisionModule::get().reconfigure(config.visionConfig)) {
+					VisionModule::get().reconfigure(oldConfig.visionConfig);
+					res.status = 400;
+					res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Vision reconfigure failed");
+					return;
+				}
 				if (embeddingChanged) {
-					EmbeddingModule::get().reconfigure(config.embeddingConfig);
+					if (!EmbeddingModule::get().reconfigure(config.embeddingConfig)) {
+						if (visionChanged) { VisionModule::get().reconfigure(oldConfig.visionConfig); }
+						EmbeddingModule::get().reconfigure(oldConfig.embeddingConfig);
+						res.status = 400;
+						res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Embedding reconfigure failed");
+						return;
+					}
 					config.embeddingConfig = EmbeddingModule::get().getConfig();
 					if (embeddingDimensionsChanged) {
 						Database::get().rebuildEmbeddingTables(EmbeddingModule::get().getDimensions());

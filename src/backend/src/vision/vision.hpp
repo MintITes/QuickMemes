@@ -12,6 +12,7 @@
 #include "vision/http_client.hpp"
 
 #include <memory>
+#include <shared_mutex>
 #include <semaphore>
 #include <string>
 
@@ -69,9 +70,7 @@ public:
 	/**
 	 * @brief 设置自定义 HttpClient（主要用于测试注入）
 	 */
-	void setHttpClient(std::shared_ptr<HttpClientInterface> client) {
-		httpClient_ = std::move(client);
-	}
+	void setHttpClient(std::shared_ptr<HttpClientInterface> client);
 
 	/**
 	 * @brief 检查大模型能力是否可用
@@ -109,6 +108,16 @@ public:
 	AiAnalysisResult analyzeImage(const std::string &imagePath, const std::string &ocrFullText);
 
 private:
+	struct RuntimeState {
+		VisionConfig                         config{};
+		std::shared_ptr<HttpClientInterface> httpClient;
+		bool                                 isAiAvailable  = false;
+		bool                                 isOcrAvailable = false;
+	};
+
+	RuntimeState  buildState(const VisionConfig &config,
+	                         std::shared_ptr<HttpClientInterface> client,
+	                         bool                                 allowUnavailable);
 	/**
 	 * @brief 将图像文件转换为 Base64 编码的 JPEG 并压缩体积
 	 * @param imagePath std::string 文件路径
@@ -116,10 +125,8 @@ private:
 	 */
 	std::string encodeImageToBase64(const std::string &imagePath) const;
 
-	VisionConfig                         config_;                 ///< 当前运行时配置
-	std::shared_ptr<HttpClientInterface> httpClient_;             ///< HTTP 客户端抽象接口
-	bool                                 isAiAvailable_  = false; ///< AI 连通性状态标记
-	bool                                 isOcrAvailable_ = false; ///< OCR 连通性状态标记
+	mutable std::shared_mutex stateMutex_;
+	RuntimeState              state_{}; ///< 当前运行时状态快照
 
 	// Limit concurrent image processing to prevent OOM
 	mutable std::counting_semaphore<4> processingSemaphore_{4};

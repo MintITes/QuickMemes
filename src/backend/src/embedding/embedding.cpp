@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cctype>
 #include <nlohmann/json.hpp>
+#include <mutex>
 #include <regex>
 #include <sstream>
 
@@ -46,49 +47,121 @@ EmbeddingError makeError(int statusCode, std::string providerCode, std::string m
 } // namespace
 
 EmbeddingModule::EmbeddingModule(std::shared_ptr<HttpClientInterface> httpClient)
-    : httpClient_(std::move(httpClient)) {}
+{
+	if (!httpClient) {
+		httpClient = std::make_shared<HttpClient>();
+	}
+	state_.httpClient = std::move(httpClient);
+	state_.config.dimensions = kDefaultDimensions;
+}
 
 EmbeddingModule::~EmbeddingModule() = default;
 
-bool EmbeddingModule::initialize(const EmbeddingConfig &config) {
-	config_            = config;
-	config_.dimensions = sanitizeDimensions(config.provider, config.model, config.dimensions);
-	isAvailable_       = !config_.apiKey.empty() && !config_.apiUrl.empty() &&
-	               isSupportedProviderModel(config_.provider, config_.model);
-
-	if (!isAvailable_) {
-		LOG_WARN("embedding",
-		         "Embedding unavailable. provider=" + config_.provider + ", model=" + config_.model +
-		             ", apiUrl configured=" + std::string(config_.apiUrl.empty() ? "false" : "true") +
-		             ", apiKey configured=" + std::string(config_.apiKey.empty() ? "false" : "true"));
-	} else {
-		LOG_INFO("embedding",
-		         "EmbeddingModule initialized. provider=" + config_.provider + ", model=" + config_.model +
-		             ", dimensions=" + std::to_string(config_.dimensions));
+EmbeddingModule::RuntimeState EmbeddingModule::buildState(const EmbeddingConfig &config,
+                                                          std::shared_ptr<HttpClientInterface> client,
+                                                          bool                                 allowUnavailable) const {
+	if (!client) {
+		throw std::invalid_argument("Embedding http client must not be null");
 	}
 
-	return isAvailable_;
+	EmbeddingConfig normalized = config;
+	normalized.dimensions      = sanitizeDimensions(config.provider, config.model, config.dimensions);
+	if (normalized.timeoutSeconds <= 0) {
+		if (!allowUnavailable) { throw std::invalid_argument("Embedding timeoutSeconds must be positive"); }
+		normalized.timeoutSeconds = 30;
+	}
+	if (normalized.maxRetries < 0) {
+		if (!allowUnavailable) { throw std::invalid_argument("Embedding maxRetries must be non-negative"); }
+		normalized.maxRetries = 0;
+	}
+
+	const bool available = !normalized.apiKey.empty() && !normalized.apiUrl.empty() &&
+	                       isSupportedProviderModel(normalized.provider, normalized.model);
+	if (!allowUnavailable && !available) {
+		throw std::invalid_argument("Embedding configuration is incomplete or unsupported");
+	}
+
+	return RuntimeState{std::move(normalized), std::move(client), available};
+}
+
+void EmbeddingModule::setHttpClient(std::shared_ptr<HttpClientInterface> client) {
+	if (!client) { throw std::invalid_argument("Embedding http client must not be null"); }
+
+	std::unique_lock lock(stateMutex_);
+	state_.httpClient = std::move(client);
+}
+
+bool EmbeddingModule::initialize(const EmbeddingConfig &config) {
+	std::shared_ptr<HttpClientInterface> client;
+	{
+		std::shared_lock lock(stateMutex_);
+		client = state_.httpClient;
+	}
+
+	auto nextState = buildState(config, std::move(client), true);
+	{
+		std::unique_lock lock(stateMutex_);
+		state_ = nextState;
+	}
+
+	if (!nextState.isAvailable) {
+		LOG_WARN("embedding",
+		         "Embedding unavailable. provider=" + nextState.config.provider + ", model=" + nextState.config.model +
+		             ", apiUrl configured=" + std::string(nextState.config.apiUrl.empty() ? "false" : "true") +
+		             ", apiKey configured=" + std::string(nextState.config.apiKey.empty() ? "false" : "true"));
+	} else {
+		LOG_INFO("embedding",
+		         "EmbeddingModule initialized. provider=" + nextState.config.provider +
+		             ", model=" + nextState.config.model +
+		             ", dimensions=" + std::to_string(nextState.config.dimensions));
+	}
+
+	return nextState.isAvailable;
 }
 
 void EmbeddingModule::shutdown() {
-	isAvailable_ = false;
+	std::unique_lock lock(stateMutex_);
+	state_.isAvailable = false;
 	LOG_INFO("embedding", "EmbeddingModule shutdown.");
 }
 
 bool EmbeddingModule::reconfigure(const EmbeddingConfig &config) {
-	return initialize(config);
+	std::shared_ptr<HttpClientInterface> client;
+	{
+		std::shared_lock lock(stateMutex_);
+		client = state_.httpClient;
+	}
+
+	try {
+		auto nextState = buildState(config, std::move(client), false);
+		{
+			std::unique_lock lock(stateMutex_);
+			state_ = nextState;
+		}
+		LOG_INFO("embedding",
+		         "EmbeddingModule reconfigured. provider=" + nextState.config.provider +
+		             ", model=" + nextState.config.model +
+		             ", dimensions=" + std::to_string(nextState.config.dimensions));
+		return true;
+	} catch (const std::exception &e) {
+		LOG_WARN("embedding", std::string("EmbeddingModule reconfigure rejected: ") + e.what());
+		return false;
+	}
 }
 
 bool EmbeddingModule::isAvailable() const {
-	return isAvailable_;
+	std::shared_lock lock(stateMutex_);
+	return state_.isAvailable;
 }
 
 int EmbeddingModule::getDimensions() const {
-	return config_.dimensions;
+	std::shared_lock lock(stateMutex_);
+	return state_.config.dimensions;
 }
 
-const EmbeddingConfig &EmbeddingModule::getConfig() const {
-	return config_;
+EmbeddingConfig EmbeddingModule::getConfig() const {
+	std::shared_lock lock(stateMutex_);
+	return state_.config;
 }
 
 int EmbeddingModule::sanitizeDimensions(const std::string &provider, const std::string &model, int dimensions) {
@@ -109,10 +182,19 @@ std::vector<float> EmbeddingModule::generateEmbedding(const std::string &text, c
 
 std::vector<std::vector<float>>
 EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const std::string &task) {
-	if (!isAvailable_) { throw EmbeddingException(ERR_EMBEDDING_NOT_READY, "Embedding service unavailable", {}); }
-	if (!isSupportedProviderModel(config_.provider, config_.model)) {
+	RuntimeState stateSnapshot;
+	{
+		std::shared_lock lock(stateMutex_);
+		stateSnapshot = state_;
+	}
+
+	if (!stateSnapshot.isAvailable) {
+		throw EmbeddingException(ERR_EMBEDDING_NOT_READY, "Embedding service unavailable", {});
+	}
+	if (!isSupportedProviderModel(stateSnapshot.config.provider, stateSnapshot.config.model)) {
 		throw EmbeddingException(ERR_EMBEDDING_NOT_READY,
-		                         "Unsupported embedding provider/model: " + config_.provider + "/" + config_.model,
+		                         "Unsupported embedding provider/model: " + stateSnapshot.config.provider + "/" +
+		                             stateSnapshot.config.model,
 		                         {});
 	}
 
@@ -128,14 +210,22 @@ EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const
 
 	if (filteredTexts.empty()) { return {}; }
 
-	const auto body    = buildRequestBody(filteredTexts, task);
-	const auto headers = buildHeaders();
+	const auto body    = buildRequestBody(stateSnapshot.config, filteredTexts, task);
+	const auto headers = buildHeaders(stateSnapshot.config);
 
 	EmbeddingError lastError;
-	for (int attempt = 0; attempt <= std::max(0, config_.maxRetries); ++attempt) {
+	for (int attempt = 0; attempt <= std::max(0, stateSnapshot.config.maxRetries); ++attempt) {
 		try {
-			auto responseBody = httpClient_->post(config_.apiUrl, headers, body, config_.timeoutSeconds);
-			auto json         = nlohmann::json::parse(responseBody);
+			auto responseBody = stateSnapshot.httpClient->post(
+			    stateSnapshot.config.apiUrl, headers, body, stateSnapshot.config.timeoutSeconds);
+			nlohmann::json json;
+			try {
+				json = nlohmann::json::parse(responseBody);
+			} catch (const nlohmann::json::exception &e) {
+				throw EmbeddingException(ERR_EMBEDDING_FAILED,
+				                         "Invalid embedding response JSON",
+				                         makeError(200, "", std::string("Invalid embedding response JSON: ") + e.what(), false));
+			}
 
 			if (!json.contains("data") || !json["data"].is_array()) {
 				throw EmbeddingException(ERR_EMBEDDING_FAILED,
@@ -169,7 +259,7 @@ EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const
 			}
 
 			for (const auto &vector : results) {
-				if (vector.size() != static_cast<size_t>(config_.dimensions)) {
+				if (vector.size() != static_cast<size_t>(stateSnapshot.config.dimensions)) {
 					throw EmbeddingException(ERR_EMBEDDING_FAILED,
 					                         "Embedding response dimension mismatch",
 					                         makeError(200, "", "Embedding response dimension mismatch", false));
@@ -179,12 +269,12 @@ EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const
 			return results;
 		} catch (const EmbeddingException &e) {
 			lastError = e.error();
-			if (attempt >= config_.maxRetries || !shouldRetry(lastError)) { throw; }
+			if (attempt >= stateSnapshot.config.maxRetries || !shouldRetry(lastError)) { throw; }
 		} catch (const std::exception &e) {
 			lastError = parseApiError(e);
 			LOG_WARN("embedding",
 			         "Embedding request attempt " + std::to_string(attempt + 1) + " failed: " + lastError.message);
-			if (attempt >= config_.maxRetries || !shouldRetry(lastError)) {
+			if (attempt >= stateSnapshot.config.maxRetries || !shouldRetry(lastError)) {
 				throw EmbeddingException(ERR_EMBEDDING_FAILED, lastError.message, lastError);
 			}
 		}
@@ -203,7 +293,10 @@ EmbeddingError EmbeddingModule::parseApiError(const std::exception &e) const {
 	if (message.find("timed out") != std::string::npos || message.find("timeout") != std::string::npos) {
 		return makeError(504, "SERVICE_TIMEOUT", "Embedding request timed out", true);
 	}
-	return makeError(0, "", message, true);
+	if (dynamic_cast<const nlohmann::json::exception *>(&e) != nullptr) {
+		return makeError(200, "", "Invalid embedding response JSON", false);
+	}
+	return makeError(0, "", message, false);
 }
 
 EmbeddingError EmbeddingModule::parseApiError(int statusCode, const std::string &body) const {
@@ -241,15 +334,17 @@ bool EmbeddingModule::shouldRetry(const EmbeddingError &error) const {
 	return error.retryable;
 }
 
-std::string EmbeddingModule::buildHeaders() const {
-	return "Authorization: Bearer " + config_.apiKey + "\r\nContent-Type: application/json\r\n";
+std::string EmbeddingModule::buildHeaders(const EmbeddingConfig &config) const {
+	return "Authorization: Bearer " + config.apiKey + "\r\nContent-Type: application/json\r\n";
 }
 
-std::string EmbeddingModule::buildRequestBody(const std::vector<std::string> &texts, const std::string &task) const {
+std::string EmbeddingModule::buildRequestBody(const EmbeddingConfig          &config,
+                                              const std::vector<std::string> &texts,
+                                              const std::string              &task) const {
 	nlohmann::json body;
-	body["model"]      = config_.model;
+	body["model"]      = config.model;
 	body["task"]       = task;
-	body["dimensions"] = config_.dimensions;
+	body["dimensions"] = config.dimensions;
 	body["truncate"]   = true;
 	body["normalized"] = true;
 	body["input"]      = texts;

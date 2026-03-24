@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <stdexcept>
 #include <vector>
 
 using ::testing::_;
@@ -225,6 +226,23 @@ TEST_F(VisionMockTest, Recognize_GifInput_SkipsNetworkCall) {
 	EXPECT_TRUE(result.error.empty());
 }
 
+TEST_F(VisionMockTest, Recognize_PdfInput_ExplicitlyRejected) {
+	auto pdfPath = tempDir_->getSubPath("sample.pdf");
+	std::ofstream ofs(pdfPath, std::ios::binary);
+	ofs << "%PDF-1.4\n";
+	ofs.close();
+
+	EXPECT_CALL(*mockHttp, post(_, _, _, _)).Times(0);
+
+	auto result = vision->recognize(pdfPath);
+	EXPECT_FALSE(result.success);
+	EXPECT_THAT(result.error, HasSubstr("PDF input is not supported"));
+}
+
+TEST_F(VisionMockTest, SetHttpClient_NullptrRejected) {
+	EXPECT_THROW(vision->setHttpClient(nullptr), std::invalid_argument);
+}
+
 TEST_F(VisionMockTest, Recognize_StaticImage_ConvertsToJpegPayload) {
 	auto ppmPath = makePpmStubPath(tempDir_->getPath(), "sample.ppm");
 
@@ -264,7 +282,7 @@ TEST_F(VisionMockTest, Recognize_PaddleOCR_ErrorResponse_ReturnsFailure) {
 	EXPECT_THAT(result.error, HasSubstr("Token 错误"));
 }
 
-TEST_F(VisionMockTest, Recognize_UnsupportedProvider_ReturnsFailure) {
+TEST_F(VisionMockTest, Reconfigure_UnsupportedProvider_RollsBackPreviousState) {
 	VisionConfig config;
 	config.apiKey         = "test_key";
 	config.apiBaseUrl     = "https://api.test.com";
@@ -272,13 +290,10 @@ TEST_F(VisionMockTest, Recognize_UnsupportedProvider_ReturnsFailure) {
 	config.ocrProvider    = "legacy";
 	config.ocrApiKey      = "test-ocr-key";
 	config.ocrApiUrl      = "https://ocr.example.com";
-	vision->reconfigure(config);
+	EXPECT_FALSE(vision->reconfigure(config));
 
 	EXPECT_CALL(*mockHttp, post(_, _, _, _)).Times(0);
-
-	auto result = vision->recognize(dummyPath);
-	EXPECT_FALSE(result.success);
-	EXPECT_THAT(result.error, HasSubstr("Unsupported OCR provider"));
+	EXPECT_TRUE(vision->isOcrAvailable());
 }
 
 TEST_F(VisionMockTest, AnalyzeImage_HttpTimeout_ThrowsException) {

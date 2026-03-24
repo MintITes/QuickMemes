@@ -5,6 +5,8 @@
 
 #include "utils/config_parser.hpp"
 
+#include <charconv>
+#include <optional>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -16,7 +18,7 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	ServerConfig config;
 
 	// 构建参数 map
-	std::unordered_map<std::string, std::string> args;
+	std::unordered_map<std::string, std::optional<std::string>> args;
 	for (int i = 1; i < argc; ++i) {
 		std::string arg = argv[i];
 		if (arg.starts_with("--")) {
@@ -27,7 +29,7 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 				args[arg] = argv[i + 1];
 				++i;
 			} else {
-				args[arg] = "true";
+				args[arg] = std::nullopt;
 			}
 		}
 	}
@@ -35,7 +37,8 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	// 辅助：获取字符串参数
 	auto getString = [&](const std::string &key, std::string &out, bool required = false) {
 		if (auto it = args.find(key); it != args.end()) {
-			out = it->second;
+			if (!it->second.has_value()) { throw std::invalid_argument("missing value for " + key); }
+			out = *it->second;
 		} else if (required) {
 			throw std::invalid_argument("missing required argument " + key);
 		}
@@ -44,9 +47,16 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	// 辅助：获取 int 参数
 	auto getInt = [&](const std::string &key, int &out, bool required = false) {
 		if (auto it = args.find(key); it != args.end()) {
-			try {
-				out = std::stoi(it->second);
-			} catch (...) { throw std::invalid_argument("invalid integer value for " + key); }
+			if (!it->second.has_value()) { throw std::invalid_argument("missing value for " + key); }
+			const auto &value = *it->second;
+			const auto *begin = value.data();
+			const auto *end   = value.data() + value.size();
+			int         parsed = 0;
+			auto        result = std::from_chars(begin, end, parsed);
+			if (result.ec != std::errc{} || result.ptr != end) {
+				throw std::invalid_argument("invalid integer value for " + key);
+			}
+			out = parsed;
 		} else if (required) {
 			throw std::invalid_argument("missing required argument " + key);
 		}
@@ -55,13 +65,24 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	// 辅助：获取 bool 参数
 	auto getBool = [&](const std::string &key, bool &out, bool required = false) {
 		if (auto it = args.find(key); it != args.end()) {
-			out = (it->second == "true" || it->second == "1");
+			if (!it->second.has_value()) {
+				out = true;
+				return;
+			}
+			const auto &value = *it->second;
+			if (value == "true" || value == "1") {
+				out = true;
+			} else if (value == "false" || value == "0") {
+				out = false;
+			} else {
+				throw std::invalid_argument("invalid boolean value for " + key);
+			}
 		} else if (required) {
 			throw std::invalid_argument("missing required argument " + key);
 		}
 	};
 
-	// 解析必传参数
+	// 解析核心必传参数；其余配置保留结构体默认值，允许模块按需保持不可用状态
 	getString("--bind-address", config.bindAddress, true);
 	getInt("--port", config.port, true);
 	getString("--auth-token", config.authToken, true);
@@ -70,35 +91,35 @@ ServerConfig parseArgs(int argc, char *argv[]) {
 	getString("--log-dir", config.logDir, true);
 	getString("--log-level", config.logLevel, true);
 
-	// 解析严格必传属性
-	getBool("--log-retention-enabled", config.logRetentionEnabled, true);
-	getInt("--log-retention-days", config.logRetentionDays, true);
+	// 可选项：缺省时保留 ServerConfig / 子配置里的默认值
+	getBool("--log-retention-enabled", config.logRetentionEnabled);
+	getInt("--log-retention-days", config.logRetentionDays);
 
-	getString("--api-key", config.visionConfig.apiKey, true);
-	getString("--api-base-url", config.visionConfig.apiBaseUrl, true);
-	getString("--vision-model", config.visionConfig.visionModel, true);
-	getInt("--api-timeout", config.visionConfig.timeoutSeconds, true);
-	getInt("--api-retries", config.visionConfig.maxRetries, true);
+	getString("--api-key", config.visionConfig.apiKey);
+	getString("--api-base-url", config.visionConfig.apiBaseUrl);
+	getString("--vision-model", config.visionConfig.visionModel);
+	getInt("--api-timeout", config.visionConfig.timeoutSeconds);
+	getInt("--api-retries", config.visionConfig.maxRetries);
 
-	getString("--ocr-api-key", config.visionConfig.ocrApiKey, true);
-	getString("--ocr-api-url", config.visionConfig.ocrApiUrl, true);
-	getString("--ocr-provider", config.visionConfig.ocrProvider, true);
+	getString("--ocr-api-key", config.visionConfig.ocrApiKey);
+	getString("--ocr-api-url", config.visionConfig.ocrApiUrl);
+	getString("--ocr-provider", config.visionConfig.ocrProvider);
 
-	getString("--embedding-provider", config.embeddingConfig.provider, true);
-	getString("--embedding-model", config.embeddingConfig.model, true);
-	getString("--embedding-api-url", config.embeddingConfig.apiUrl, true);
-	getString("--embedding-api-key", config.embeddingConfig.apiKey, true);
-	getInt("--embedding-dimensions", config.embeddingConfig.dimensions, true);
-	getInt("--embedding-timeout", config.embeddingConfig.timeoutSeconds, true);
-	getInt("--embedding-retries", config.embeddingConfig.maxRetries, true);
+	getString("--embedding-provider", config.embeddingConfig.provider);
+	getString("--embedding-model", config.embeddingConfig.model);
+	getString("--embedding-api-url", config.embeddingConfig.apiUrl);
+	getString("--embedding-api-key", config.embeddingConfig.apiKey);
+	getInt("--embedding-dimensions", config.embeddingConfig.dimensions);
+	getInt("--embedding-timeout", config.embeddingConfig.timeoutSeconds);
+	getInt("--embedding-retries", config.embeddingConfig.maxRetries);
 
-	getBool("--thumbnail-enabled", config.thumbnailEnabled, true);
-	getInt("--thumbnail-max-size", config.thumbnailMaxSize, true);
-	getBool("--backup-enabled", config.backupEnabled, true);
-	getInt("--backup-retention-days", config.backupRetentionDays, true);
-	getInt("--recycle-bin-retention-days", config.recycleBinRetentionDays, true);
-	getInt("--max-queue-size", config.maxQueueSize, true);
-	getInt("--worker-count", config.workerCount, true);
+	getBool("--thumbnail-enabled", config.thumbnailEnabled);
+	getInt("--thumbnail-max-size", config.thumbnailMaxSize);
+	getBool("--backup-enabled", config.backupEnabled);
+	getInt("--backup-retention-days", config.backupRetentionDays);
+	getInt("--recycle-bin-retention-days", config.recycleBinRetentionDays);
+	getInt("--max-queue-size", config.maxQueueSize);
+	getInt("--worker-count", config.workerCount);
 
 	return config;
 }

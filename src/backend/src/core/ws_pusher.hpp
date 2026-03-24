@@ -8,6 +8,7 @@
 
 #include "api_types.hpp"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -17,12 +18,15 @@ namespace quickmemes {
 using WsSendCallback = std::function<void(std::shared_ptr<std::string>)>;
 
 class WsPusherImpl;
+class WsSessionRegistration;
 
 /**
  * @brief WebSocket 推送单例
  */
 class WsPusher {
 public:
+	using Registration = std::shared_ptr<WsSessionRegistration>;
+
 	static WsPusher &get();
 
 	/**
@@ -39,16 +43,14 @@ public:
 	void setTestListener(std::function<void(const WsEvent &)> cb);
 
 	/**
-	 * @brief 将连接描述符注册到管理器
-	 * @param sessionPtr void* 底层 WebSocket Session 指针
+	 * @brief 注册会话发送回调，并返回可自动退订的句柄
 	 */
-	void addSession(void *sessionPtr);
+	[[nodiscard]] Registration addSession(WsSendCallback callback);
 
 	/**
-	 * @brief 从管理器移除闭合的连接
-	 * @param sessionPtr void* 底层 WebSocket Session 指针
+	 * @brief 清空所有已注册的会话
 	 */
-	void removeSession(void *sessionPtr);
+	void clearSessions();
 
 	// 禁止拷贝和移动
 	WsPusher(const WsPusher &)            = delete;
@@ -58,7 +60,28 @@ private:
 	WsPusher();
 	~WsPusher();
 
+	friend class WsSessionRegistration;
+	void removeSession(uint64_t sessionId);
+
 	void *impl_; ///< 隐藏连接集合细节
+};
+
+class WsSessionRegistration {
+public:
+	~WsSessionRegistration();
+
+	void reset();
+
+	WsSessionRegistration(const WsSessionRegistration &)            = delete;
+	WsSessionRegistration &operator=(const WsSessionRegistration &) = delete;
+
+private:
+	friend class WsPusher;
+
+	WsSessionRegistration(WsPusher *owner, uint64_t sessionId);
+
+	WsPusher *owner_;
+	uint64_t  sessionId_;
 };
 
 } // namespace quickmemes

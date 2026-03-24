@@ -35,6 +35,7 @@ TEST_F(LoggerTest, LogWrite_AboveMinLevel_WritesToFile) {
 	const std::string module  = "logtest1"; // unique module to avoid cached streams
 	const std::string message = "hello logger";
 	logger.log(::quickmemes::LogLevel::LL_INFO, module, message);
+	logger.flush();
 
 	// build expected log file path: <logDir>/<module>-<YYYY-MM-DD>.log
 	auto    now   = std::chrono::system_clock::now();
@@ -64,6 +65,7 @@ TEST_F(LoggerTest, LogWrite_BelowMinLevel_IgnoresLog) {
 	const std::string module  = "logtest2";
 	const std::string message = "should be filtered";
 	logger.log(::quickmemes::LogLevel::LL_DEBUG, module, message);
+	logger.flush();
 
 	auto    now   = std::chrono::system_clock::now();
 	auto    timeT = std::chrono::system_clock::to_time_t(now);
@@ -105,6 +107,41 @@ TEST_F(LoggerTest, CleanOldLogs_RemovesExpiredFiles) {
 	EXPECT_EQ(removed, 1);
 	EXPECT_FALSE(std::filesystem::exists(oldLog));
 	EXPECT_TRUE(std::filesystem::exists(newLog));
+}
+
+TEST_F(LoggerTest, Initialize_Twice_ResetsOutputDirectory) {
+	auto &logger = ::quickmemes::Logger::get();
+	logger.initialize(tempDir_->getPath(), ::quickmemes::LogLevel::LL_DEBUG, false);
+	logger.log(::quickmemes::LogLevel::LL_INFO, "logreset", "from first dir");
+	logger.flush();
+
+	auto secondDir = tempDir_->getSubPath("second");
+	std::filesystem::create_directories(secondDir);
+	logger.initialize(secondDir, ::quickmemes::LogLevel::LL_DEBUG, false);
+	logger.log(::quickmemes::LogLevel::LL_INFO, "logreset", "from second dir");
+	logger.flush();
+
+	auto    now   = std::chrono::system_clock::now();
+	auto    timeT = std::chrono::system_clock::to_time_t(now);
+	std::tm tm{};
+#ifdef _WIN32
+	localtime_s(&tm, &timeT);
+#else
+	localtime_r(&timeT, &tm);
+#endif
+	std::ostringstream date;
+	date << std::put_time(&tm, "%Y-%m-%d");
+
+	const auto firstLog  = std::filesystem::path(tempDir_->getPath()) / ("logreset-" + date.str() + ".log");
+	const auto secondLog = std::filesystem::path(secondDir) / ("logreset-" + date.str() + ".log");
+
+	ASSERT_TRUE(std::filesystem::exists(firstLog));
+	ASSERT_TRUE(std::filesystem::exists(secondLog));
+
+	std::ifstream ifs(firstLog);
+	std::stringstream firstBuffer;
+	firstBuffer << ifs.rdbuf();
+	EXPECT_EQ(firstBuffer.str().find("from second dir"), std::string::npos);
 }
 
 }} // namespace quickmemes::testing

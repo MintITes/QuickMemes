@@ -8,10 +8,12 @@
 #include "error_codes.hpp"
 #include "utils/logger.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <openssl/evp.h>
+#include <memory>
 #include <sstream>
 #include <stb_image.h>
 #include <stb_image_resize2.h>
@@ -24,30 +26,31 @@ std::string computeHash(const std::string &filePath) {
 	std::ifstream file(filePath, std::ios::binary);
 	if (!file.is_open()) { throw ApiException(ERR_IO, "Failed to open file for hashing: " + filePath); }
 
-	EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+	using EvpCtxPtr = std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)>;
+	EvpCtxPtr ctx(EVP_MD_CTX_new(), &EVP_MD_CTX_free);
 	if (ctx == nullptr) { throw ApiException(ERR_INTERNAL, "Failed to create EVP_MD_CTX"); }
 
-	if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1) {
-		EVP_MD_CTX_free(ctx);
+	if (EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr) != 1) {
 		throw ApiException(ERR_INTERNAL, "Failed to init SHA256 digest");
 	}
 
 	char buffer[8192];
 	while (file.read(buffer, sizeof(buffer))) {
-		EVP_DigestUpdate(ctx, buffer, file.gcount());
+		if (EVP_DigestUpdate(ctx.get(), buffer, static_cast<size_t>(file.gcount())) != 1) {
+			throw ApiException(ERR_INTERNAL, "Failed to update SHA256 digest");
+		}
 	}
-	// After read fails, gcount() returns bytes from the attempted read (can be > 0 and < sizeof(buffer))
-	if (file.gcount() > 0) { EVP_DigestUpdate(ctx, buffer, file.gcount()); }
+	if (!file.eof()) { throw ApiException(ERR_IO, "Failed to read file for hashing: " + filePath); }
+	if (file.gcount() > 0 && EVP_DigestUpdate(ctx.get(), buffer, static_cast<size_t>(file.gcount())) != 1) {
+		throw ApiException(ERR_INTERNAL, "Failed to update SHA256 digest");
+	}
 
 	unsigned char hash[EVP_MAX_MD_SIZE];
 	unsigned int  lengthOfHash = 0;
 
-	if (EVP_DigestFinal_ex(ctx, hash, &lengthOfHash) != 1) {
-		EVP_MD_CTX_free(ctx);
+	if (EVP_DigestFinal_ex(ctx.get(), hash, &lengthOfHash) != 1) {
 		throw ApiException(ERR_INTERNAL, "Failed to finalize SHA256 digest");
 	}
-
-	EVP_MD_CTX_free(ctx);
 
 	std::ostringstream oss;
 	for (unsigned int i = 0; i < lengthOfHash; i++) {
@@ -84,17 +87,27 @@ std::string detectMimeType(const std::string &filePath) {
 	return "application/octet-stream";
 }
 
-ImageSize readImageSize(const std::string &filePath) {
+std::optional<ImageSize> readImageSize(const std::string &filePath) {
 	ImageSize size;
 	int       channels = 0;
 	// stbi_info 仅读取头部元数据，不完整解码图像
 	if (!stbi_info(filePath.c_str(), &size.width, &size.height, &channels)) {
 		LOG_WARN("file_util", "Failed to read image size: " + filePath);
+		return std::nullopt;
+	}
+	if (size.width <= 0 || size.height <= 0) {
+		LOG_WARN("file_util", "Invalid image size metadata: " + filePath);
+		return std::nullopt;
 	}
 	return size;
 }
 
 bool generateThumbnail(const std::string &srcPath, const std::string &destPath, int maxSize) {
+	if (maxSize <= 0) {
+		LOG_WARN("file_util", "Invalid thumbnail maxSize: " + std::to_string(maxSize));
+		return false;
+	}
+
 	int            width = 0, height = 0, channels = 0;
 	// 强制请求 4 通道 (RGBA) 以匹配 stbir_resize_uint8_linear 的安全枚举
 	unsigned char *data = stbi_load(srcPath.c_str(), &width, &height, &channels, 4);
@@ -102,34 +115,43 @@ bool generateThumbnail(const std::string &srcPath, const std::string &destPath, 
 		LOG_WARN("file_util", "Failed to load image for thumbnail: " + srcPath);
 		return false;
 	}
+	std::unique_ptr<unsigned char, decltype(&stbi_image_free)> scopedData(data, &stbi_image_free);
 	channels = 4;
+	if (width <= 0 || height <= 0) {
+		LOG_WARN("file_util", "Invalid source image size for thumbnail: " + srcPath);
+		return false;
+	}
 
 	// 计算缩放尺寸，保持比例
 	int newWidth = width, newHeight = height;
 	if (width > height) {
 		if (width > maxSize) {
 			newWidth  = maxSize;
-			newHeight = height * maxSize / width;
+			newHeight = std::max(1, static_cast<int>((static_cast<double>(height) * maxSize) / width));
 		}
 	} else {
 		if (height > maxSize) {
 			newHeight = maxSize;
-			newWidth  = width * maxSize / height;
+			newWidth  = std::max(1, static_cast<int>((static_cast<double>(width) * maxSize) / height));
 		}
 	}
+	newWidth  = std::max(1, newWidth);
+	newHeight = std::max(1, newHeight);
 
 	// 缩放
 	std::vector<unsigned char> resized(newWidth * newHeight * 4);
-	stbir_resize_uint8_linear(data,
-	                          width,
-	                          height,
-	                          0,
-	                          resized.data(),
-	                          newWidth,
-	                          newHeight,
-	                          0,
-	                          static_cast<stbir_pixel_layout>(4)); // STBIR_RGBA
-	stbi_image_free(data);
+	if (!stbir_resize_uint8_linear(scopedData.get(),
+	                               width,
+	                               height,
+	                               0,
+	                               resized.data(),
+	                               newWidth,
+	                               newHeight,
+	                               0,
+	                               static_cast<stbir_pixel_layout>(4))) {
+		LOG_WARN("file_util", "Failed to resize image for thumbnail: " + srcPath);
+		return false;
+	}
 
 	// 处理透明度：由于 JPEG 不支持 Alpha，我们将 RGBA 转换为 RGB 并叠加在白色背景上
 	// 这样可以避免直接丢弃 Alpha 导致的黑边/全黑问题

@@ -17,8 +17,10 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#include <stdexcept>
 #include <string_view>
 #include <thread>
 
@@ -86,6 +88,29 @@ static bool isGifImage(const std::string &imagePath) {
 static bool isPdfFile(const std::string &imagePath) {
 	auto ext = toLowerCopy(std::filesystem::path(imagePath).extension().string());
 	return ext == ".pdf";
+}
+
+static int extractHttpStatusCode(const std::string &message) {
+	auto pos = message.find("returned ");
+	if (pos == std::string::npos) { return 0; }
+	pos += 9;
+
+	int code = 0;
+	for (; pos < message.size(); ++pos) {
+		if (!std::isdigit(static_cast<unsigned char>(message[pos]))) { break; }
+		code = code * 10 + (message[pos] - '0');
+	}
+	return code;
+}
+
+static bool shouldRetryVisionRequest(const ApiException &e) {
+	const std::string message = e.what();
+	if (message.find("timeout") != std::string::npos || message.find("timed out") != std::string::npos) { return true; }
+
+	int status = extractHttpStatusCode(message);
+	if (status == 429) { return true; }
+	if (status >= 500 && status <= 599) { return true; }
+	return false;
 }
 
 static std::string normalizeOcrProvider(const std::string &provider) {
@@ -168,10 +193,10 @@ static std::string buildOcrSpaceHeaders(const std::string &apiKey) {
 	return "apikey: " + apiKey + "\r\nContent-Type: application/x-www-form-urlencoded\r\n";
 }
 
-static std::string buildPaddleOcrRequestBody(const std::string &base64Image, const std::string &imagePath) {
+static std::string buildPaddleOcrRequestBody(const std::string &base64Image) {
 	nlohmann::json body;
 	body["file"]                      = base64Image;
-	body["fileType"]                  = isPdfFile(imagePath) ? 0 : 1;
+	body["fileType"]                  = 1;
 	body["useDocOrientationClassify"] = false;
 	body["useDocUnwarping"]           = false;
 	body["useTextlineOrientation"]    = false;
@@ -282,73 +307,162 @@ static OcrResult parsePaddleOcrResponse(const std::string &responseBody) {
 }
 
 VisionModule::VisionModule(std::shared_ptr<HttpClientInterface> httpClient)
-    : httpClient_(std::move(httpClient)) {}
+{
+	if (!httpClient) {
+		httpClient = std::make_shared<HttpClient>();
+	}
+	state_.httpClient = std::move(httpClient);
+}
 
 VisionModule::~VisionModule() = default;
 
-bool VisionModule::initialize(const VisionConfig &config) {
-	config_ = config;
+VisionModule::RuntimeState VisionModule::buildState(const VisionConfig &config,
+                                                    std::shared_ptr<HttpClientInterface> client,
+                                                    bool                                 allowUnavailable) {
+	if (!client) {
+		throw std::invalid_argument("Vision http client must not be null");
+	}
 
-	isAiAvailable_ = false;
-	if (!config_.apiKey.empty() && !config_.apiBaseUrl.empty()) {
+	VisionConfig normalized = config;
+	if (normalized.timeoutSeconds <= 0) {
+		if (!allowUnavailable) { throw std::invalid_argument("Vision timeoutSeconds must be positive"); }
+		normalized.timeoutSeconds = 30;
+	}
+	if (normalized.maxRetries < 0) {
+		if (!allowUnavailable) { throw std::invalid_argument("Vision maxRetries must be non-negative"); }
+		normalized.maxRetries = 0;
+	}
+
+	RuntimeState nextState;
+	nextState.config     = normalized;
+	nextState.httpClient = std::move(client);
+
+	if (!nextState.config.apiKey.empty() && !nextState.config.apiBaseUrl.empty()) {
 		try {
-			std::string probeUrl   = config_.apiBaseUrl + "/models";
-			std::string authHeader = "Authorization: Bearer " + config_.apiKey + "\r\n";
-			httpClient_->get(probeUrl, authHeader, config_.timeoutSeconds);
-			isAiAvailable_ = true;
+			std::string probeUrl   = nextState.config.apiBaseUrl + "/models";
+			std::string authHeader = "Authorization: Bearer " + nextState.config.apiKey + "\r\n";
+			nextState.httpClient->get(probeUrl, authHeader, nextState.config.timeoutSeconds);
+			nextState.isAiAvailable = true;
 			LOG_INFO("vision", "AI service probe succeeded.");
 		} catch (const std::exception &e) {
 			LOG_WARN("vision", std::string("AI service probe failed: ") + e.what());
-			isAiAvailable_ = false;
+			nextState.isAiAvailable = false;
 		}
-
 	}
 
-	isOcrAvailable_ = (!config_.ocrApiKey.empty() && !config_.ocrApiUrl.empty() &&
-	                   (isPaddleOcrProvider(config_.ocrProvider) || isOcrSpaceProvider(config_.ocrProvider)));
-	if (!config_.ocrProvider.empty() && !isPaddleOcrProvider(config_.ocrProvider) &&
-	    !isOcrSpaceProvider(config_.ocrProvider)) {
+	nextState.isOcrAvailable = (!nextState.config.ocrApiKey.empty() && !nextState.config.ocrApiUrl.empty() &&
+	                            (isPaddleOcrProvider(nextState.config.ocrProvider) ||
+	                             isOcrSpaceProvider(nextState.config.ocrProvider)));
+	if (!nextState.config.ocrProvider.empty() && !isPaddleOcrProvider(nextState.config.ocrProvider) &&
+	    !isOcrSpaceProvider(nextState.config.ocrProvider)) {
 		LOG_WARN("vision",
-		         "Unsupported OCR provider: " + config_.ocrProvider + ". Only PaddleOCR / OcrSpace are enabled.");
+		         "Unsupported OCR provider: " + nextState.config.ocrProvider +
+		             ". Only PaddleOCR / OcrSpace are enabled.");
+		if (!allowUnavailable &&
+		    !nextState.config.ocrProvider.empty()) {
+			throw std::invalid_argument("Unsupported OCR provider: " + nextState.config.ocrProvider);
+		}
+	}
+
+	if (!allowUnavailable && !nextState.isAiAvailable && !nextState.isOcrAvailable) {
+		throw std::invalid_argument("Vision configuration is unavailable after validation");
+	}
+
+	return nextState;
+}
+
+void VisionModule::setHttpClient(std::shared_ptr<HttpClientInterface> client) {
+	if (!client) { throw std::invalid_argument("Vision http client must not be null"); }
+
+	std::unique_lock lock(stateMutex_);
+	state_.httpClient = std::move(client);
+}
+
+bool VisionModule::initialize(const VisionConfig &config) {
+	std::shared_ptr<HttpClientInterface> client;
+	{
+		std::shared_lock lock(stateMutex_);
+		client = state_.httpClient;
+	}
+
+	auto nextState = buildState(config, std::move(client), true);
+	{
+		std::unique_lock lock(stateMutex_);
+		state_ = nextState;
 	}
 
 	LOG_INFO("vision",
-	         "VisionModule initialized — AI: " + std::string(isAiAvailable_ ? "available" : "unavailable") +
-	             ", OCR: " + std::string(isOcrAvailable_ ? "available" : "unavailable"));
+	         "VisionModule initialized — AI: " + std::string(nextState.isAiAvailable ? "available" : "unavailable") +
+	             ", OCR: " + std::string(nextState.isOcrAvailable ? "available" : "unavailable"));
 
-	return isAiAvailable_ || isOcrAvailable_;
+	return nextState.isAiAvailable || nextState.isOcrAvailable;
 }
 
 void VisionModule::shutdown() {
-	isAiAvailable_  = false;
-	isOcrAvailable_ = false;
+	std::unique_lock lock(stateMutex_);
+	state_.isAiAvailable  = false;
+	state_.isOcrAvailable = false;
 	LOG_INFO("vision", "VisionModule shutdown.");
 }
 
 bool VisionModule::reconfigure(const VisionConfig &newConfig) {
-	config_ = newConfig;
-	return initialize(config_);
+	std::shared_ptr<HttpClientInterface> client;
+	{
+		std::shared_lock lock(stateMutex_);
+		client = state_.httpClient;
+	}
+
+	try {
+		auto nextState = buildState(newConfig, std::move(client), false);
+		{
+			std::unique_lock lock(stateMutex_);
+			state_ = nextState;
+		}
+		LOG_INFO("vision",
+		         "VisionModule reconfigured — AI: " +
+		             std::string(nextState.isAiAvailable ? "available" : "unavailable") + ", OCR: " +
+		             std::string(nextState.isOcrAvailable ? "available" : "unavailable"));
+		return true;
+	} catch (const std::exception &e) {
+		LOG_WARN("vision", std::string("VisionModule reconfigure rejected: ") + e.what());
+		return false;
+	}
 }
 
 bool VisionModule::isAvailable() const {
-	return isAiAvailable_;
+	std::shared_lock lock(stateMutex_);
+	return state_.isAiAvailable;
 }
 
 bool VisionModule::isOcrAvailable() const {
-	return isOcrAvailable_;
+	std::shared_lock lock(stateMutex_);
+	return state_.isOcrAvailable;
 }
 
 OcrResult VisionModule::recognize(const std::string &imagePath) {
 	OcrResult res;
-	if (!isPaddleOcrProvider(config_.ocrProvider) && !isOcrSpaceProvider(config_.ocrProvider)) {
+	RuntimeState stateSnapshot;
+	{
+		std::shared_lock lock(stateMutex_);
+		stateSnapshot = state_;
+	}
+
+	if (isPdfFile(imagePath)) {
 		res.success = false;
-		res.error   = config_.ocrProvider.empty() ? "OCR provider not configured"
-		                                          : "Unsupported OCR provider: " + config_.ocrProvider;
+		res.error   = "PDF input is not supported";
+		LOG_WARN("vision", "OCR recognize rejected: PDF input is not supported: " + imagePath);
+		return res;
+	}
+
+	if (!isPaddleOcrProvider(stateSnapshot.config.ocrProvider) && !isOcrSpaceProvider(stateSnapshot.config.ocrProvider)) {
+		res.success = false;
+		res.error   = stateSnapshot.config.ocrProvider.empty() ? "OCR provider not configured"
+		                                                      : "Unsupported OCR provider: " + stateSnapshot.config.ocrProvider;
 		LOG_WARN("vision", "OCR recognize skipped: " + res.error);
 		return res;
 	}
 
-	if (!isOcrAvailable_) {
+	if (!stateSnapshot.isOcrAvailable) {
 		res.success = false;
 		res.error   = "OCR service unavailable";
 		LOG_WARN("vision", "OCR recognize skipped: OCR service unavailable.");
@@ -374,26 +488,26 @@ OcrResult VisionModule::recognize(const std::string &imagePath) {
 	std::string body;
 	std::string headers;
 	std::string providerLabel;
-	if (isPaddleOcrProvider(config_.ocrProvider)) {
-		url           = normalizePaddleOcrUrl(config_.ocrApiUrl);
-		body          = buildPaddleOcrRequestBody(imageBase64, imagePath);
-		headers       = buildPaddleOcrHeaders(config_.ocrApiKey);
+	if (isPaddleOcrProvider(stateSnapshot.config.ocrProvider)) {
+		url           = normalizePaddleOcrUrl(stateSnapshot.config.ocrApiUrl);
+		body          = buildPaddleOcrRequestBody(imageBase64);
+		headers       = buildPaddleOcrHeaders(stateSnapshot.config.ocrApiKey);
 		providerLabel = "PaddleOCR";
 	} else {
-		url           = normalizeOcrSpaceUrl(config_.ocrApiUrl);
+		url           = normalizeOcrSpaceUrl(stateSnapshot.config.ocrApiUrl);
 		body          = buildOcrSpaceRequestBody(imageBase64);
-		headers       = buildOcrSpaceHeaders(config_.ocrApiKey);
+		headers       = buildOcrSpaceHeaders(stateSnapshot.config.ocrApiKey);
 		providerLabel = "OcrSpace";
 	}
 
 	std::string responseBody;
-	int         retries = config_.maxRetries;
+	int         retries = stateSnapshot.config.maxRetries;
 	for (int attempt = 0; attempt <= retries; ++attempt) {
 		try {
-			responseBody = httpClient_->post(url, headers, body, config_.timeoutSeconds);
+			responseBody = stateSnapshot.httpClient->post(url, headers, body, stateSnapshot.config.timeoutSeconds);
 			break;
 		} catch (const ApiException &e) {
-			if (attempt == retries) {
+			if (attempt == retries || !shouldRetryVisionRequest(e)) {
 				LOG_ERROR("vision", providerLabel + " request failed after retries: " + std::string(e.what()));
 				res.success = false;
 				res.error   = e.what();
@@ -404,7 +518,7 @@ OcrResult VisionModule::recognize(const std::string &imagePath) {
 	}
 
 	try {
-		if (isPaddleOcrProvider(config_.ocrProvider)) {
+		if (isPaddleOcrProvider(stateSnapshot.config.ocrProvider)) {
 			auto parsed = parsePaddleOcrResponse(responseBody);
 			if (!parsed.success && parsed.error.empty()) { parsed.error = "Failed to parse PaddleOCR response"; }
 			return parsed;
@@ -466,8 +580,20 @@ OcrResult VisionModule::recognize(const std::string &imagePath) {
 
 AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const std::string &ocrFullText) {
 	AiAnalysisResult res;
+	RuntimeState     stateSnapshot;
+	{
+		std::shared_lock lock(stateMutex_);
+		stateSnapshot = state_;
+	}
 
-	if (!isAiAvailable_) {
+	if (isPdfFile(imagePath)) {
+		res.success = false;
+		res.error   = "PDF input is not supported";
+		LOG_WARN("vision", "AI analyze rejected: PDF input is not supported: " + imagePath);
+		return res;
+	}
+
+	if (!stateSnapshot.isAiAvailable) {
 		res.success = false;
 		res.error   = "AI service unavailable";
 		return res;
@@ -490,7 +616,7 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 	if (!ocrFullText.empty()) { userText += "，图片中的 OCR 文本为：" + ocrFullText; }
 
 	nlohmann::json requestBody;
-	requestBody["model"]      = config_.visionModel;
+	requestBody["model"]      = stateSnapshot.config.visionModel;
 	requestBody["messages"]   = nlohmann::json::array({
 	    {{"role", "system"},{"content", systemPrompt}                      },
 	    {  {"role", "user"},
@@ -501,17 +627,18 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
     });
 	requestBody["max_tokens"] = 1000;
 
-	std::string url     = config_.apiBaseUrl + "/chat/completions";
-	std::string headers = "Authorization: Bearer " + config_.apiKey + "\r\n";
+	std::string url     = stateSnapshot.config.apiBaseUrl + "/chat/completions";
+	std::string headers = "Authorization: Bearer " + stateSnapshot.config.apiKey + "\r\n";
 
 	std::string responseBody;
-	int         retries = config_.maxRetries;
+	int         retries = stateSnapshot.config.maxRetries;
 	for (int attempt = 0; attempt <= retries; ++attempt) {
 		try {
-			responseBody = httpClient_->post(url, headers, requestBody.dump(), config_.timeoutSeconds);
+			responseBody =
+			    stateSnapshot.httpClient->post(url, headers, requestBody.dump(), stateSnapshot.config.timeoutSeconds);
 			break;
 		} catch (const ApiException &e) {
-			if (attempt == retries) {
+			if (attempt == retries || !shouldRetryVisionRequest(e)) {
 				LOG_ERROR("vision", "analyzeImage failed after retries: " + std::string(e.what()));
 				res.success = false;
 				res.error   = e.what();
@@ -586,6 +713,11 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 }
 
 std::string VisionModule::encodeImageToBase64(const std::string &imagePath) const {
+	if (isPdfFile(imagePath)) {
+		LOG_WARN("vision", "PDF input is not supported for image encoding: " + imagePath);
+		return "";
+	}
+
 	// Acquire semaphore to limit concurrent memory-intensive image loading
 	processingSemaphore_.acquire();
 	// Use scope exit or manual release to ensure semaphore is released
@@ -635,7 +767,10 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 			newH        = static_cast<int>(h * scale);
 
 			resizedData.resize(newW * newH * 4);
-			stbir_resize_uint8_linear(processData, w, h, 0, resizedData.data(), newW, newH, 0, STBIR_RGBA);
+			if (!stbir_resize_uint8_linear(processData, w, h, 0, resizedData.data(), newW, newH, 0, STBIR_RGBA)) {
+				LOG_ERROR("vision", "Failed to resize image before OCR upload: " + imagePath);
+				return "";
+			}
 			processData = resizedData.data();
 		}
 
@@ -664,7 +799,10 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 
 			resizedData.clear();
 			resizedData.resize(nextW * nextH * 4);
-			stbir_resize_uint8_linear(processData, newW, newH, 0, resizedData.data(), nextW, nextH, 0, STBIR_RGBA);
+			if (!stbir_resize_uint8_linear(processData, newW, newH, 0, resizedData.data(), nextW, nextH, 0, STBIR_RGBA)) {
+				LOG_ERROR("vision", "Failed to downscale image during OCR compression: " + imagePath);
+				return "";
+			}
 			processData = resizedData.data();
 			newW        = nextW;
 			newH        = nextH;

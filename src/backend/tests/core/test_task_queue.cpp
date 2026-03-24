@@ -76,6 +76,26 @@ TEST_F(TaskQueueTest, SubmitTask_QueueFull_ThrowsQuotaExceeded) {
 	EXPECT_THROW(TaskQueue::get().submitImportTask(req2), ApiException);
 }
 
+TEST_F(TaskQueueTest, SubmitTask_EmptyInputs_ThrowsInvalidParams) {
+	ImportRequest req;
+	EXPECT_THROW(TaskQueue::get().submitImportTask(req), ApiException);
+}
+
+TEST_F(TaskQueueTest, SubmitTask_BatchTooLarge_DoesNotPoisonQueueState) {
+	ImportRequest oversized;
+	for (int i = 0; i < 6; ++i) {
+		oversized.inputs.push_back(imagePath1_);
+	}
+	EXPECT_THROW(TaskQueue::get().submitImportTask(oversized), ApiException);
+
+	ImportRequest valid;
+	valid.inputs = {imagePath1_};
+	EXPECT_NO_THROW({
+		auto taskId = TaskQueue::get().submitImportTask(valid);
+		EXPECT_FALSE(taskId.empty());
+	});
+}
+
 TEST_F(TaskQueueTest, CancelTask_ExistingTask_ReturnsTrue) {
 	ImportRequest req;
 	req.inputs         = {imagePath3_};

@@ -23,11 +23,9 @@ protected:
 TEST_F(IntegrationTest, FullFlow_HandledRequest_TriggersWs) {
 	// 1. Setup mock session in WsPusher
 	std::string receivedPayload;
-	auto        mockCb = [&](std::shared_ptr<std::string> msg) {
+	auto        subscription = WsPusher::get().addSession([&](std::shared_ptr<std::string> msg) {
 		receivedPayload = *msg;
-	};
-	WsSendCallback cb = mockCb;
-	WsPusher::get().addSession(&cb);
+	});
 
 	// 2. Setup Router
 	Router router;
@@ -60,7 +58,7 @@ TEST_F(IntegrationTest, FullFlow_HandledRequest_TriggersWs) {
 	EXPECT_EQ(j["data"]["name"], "IPC_Tag");
 
 	// Cleanup
-	WsPusher::get().removeSession(&cb);
+	subscription.reset();
 }
 
 }} // namespace quickmemes::testing

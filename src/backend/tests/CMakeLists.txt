@@ -28,9 +28,11 @@ set(TEST_SOURCES
     db/test_search.cpp
     db/test_soft_delete.cpp
     db/test_category_ops.cpp
+    db/test_backup_restore.cpp
     vision/test_vision_mock.cpp
     embedding/test_embedding_mock.cpp
     utils/test_config_parser.cpp
+    utils/test_file_utils.cpp
     utils/test_logger.cpp
     integration/integration_test.cpp
     integration/test_security.cpp

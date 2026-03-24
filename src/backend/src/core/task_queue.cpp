@@ -161,10 +161,15 @@ std::string generateUUIDv4() {
 }
 
 std::string buildStoredFilePath(const std::string &storageRoot, const std::string &filePath) {
-	std::string root = storageRoot;
-	if (root.empty()) root = "storage";
-	if (root.back() != '/') root += '/';
-	return root + filePath;
+	const auto root = storageRoot.empty() ? std::filesystem::path("storage") : std::filesystem::path(storageRoot);
+	return (root / std::filesystem::path(filePath)).string();
+}
+
+void stopAndJoinPool(std::unique_ptr<boost::asio::thread_pool> &pool) {
+	if (!pool) return;
+	pool->stop();
+	pool->join();
+	pool.reset();
 }
 } // namespace
 
@@ -189,6 +194,8 @@ public:
 
 	std::mutex                                                  tasksMutex;
 	std::unordered_map<std::string, std::shared_ptr<TaskState>> activeTasks;
+	std::unordered_map<int64_t, std::string>                    inflightThumbnailTasks;
+	std::unordered_map<std::string, int64_t>                    inflightThumbnailByTask;
 };
 
 TaskQueue::TaskQueue()
@@ -216,36 +223,24 @@ void TaskQueue::initialize(int workerCount, int maxQueueSize, const std::string 
 }
 
 void TaskQueue::shutdown() {
-	if (impl_->ioPool) {
-		LOG_INFO("queue", "Shutting down TaskQueue with timeout...");
+	if (impl_->ioPool || impl_->aiPool || impl_->thumbPool) {
+		LOG_INFO("queue", "Shutting down TaskQueue...");
 
-		// 改进后的安全退出逻辑：
-		// 1. 发起等待线程，负责在后台调用各池的 join()
-		// 2. detach 等待线程，不阻塞主关机流程
-		// 3. 给出宽限期，随后强制 stop() 以防任务挂起
+		stopAndJoinPool(impl_->ioPool);
+		stopAndJoinPool(impl_->thumbPool);
+		stopAndJoinPool(impl_->aiPool);
 
-		std::thread waiter([this]() {
-			if (impl_->ioPool) impl_->ioPool->join();
-			if (impl_->aiPool) impl_->aiPool->join();
-			if (impl_->thumbPool) impl_->thumbPool->join();
-		});
-
-		waiter.detach();
-
-		// 真正解决 Hanging 的办法是：直接调用 stop() 强制取消积压任务，
-		// 然后通过 reset() 释放资源。
-
-		// 我们给任务一小段宽限期（例如 3s）来尝试自然完成
-		std::this_thread::sleep_for(std::chrono::seconds(3));
-
-		LOG_INFO("queue", "Forcing TaskQueue pools to stop to prevent hanging.");
-		if (impl_->ioPool) impl_->ioPool->stop();
-		if (impl_->aiPool) impl_->aiPool->stop();
-		if (impl_->thumbPool) impl_->thumbPool->stop();
-
-		impl_->ioPool.reset();
-		impl_->aiPool.reset();
-		impl_->thumbPool.reset();
+		{
+			std::lock_guard<std::mutex> lock(impl_->tasksMutex);
+			for (auto &[taskId, state] : impl_->activeTasks) {
+				(void)taskId;
+				state->cancelled = true;
+			}
+			impl_->activeTasks.clear();
+			impl_->inflightThumbnailTasks.clear();
+			impl_->inflightThumbnailByTask.clear();
+		}
+		impl_->currentPending.store(0);
 
 		LOG_INFO("queue", "TaskQueue shutdown completed.");
 	}
@@ -257,64 +252,66 @@ const std::string &TaskQueue::getStoragePath() const {
 
 std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 	if (!impl_->ioPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
+	if (request.inputs.empty()) { throw ApiException(ERR_INVALID_PARAMS, "Import inputs cannot be empty"); }
+
+	const int batchSize = static_cast<int>(request.inputs.size());
 
 	std::string taskId = generateUUIDv4();
 
-	if (impl_->currentPending >= impl_->maxQueueSize) {
-		// 发送符合规范的 task:error 推送
-		WsEvent errEvent;
-		errEvent.event   = "task:error";
-		errEvent.payload = {
-		    {"taskId",               taskId},
-		    { "error", "Task queue is full"}
-        };
-		WsPusher::get().broadcast(errEvent);
-
-		throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full");
+	const char *queueError =
+	    (batchSize > impl_->maxQueueSize) ? "Task queue is full (batch too large)" : "Task queue is full";
+	int reservedPending = impl_->currentPending.load();
+	while (true) {
+		if (reservedPending + batchSize > impl_->maxQueueSize) {
+			WsEvent errEvent;
+			errEvent.event   = "task:error";
+			errEvent.payload = {
+			    {"taskId", taskId},
+			    {"error",  queueError}
+            };
+			WsPusher::get().broadcast(errEvent);
+			throw ApiException(ERR_QUOTA_EXCEEDED, queueError);
+		}
+		if (impl_->currentPending.compare_exchange_weak(reservedPending, reservedPending + batchSize)) { break; }
 	}
 
 	auto state        = std::make_shared<TaskState>();
-	state->totalItems = request.inputs.size();
+	state->totalItems = batchSize;
 
 	{
 		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
 		impl_->activeTasks[taskId] = state;
 	}
 
-	// 修复任务队列容量穿透：先计算批量大小，确保总数不超限
-	if (impl_->currentPending + static_cast<int>(request.inputs.size()) > impl_->maxQueueSize) {
-		WsEvent errEvent;
-		errEvent.event   = "task:error";
-		errEvent.payload = {
-		    {"taskId",		                         taskId},
-		    { "error", "Task queue is full (batch too large)"}
-        };
-		WsPusher::get().broadcast(errEvent);
-		throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full (batch too large)");
-	}
+	int postedCount = 0;
+	try {
+		for (const auto &inputStr : request.inputs) {
+			ImportPipeline pipeline;
+			pipeline.taskId               = taskId;
+			pipeline.inputPath            = inputStr;
+			pipeline.memeEntry.sourceName = request.options.sourceName;
+			pipeline.memeEntry.sourceUrl  = request.options.sourceUrl;
 
-	for (const auto &inputStr : request.inputs) {
-		impl_->currentPending++;
+			boost::asio::post(*impl_->ioPool, [this, pipeline, state]() {
+				if (state->cancelled) {
+					markItemDone(state, pipeline.taskId, false, "Cancelled");
+					return;
+				}
 
-		ImportPipeline pipeline;
-		pipeline.taskId               = taskId;
-		pipeline.inputPath            = inputStr;
-		pipeline.memeEntry.sourceName = request.options.sourceName;
-		pipeline.memeEntry.sourceUrl  = request.options.sourceUrl;
-
-		boost::asio::post(*impl_->ioPool, [this, pipeline, state]() {
-			if (state->cancelled) {
-				markItemDone(state, pipeline.taskId, false, "Cancelled");
-				return;
-			}
-
-			try {
-				runProcessingPipeline(pipeline, state);
-			} catch (const std::exception &e) {
-				LOG_ERROR("queue", "Pipeline IO error: " + std::string(e.what()));
-				markItemDone(state, pipeline.taskId, false, "Pipeline IO error: " + std::string(e.what()));
-			} catch (...) { markItemDone(state, pipeline.taskId, false, "Unknown pipeline error"); }
-		});
+				try {
+					runProcessingPipeline(pipeline, state);
+				} catch (const std::exception &e) {
+					LOG_ERROR("queue", "Pipeline IO error: " + std::string(e.what()));
+					markItemDone(state, pipeline.taskId, false, "Pipeline IO error: " + std::string(e.what()));
+				} catch (...) { markItemDone(state, pipeline.taskId, false, "Unknown pipeline error"); }
+			});
+			++postedCount;
+		}
+	} catch (...) {
+		for (int i = postedCount; i < batchSize; ++i) {
+			markItemDone(state, taskId, false, "Failed to enqueue import task");
+		}
+		throw;
 	}
 
 	return taskId;
@@ -432,20 +429,24 @@ std::string TaskQueue::submitRebuildTask() {
 	if (impl_->currentPending >= impl_->maxQueueSize) { throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full"); }
 
 	std::string taskId = "rebuild-" + generateUUIDv4();
+	auto        state  = std::make_shared<TaskState>();
 
-	auto state = std::make_shared<TaskState>();
-	Database::get().rebuildEmbeddingTables(EmbeddingModule::get().getDimensions());
+	struct RebuildItem {
+		int64_t     memeId;
+		std::string ocrText;
+		std::string desc;
+	};
 
-	// Use batching to avoid OOM for large datasets
-	int  batchSize     = 100;
-	int  offset        = 0;
-	bool more          = true;
-	int  totalEnqueued = 0;
+	std::vector<RebuildItem> rebuildItems;
+	rebuildItems.reserve(128);
 
+	int  batchSize = 100;
+	int  offset    = 0;
+	bool more      = true;
 	while (more) {
 		SearchQuery batchQuery;
-		batchQuery.limit   = batchSize;
-		batchQuery.offset  = offset;
+		batchQuery.limit  = batchSize;
+		batchQuery.offset = offset;
 		auto  batchResults = Database::get().searchMemes(batchQuery);
 		auto &batchMemes   = batchResults.items;
 
@@ -455,68 +456,107 @@ std::string TaskQueue::submitRebuildTask() {
 		}
 
 		for (const auto &meme : batchMemes) {
-			impl_->currentPending++;
-			totalEnqueued++;
-
-			boost::asio::post(
-			    *impl_->aiPool,
-			    [this, memeId = meme.id, ocrText = meme.ocrText, desc = meme.description, taskId, state]() {
-				    if (state->cancelled) {
-					    markItemDone(state, taskId, false, "Cancelled");
-					    return;
-				    }
-
-				    try {
-					    WsEvent progEvent;
-					    progEvent.event   = "task:progress";
-					    progEvent.payload = {
-					        {"taskId",       taskId},
-					        {"status", "processing"},
-					        {"memeId",       memeId}
-                        };
-					    WsPusher::get().broadcast(progEvent);
-
-					    if (!desc.empty()) {
-						    auto descEmbedding = EmbeddingModule::get().generateEmbedding(desc);
-						    if (!descEmbedding.empty()) {
-							    Database::get().upsertDescriptionEmbedding(memeId, descEmbedding);
-						    } else {
-							    Database::get().deleteDescriptionEmbedding(memeId);
-						    }
-					    } else {
-						    Database::get().deleteDescriptionEmbedding(memeId);
-					    }
-
-					    if (!ocrText.empty()) {
-						    auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(ocrText);
-						    if (!ocrEmbedding.empty()) {
-							    Database::get().upsertOcrEmbedding(memeId, ocrEmbedding);
-						    } else {
-							    Database::get().deleteOcrEmbedding(memeId);
-						    }
-					    } else {
-						    Database::get().deleteOcrEmbedding(memeId);
-					    }
-
-					    markItemDone(state, taskId, true, "");
-				    } catch (const std::exception &e) {
-					    if (!desc.empty()) { Database::get().deleteDescriptionEmbedding(memeId); }
-					    if (!ocrText.empty()) { Database::get().deleteOcrEmbedding(memeId); }
-					    markItemDone(state, taskId, false, "Rebuild error: " + std::string(e.what()));
-				    } catch (...) { markItemDone(state, taskId, false, "Unknown rebuild error"); }
-			    });
+			rebuildItems.push_back({meme.id, meme.ocrText, meme.description});
+			if (static_cast<int>(rebuildItems.size()) > impl_->maxQueueSize - impl_->currentPending.load()) {
+				throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full");
+			}
 		}
 		offset += batchSize;
 	}
-	state->totalItems = totalEnqueued;
 
-	if (totalEnqueued == 0) { markItemDone(state, taskId, true, ""); }
+	state->totalItems = static_cast<int>(rebuildItems.size());
+	{
+		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
+		impl_->activeTasks[taskId] = state;
+	}
+
+	if (rebuildItems.empty()) {
+		WsEvent doneEvent;
+		doneEvent.event   = "task:complete";
+		doneEvent.payload = {
+		    {"taskId",    taskId},
+		    {"status",    "done"},
+		    {"total",     0},
+		    {"succeeded", 0},
+		    {"failed",    0},
+		    {"errors",    std::vector<std::string>{}}
+        };
+		WsPusher::get().broadcast(doneEvent);
+		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
+		impl_->activeTasks.erase(taskId);
+		return taskId;
+	}
+
+	impl_->currentPending.fetch_add(state->totalItems);
+	Database::get().rebuildEmbeddingTables(EmbeddingModule::get().getDimensions());
+
+	int postedCount = 0;
+	try {
+		for (const auto &item : rebuildItems) {
+			boost::asio::post(*impl_->aiPool, [this, item, taskId, state]() {
+				if (state->cancelled) {
+					markItemDone(state, taskId, false, "Cancelled");
+					return;
+				}
+
+				try {
+					WsEvent progEvent;
+					progEvent.event   = "task:progress";
+					progEvent.payload = {
+					    {"taskId", taskId},
+					    {"status", "processing"},
+					    {"memeId", item.memeId}
+                    };
+					WsPusher::get().broadcast(progEvent);
+
+					if (!item.desc.empty()) {
+						auto descEmbedding = EmbeddingModule::get().generateEmbedding(item.desc);
+						if (!descEmbedding.empty()) {
+							Database::get().upsertDescriptionEmbedding(item.memeId, descEmbedding);
+						} else {
+							Database::get().deleteDescriptionEmbedding(item.memeId);
+						}
+					} else {
+						Database::get().deleteDescriptionEmbedding(item.memeId);
+					}
+
+					if (!item.ocrText.empty()) {
+						auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(item.ocrText);
+						if (!ocrEmbedding.empty()) {
+							Database::get().upsertOcrEmbedding(item.memeId, ocrEmbedding);
+						} else {
+							Database::get().deleteOcrEmbedding(item.memeId);
+						}
+					} else {
+						Database::get().deleteOcrEmbedding(item.memeId);
+					}
+
+					markItemDone(state, taskId, true, "");
+				} catch (const std::exception &e) {
+					if (!item.desc.empty()) { Database::get().deleteDescriptionEmbedding(item.memeId); }
+					if (!item.ocrText.empty()) { Database::get().deleteOcrEmbedding(item.memeId); }
+					markItemDone(state, taskId, false, "Rebuild error: " + std::string(e.what()));
+				} catch (...) { markItemDone(state, taskId, false, "Unknown rebuild error"); }
+			});
+			++postedCount;
+		}
+	} catch (...) {
+		for (int i = postedCount; i < state->totalItems; ++i) {
+			markItemDone(state, taskId, false, "Failed to enqueue rebuild task");
+		}
+		throw;
+	}
 
 	return taskId;
 }
 
 std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
-	if (!impl_->ioPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
+	if (!impl_->thumbPool) { throw ApiException(ERR_INTERNAL, "TaskQueue not initialized"); }
+	{
+		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
+		auto                        it = impl_->inflightThumbnailTasks.find(memeId);
+		if (it != impl_->inflightThumbnailTasks.end()) { return it->second; }
+	}
 
 	std::string taskId = "thumb-" + std::to_string(memeId) + "-" + generateUUIDv4();
 	auto        state  = std::make_shared<TaskState>();
@@ -524,7 +564,11 @@ std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
 
 	{
 		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
+		auto                        it = impl_->inflightThumbnailTasks.find(memeId);
+		if (it != impl_->inflightThumbnailTasks.end()) { return it->second; }
 		impl_->activeTasks[taskId] = state;
+		impl_->inflightThumbnailTasks[memeId] = taskId;
+		impl_->inflightThumbnailByTask[taskId] = memeId;
 	}
 
 	impl_->currentPending++;
@@ -535,23 +579,19 @@ std::string TaskQueue::submitThumbnailTask(int64_t memeId) {
 		}
 
 		try {
-			auto        meme        = Database::get().getMeme(memeId);
-			std::string storageRoot = impl_->storagePath;
-			if (storageRoot.empty()) storageRoot = "storage";
-			if (storageRoot.back() != '/') storageRoot += '/';
-
-			auto        posSlash = meme.filePath.find('/');
-			std::string relDir   = "";
-			if (posSlash != std::string::npos) { relDir = meme.filePath.substr(0, posSlash + 1); }
-
-			std::string thumbDir = storageRoot + "thumbs/" + relDir;
-			std::filesystem::create_directories(thumbDir);
-			std::string thumbPath = thumbDir + meme.fileHash + ".jpg";
+			auto                  meme        = Database::get().getMeme(memeId);
+			std::filesystem::path storageRoot = impl_->storagePath.empty() ? std::filesystem::path("storage")
+			                                                               : std::filesystem::path(impl_->storagePath);
+			std::filesystem::path sourcePath  = storageRoot / std::filesystem::path(meme.filePath);
+			std::filesystem::path thumbPath =
+			    storageRoot / "thumbs" / std::filesystem::path(meme.filePath).parent_path() / (meme.fileHash + ".jpg");
 
 			if (!std::filesystem::exists(thumbPath)) {
 				int maxSize = 300;
 				if (g_server) { maxSize = g_server->getConfig().thumbnailMaxSize; }
-				generateThumbnail(storageRoot + meme.filePath, thumbPath, maxSize);
+				if (!generateThumbnail(sourcePath.string(), thumbPath.string(), maxSize)) {
+					throw ApiException(ERR_IO, "Failed to generate thumbnail");
+				}
 			}
 			markItemDone(state, taskId, true, "");
 		} catch (const std::exception &e) {
@@ -647,6 +687,11 @@ void TaskQueue::markItemDone(std::shared_ptr<TaskState> state,
 
 		std::lock_guard<std::mutex> lock(impl_->tasksMutex);
 		impl_->activeTasks.erase(taskId);
+		auto thumbIt = impl_->inflightThumbnailByTask.find(taskId);
+		if (thumbIt != impl_->inflightThumbnailByTask.end()) {
+			impl_->inflightThumbnailTasks.erase(thumbIt->second);
+			impl_->inflightThumbnailByTask.erase(thumbIt);
+		}
 	}
 	impl_->currentPending--;
 }
@@ -694,9 +739,15 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 		return;
 	}
 
-	auto s      = readImageSize(actualPath);
-	meme.width  = s.width;
-	meme.height = s.height;
+	auto size = readImageSize(actualPath);
+	if (!size) {
+		LOG_ERROR("queue", "Failed to read image size: " + actualPath);
+		if (isTempDownloaded) std::filesystem::remove(actualPath);
+		markItemDone(state, pipeline.taskId, false, "Failed to read image size: " + actualPath);
+		return;
+	}
+	meme.width  = size->width;
+	meme.height = size->height;
 
 	auto     now   = std::chrono::system_clock::now();
 	uint64_t nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
@@ -706,9 +757,8 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	meme.ocrStatus = ProcessingStatus::PENDING;
 	meme.aiStatus  = ProcessingStatus::PENDING;
 
-	std::string storageRoot = impl_->storagePath;
-	if (storageRoot.empty()) storageRoot = "storage";
-	if (storageRoot.back() != '/') storageRoot += '/';
+	std::filesystem::path storageRoot = impl_->storagePath.empty() ? std::filesystem::path("storage")
+	                                                               : std::filesystem::path(impl_->storagePath);
 
 	auto    nowT = std::time(nullptr);
 	std::tm tm{};
@@ -720,8 +770,8 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 
 	char dirStr[16];
 	std::strftime(dirStr, sizeof(dirStr), "%Y-%m", &tm);
-	std::string relDir  = std::string(dirStr) + "/";
-	std::string fullDir = storageRoot + relDir;
+	const std::filesystem::path relDir(dirStr);
+	const std::filesystem::path fullDir = storageRoot / relDir;
 	std::filesystem::create_directories(fullDir);
 
 	std::string ext;
@@ -735,133 +785,145 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 		ext = ".avif";
 	else
 		ext = ".jpg";
-	std::string pureHashName = hash + ext;
-	std::string finalPath    = fullDir + pureHashName;
-	meme.filePath            = relDir + pureHashName;
+	const std::string           pureHashName = hash + ext;
+	const std::filesystem::path finalPath    = fullDir / pureHashName;
+	meme.filePath                           = (relDir / pureHashName).generic_string();
 
 	Database &db = Database::get();
-		try {
-			meme.id = db.insertMeme(meme);
-		} catch (const ApiException &e) {
-			if (e.code() == ERR_DUPLICATE) {
-				LOG_INFO("queue", "Meme already exists: " + hash);
-				if (isTempDownloaded) std::filesystem::remove(actualPath);
-				markItemDone(state, pipeline.taskId, false, "Meme already exists: " + hash, ERR_DUPLICATE);
-				return;
-			}
+	try {
+		meme.id = db.insertMeme(meme);
+	} catch (const ApiException &e) {
+		if (e.code() == ERR_DUPLICATE) {
+			LOG_INFO("queue", "Meme already exists: " + hash);
+			if (isTempDownloaded) std::filesystem::remove(actualPath);
+			markItemDone(state, pipeline.taskId, false, "Meme already exists: " + hash, ERR_DUPLICATE);
+			return;
+		}
 		LOG_ERROR("queue", "Failed to initially save DB record: " + std::string(e.what()));
 		if (isTempDownloaded) std::filesystem::remove(actualPath);
 		markItemDone(state, pipeline.taskId, false, "Failed to base DB record: " + std::string(e.what()));
 		return;
 	}
 
-	try {
-		copyFile(actualPath, finalPath);
-		if (isTempDownloaded) std::filesystem::remove(actualPath);
-	} catch (...) {
-		LOG_WARN("queue", "Failed to copy image to final storage");
-		if (isTempDownloaded) std::filesystem::remove(actualPath);
+	const bool copied = copyFile(actualPath, finalPath.string());
+	if (isTempDownloaded) std::filesystem::remove(actualPath);
+	if (!copied) {
+		db.deleteMeme(meme.id);
+		LOG_ERROR("queue", "Failed to copy image to final storage");
+		markItemDone(state, pipeline.taskId, false, "Failed to copy image to storage");
+		return;
 	}
 
 	// 异步生成缩略图，避免阻塞 IO 线程
-	submitThumbnailTask(meme.id);
+	try {
+		submitThumbnailTask(meme.id);
+	} catch (const std::exception &e) {
+		LOG_WARN("queue",
+		         "Thumbnail scheduling skipped for meme " + std::to_string(meme.id) + ": " + std::string(e.what()));
+	}
 
 	WsEvent addedEvent;
 	addedEvent.event   = "meme:added";
 	addedEvent.payload = meme;
 	WsPusher::get().broadcast(addedEvent);
 
-	boost::asio::post(*impl_->aiPool, [this, memeId = meme.id, finalPath, taskId = pipeline.taskId, state]() {
-		if (state->cancelled) {
-			markItemDone(state, taskId, false, "Cancelled");
-			return;
-		}
-
-		try {
-			LOG_INFO("queue", "2-Stage AI Pipeline started for meme: " + std::to_string(memeId));
-
-			WsEvent progEvent;
-			progEvent.event   = "task:progress";
-			progEvent.payload = {
-			    {"taskId",       taskId},
-			    {"status", "processing"},
-			    {"memeId",       memeId}
-            };
-			WsPusher::get().broadcast(progEvent);
-
-			VisionModule    &vision    = VisionModule::get();
-			std::string      finalOcr  = "";
-			ProcessingStatus ocrStatus = ProcessingStatus::SKIPPED;
-			if (vision.isOcrAvailable()) {
-				auto res = vision.recognize(finalPath);
-				if (res.success) {
-					finalOcr  = res.fullText;
-					ocrStatus = ProcessingStatus::DONE;
-				} else {
-					ocrStatus = ProcessingStatus::FAILED;
-				}
+	try {
+		boost::asio::post(*impl_->aiPool, [this, memeId = meme.id, finalPath = finalPath.string(), taskId = pipeline.taskId, state]() {
+			if (state->cancelled) {
+				markItemDone(state, taskId, false, "Cancelled");
+				return;
 			}
 
-			std::string      finalDesc = "";
-			ProcessingStatus aiStatus  = ProcessingStatus::SKIPPED;
-			if (vision.isAvailable()) {
-				auto res = vision.analyzeImage(finalPath, finalOcr);
-				if (res.success) {
-					finalDesc = res.description;
-					aiStatus  = ProcessingStatus::DONE;
-				} else {
-					aiStatus = ProcessingStatus::FAILED;
+			try {
+				LOG_INFO("queue", "2-Stage AI Pipeline started for meme: " + std::to_string(memeId));
+
+				WsEvent progEvent;
+				progEvent.event   = "task:progress";
+				progEvent.payload = {
+				    {"taskId", taskId},
+				    {"status", "processing"},
+				    {"memeId", memeId}
+                };
+				WsPusher::get().broadcast(progEvent);
+
+				VisionModule    &vision    = VisionModule::get();
+				std::string      finalOcr  = "";
+				ProcessingStatus ocrStatus = ProcessingStatus::SKIPPED;
+				if (vision.isOcrAvailable()) {
+					auto res = vision.recognize(finalPath);
+					if (res.success) {
+						finalOcr  = res.fullText;
+						ocrStatus = ProcessingStatus::DONE;
+					} else {
+						ocrStatus = ProcessingStatus::FAILED;
+					}
 				}
-			}
 
-			Database &db = Database::get();
-			db.updateMemeProcessing(memeId, ocrStatus, aiStatus, finalOcr, finalDesc);
+				std::string      finalDesc = "";
+				ProcessingStatus aiStatus  = ProcessingStatus::SKIPPED;
+				if (vision.isAvailable()) {
+					auto res = vision.analyzeImage(finalPath, finalOcr);
+					if (res.success) {
+						finalDesc = res.description;
+						aiStatus  = ProcessingStatus::DONE;
+					} else {
+						aiStatus = ProcessingStatus::FAILED;
+					}
+				}
 
-			if (EmbeddingModule::get().isAvailable()) {
-				try {
-					if (!finalDesc.empty()) {
-						auto descEmbedding = EmbeddingModule::get().generateEmbedding(finalDesc);
-						if (!descEmbedding.empty()) {
-							db.upsertDescriptionEmbedding(memeId, descEmbedding);
+				Database &db = Database::get();
+				db.updateMemeProcessing(memeId, ocrStatus, aiStatus, finalOcr, finalDesc);
+
+				if (EmbeddingModule::get().isAvailable()) {
+					try {
+						if (!finalDesc.empty()) {
+							auto descEmbedding = EmbeddingModule::get().generateEmbedding(finalDesc);
+							if (!descEmbedding.empty()) {
+								db.upsertDescriptionEmbedding(memeId, descEmbedding);
+							} else {
+								db.deleteDescriptionEmbedding(memeId);
+							}
 						} else {
 							db.deleteDescriptionEmbedding(memeId);
 						}
-					} else {
-						db.deleteDescriptionEmbedding(memeId);
-					}
 
-					if (!finalOcr.empty()) {
-						auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(finalOcr);
-						if (!ocrEmbedding.empty()) {
-							db.upsertOcrEmbedding(memeId, ocrEmbedding);
+						if (!finalOcr.empty()) {
+							auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(finalOcr);
+							if (!ocrEmbedding.empty()) {
+								db.upsertOcrEmbedding(memeId, ocrEmbedding);
+							} else {
+								db.deleteOcrEmbedding(memeId);
+							}
 						} else {
 							db.deleteOcrEmbedding(memeId);
 						}
-					} else {
-						db.deleteOcrEmbedding(memeId);
+					} catch (const std::exception &e) {
+						if (!finalDesc.empty()) { db.deleteDescriptionEmbedding(memeId); }
+						if (!finalOcr.empty()) { db.deleteOcrEmbedding(memeId); }
+						LOG_WARN("queue",
+						         "Embedding refresh failed for meme " + std::to_string(memeId) +
+						             ", deleted stale vectors: " + e.what());
 					}
-				} catch (const std::exception &e) {
-					if (!finalDesc.empty()) { db.deleteDescriptionEmbedding(memeId); }
-					if (!finalOcr.empty()) { db.deleteOcrEmbedding(memeId); }
-					LOG_WARN("queue",
-					         "Embedding refresh failed for meme " + std::to_string(memeId) +
-					             ", deleted stale vectors: " + e.what());
 				}
+
+				LOG_INFO("queue", "2-Stage Pipeline completed for meme: " + std::to_string(memeId));
+
+				markItemDone(state, taskId, true, "");
+			} catch (const std::exception &e) {
+				LOG_ERROR("queue", "AI Pipeline error: " + std::string(e.what()));
+				Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, ProcessingStatus::FAILED, "", "");
+				markItemDone(state, taskId, false, "AI Pipeline error: " + std::string(e.what()));
+			} catch (...) {
+				LOG_ERROR("queue", "Unknown AI Pipeline error");
+				Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, ProcessingStatus::FAILED, "", "");
+				markItemDone(state, taskId, false, "Unknown AI Pipeline error");
 			}
-
-			LOG_INFO("queue", "2-Stage Pipeline completed for meme: " + std::to_string(memeId));
-
-			markItemDone(state, taskId, true, "");
-		} catch (const std::exception &e) {
-			LOG_ERROR("queue", "AI Pipeline error: " + std::string(e.what()));
-			Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, ProcessingStatus::FAILED, "", "");
-			markItemDone(state, taskId, false, "AI Pipeline error: " + std::string(e.what()));
-		} catch (...) {
-			LOG_ERROR("queue", "Unknown AI Pipeline error");
-			Database::get().updateMemeProcessing(memeId, ProcessingStatus::FAILED, ProcessingStatus::FAILED, "", "");
-			markItemDone(state, taskId, false, "Unknown AI Pipeline error");
-		}
-	});
+		});
+	} catch (const std::exception &e) {
+		db.deleteMeme(meme.id);
+		LOG_ERROR("queue", "Failed to enqueue AI pipeline: " + std::string(e.what()));
+		markItemDone(state, pipeline.taskId, false, "Failed to enqueue AI pipeline");
+	}
 }
 
 } // namespace quickmemes

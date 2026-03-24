@@ -7,19 +7,25 @@
 #include "utils/config_parser.hpp"
 #include "utils/logger.hpp"
 
+#include <chrono>
 #include <csignal>
 #include <iostream>
 #include <memory>
+#include <thread>
 
 // 全局指针，用于信号处理
 std::unique_ptr<quickmemes::Server> g_server = nullptr;
+namespace {
+volatile std::sig_atomic_t g_stopRequested = 0;
+volatile std::sig_atomic_t g_lastSignal    = 0;
+}
 
 /**
  * @brief 捕获中断信号优雅停机
  */
 void handleSignal(int sig) {
-	std::cout << "\n[INFO] Caught signal " << sig << ", gracefully shutting down..." << std::endl;
-	if (g_server) { g_server->stop(); }
+	g_lastSignal    = sig;
+	g_stopRequested = 1;
 }
 
 /**
@@ -50,11 +56,16 @@ int main(int argc, char *argv[]) {
 
 		g_server = std::make_unique<quickmemes::Server>();
 		if (!g_server->start(config)) {
-			LOG_FATAL("main", "Failed to start server");
+			LOG_ERROR("main", "Failed to start server");
 			return 1;
 		}
 
-		// 阻塞主线程，等待所有 IO 工作线程结束（由信号处理触发 stop）
+		while (!g_stopRequested) {
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+
+		LOG_INFO("main", "Caught signal " + std::to_string(static_cast<int>(g_lastSignal)) + ", stopping server.");
+		g_server->stop();
 		g_server->waitForStop();
 
 	} catch (const std::exception &e) {

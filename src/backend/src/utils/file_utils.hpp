@@ -8,6 +8,7 @@
  */
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace quickmemes {
@@ -48,9 +49,9 @@ struct ImageSize {
  * 通过 stb_image 读取文件头部元数据获取图像尺寸。
  *
  * @param filePath std::string 图像文件绝对路径
- * @return ImageSize 包含 width 和 height 的结构体
+ * @return std::optional<ImageSize> 失败时返回 std::nullopt
  */
-[[nodiscard]] ImageSize readImageSize(const std::string &filePath);
+[[nodiscard]] std::optional<ImageSize> readImageSize(const std::string &filePath);
 
 /**
  * @brief 生成缩略图

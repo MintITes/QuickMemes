@@ -17,6 +17,7 @@
 #include <set>
 #include <sqlite3.h>
 #include <sstream>
+#include <stdexcept>
 #include <vector>
 
 extern "C" int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
@@ -154,6 +155,109 @@ static void appendKeywordWhereClause(const quickmemes::SearchQuery &query, quick
 	keywordClause += ")";
 	res.whereClauses.push_back(keywordClause);
 }
+
+static std::string buildSearchFromClause(const quickmemes::SearchQuery &query) {
+	std::string sql = " FROM memes m";
+
+	if (!query.keyword.empty()) { sql += " LEFT JOIN memes_fts ON m.id = memes_fts.rowid "; }
+
+	if (!query.tagIds.empty()) {
+		sql += " JOIN (SELECT meme_id FROM meme_tags WHERE tag_id IN (";
+		for (size_t i = 0; i < query.tagIds.size(); ++i) {
+			sql += (i == 0) ? "?" : ", ?";
+		}
+		sql += ") GROUP BY meme_id) mt ON m.id = mt.meme_id ";
+	}
+
+	return sql;
+}
+
+static void appendSearchWhereClause(const quickmemes::SearchSql &searchSql, std::string &sql) {
+	if (searchSql.whereClauses.empty()) return;
+
+	sql += " WHERE " + searchSql.whereClauses.front();
+	for (size_t i = 1; i < searchSql.whereClauses.size(); ++i) {
+		sql += " AND " + searchSql.whereClauses[i];
+	}
+}
+
+static void bindSearchParams(SQLite::Statement &stmt,
+                             const quickmemes::SearchQuery &query,
+                             const quickmemes::SearchSql   &searchSql) {
+	int bindIdx = 1;
+	if (!query.tagIds.empty()) {
+		for (int64_t tagId : query.tagIds) {
+			stmt.bind(bindIdx++, tagId);
+		}
+	}
+
+	for (const auto &param : searchSql.params) {
+		stmt.bind(bindIdx++, param);
+	}
+}
+
+static int32_t countSearchResults(SQLite::Database                  &db,
+                                  const quickmemes::SearchQuery     &query,
+                                  const quickmemes::SearchSql       &searchSql) {
+	std::string sql = "SELECT COUNT(*)";
+	sql += buildSearchFromClause(query);
+	appendSearchWhereClause(searchSql, sql);
+
+	SQLite::Statement stmt(db, sql);
+	bindSearchParams(stmt, query, searchSql);
+	if (!stmt.executeStep()) return 0;
+	return stmt.getColumn(0).getInt();
+}
+
+static std::string quoteSqlLiteral(const std::string &value) {
+	std::string escaped;
+	escaped.reserve(value.size() + 2);
+	escaped.push_back('\'');
+	for (char ch : value) {
+		if (ch == '\'') escaped.push_back('\'');
+		escaped.push_back(ch);
+	}
+	escaped.push_back('\'');
+	return escaped;
+}
+
+static std::string makeBackupPath(const std::string &dbPath) {
+	auto    now     = std::chrono::system_clock::now();
+	auto    nowTime = std::chrono::system_clock::to_time_t(now);
+	auto    nowMs   = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+	std::tm tm{};
+#ifdef _WIN32
+	localtime_s(&tm, &nowTime);
+#else
+	localtime_r(&nowTime, &tm);
+#endif
+
+	char buf[32];
+	std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", &tm);
+	auto base = dbPath + ".bak." + std::string(buf) + "." + std::to_string(nowMs % 1000);
+	if (!std::filesystem::exists(base)) return base;
+	for (int i = 1; i <= 100; ++i) {
+		auto candidate = base + "." + std::to_string(i);
+		if (!std::filesystem::exists(candidate)) return candidate;
+	}
+	return base;
+}
+
+static std::string backupDatabaseUnlocked(SQLite::Database &db, const std::string &dbPath) {
+	if (dbPath.empty() || dbPath == ":memory:") return "";
+
+	const std::string backupPath = makeBackupPath(dbPath);
+	db.exec("VACUUM INTO " + quoteSqlLiteral(backupPath));
+	return backupPath;
+}
+
+static int64_t getTableRowCount(SQLite::Database &db, const char *tableName) {
+	try {
+		SQLite::Statement stmt(db, std::string("SELECT COUNT(*) FROM ") + tableName);
+		if (!stmt.executeStep()) return 0;
+		return stmt.getColumn(0).getInt64();
+	} catch (...) { return 0; }
+}
 } // namespace
 
 namespace quickmemes {
@@ -162,8 +266,10 @@ Database::Database()  = default;
 Database::~Database() = default;
 
 bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
-	dbPath_ = dbPath;
-	embeddingDimensions_ = embeddingDimensions > 0 ? embeddingDimensions : EmbeddingModule::kDefaultDimensions;
+	shutdown();
+
+	dbPath_               = dbPath;
+	embeddingDimensions_  = embeddingDimensions > 0 ? embeddingDimensions : EmbeddingModule::kDefaultDimensions;
 	try {
 		int flags = SQLite::OPEN_READWRITE | SQLite::OPEN_CREATE;
 
@@ -176,14 +282,16 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 		db_->exec("PRAGMA journal_mode = WAL;");
 
 		// 注册 regexp 函数
-		sqlite3_create_function(db_->getHandle(),
-		                        "regexp",
-		                        2,
-		                        SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-		                        nullptr,
-		                        regexp_func,
-		                        nullptr,
-		                        nullptr);
+		if (sqlite3_create_function(db_->getHandle(),
+		                            "regexp",
+		                            2,
+		                            SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+		                            nullptr,
+		                            regexp_func,
+		                            nullptr,
+		                            nullptr) != SQLITE_OK) {
+			throw std::runtime_error("Failed to register regexp function");
+		}
 		db_->exec("PRAGMA synchronous = NORMAL;");
 		db_->exec("PRAGMA foreign_keys = ON;");
 		db_->exec("PRAGMA cache_size = -2000;");
@@ -195,9 +303,7 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 
 		int rc = sqlite3_vec_init(rawDb, &errMsg, nullptr);
 		if (rc != SQLITE_OK) {
-			LOG_ERROR("persist", std::string("Failed to initialize sqlite-vec: ") + (errMsg ? errMsg : "Unknown"));
-			if (errMsg) sqlite3_free(errMsg);
-			return false;
+			throw std::runtime_error(std::string("Failed to initialize sqlite-vec: ") + (errMsg ? errMsg : "Unknown"));
 		}
 		if (errMsg) {
 			sqlite3_free(errMsg);
@@ -206,9 +312,7 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 
 		rc = sqlite3_simple_init(rawDb, &errMsg, nullptr);
 		if (rc != SQLITE_OK) {
-			LOG_ERROR("persist", std::string("Failed to initialize simple tokenizer: ") + (errMsg ? errMsg : "Unknown"));
-			if (errMsg) sqlite3_free(errMsg);
-			return false;
+			throw std::runtime_error(std::string("Failed to initialize simple tokenizer: ") + (errMsg ? errMsg : "Unknown"));
 		}
 		if (errMsg) sqlite3_free(errMsg);
 
@@ -220,6 +324,9 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 
 	} catch (const std::exception &e) {
 		LOG_ERROR("persist", std::string("Database initialization failed: ") + e.what());
+		db_.reset();
+		dbPath_.clear();
+		embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
 		return false;
 	}
 }
@@ -291,6 +398,7 @@ int64_t Database::insertMeme(const MemeEntry &meme) {
 }
 
 MemeEntry Database::getMeme(int64_t id) {
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, R"(
             SELECT id, file_hash, file_path, mime_type, file_size, width, height,
@@ -346,6 +454,8 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
 	DatabaseReadLock lock(dbMutex_);
 	try {
 		SearchSql searchSql = buildSearchSql(query);
+		PagedMemeResults results;
+		results.totalCount = countSearchResults(*db_, query, searchSql);
 
 		std::string sql = R"(
             SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
@@ -353,46 +463,15 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
                    m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
                    m.category_id,
                    (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
-                    FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json,
-                   COUNT(*) OVER() as total_count
-            FROM memes m
+                    FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json
         )";
-
-		if (!query.keyword.empty()) { sql += " LEFT JOIN memes_fts ON m.id = memes_fts.rowid "; }
-
-		if (!query.tagIds.empty()) {
-			sql += " JOIN (SELECT meme_id FROM meme_tags WHERE tag_id IN (";
-			for (size_t i = 0; i < query.tagIds.size(); ++i) {
-				sql += (i == 0) ? "?" : ", ?";
-			}
-			sql += ") GROUP BY meme_id) mt ON m.id = mt.meme_id ";
-		}
-
-		if (!searchSql.whereClauses.empty()) {
-			sql += " WHERE " + searchSql.whereClauses[0];
-			for (size_t i = 1; i < searchSql.whereClauses.size(); ++i) {
-				sql += " AND " + searchSql.whereClauses[i];
-			}
-		}
-
+		sql += buildSearchFromClause(query);
+		appendSearchWhereClause(searchSql, sql);
 		sql += " " + searchSql.orderBy;
 		sql += " " + searchSql.limitOffset;
 
 		SQLite::Statement stmt(*db_, sql);
-
-		int bindIdx = 1;
-		if (!query.tagIds.empty()) {
-			for (int64_t tagId : query.tagIds) {
-				stmt.bind(bindIdx++, tagId);
-			}
-		}
-
-		for (const auto &param : searchSql.params) {
-			stmt.bind(bindIdx++, param);
-		}
-
-		PagedMemeResults results;
-		bool             countSet = false;
+		bindSearchParams(stmt, query, searchSql);
 
 		while (stmt.executeStep()) {
 			MemeEntry meme;
@@ -432,11 +511,6 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
 				}
 			}
 
-			if (!countSet) {
-				results.totalCount = stmt.getColumn(20).getInt();
-				countSet           = true;
-			}
-
 			results.items.push_back(meme);
 		}
 
@@ -449,11 +523,14 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
 }
 
 int32_t Database::countMemes(const SearchQuery &query) {
-	// 保持兼容性，但内部调用 searchMemes 处理
-	SearchQuery q = query;
-	q.limit       = 1;
-	auto res      = searchMemes(q);
-	return res.totalCount;
+	DatabaseReadLock lock(dbMutex_);
+	try {
+		SearchSql searchSql = buildSearchSql(query);
+		return countSearchResults(*db_, query, searchSql);
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("countMemes failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Database count failure");
+	}
 }
 
 std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embedding, int limit) {
@@ -545,7 +622,7 @@ bool Database::updateMeme(int64_t id, const MemePatch &patch) {
 	try {
 		std::string              sql = "UPDATE memes SET updated_at = ?";
 		std::vector<std::string> bindStrings;
-		std::vector<int>         bindInts;
+		std::vector<int64_t>     bindInts;
 
 		if (patch.name) {
 			sql += ", name = ?";
@@ -565,7 +642,7 @@ bool Database::updateMeme(int64_t id, const MemePatch &patch) {
 		}
 		if (patch.categoryId) {
 			sql += ", category_id = ?";
-			bindInts.push_back(static_cast<int>(*patch.categoryId));
+			bindInts.push_back(*patch.categoryId);
 		}
 
 		sql += " WHERE id = ?";
@@ -626,6 +703,7 @@ bool Database::softDeleteMeme(int64_t id) {
 }
 
 std::vector<MemeEntry> Database::getDeletedMemes(int limit, int offset) {
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		std::string       sql = R"(
             SELECT id, file_hash, file_path, mime_type, file_size, width, height,
@@ -664,15 +742,22 @@ std::vector<MemeEntry> Database::getDeletedMemes(int limit, int offset) {
 			results.push_back(meme);
 		}
 		return results;
-	} catch (...) { return {}; }
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("getDeletedMemes failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Database query failure");
+	}
 }
 
 int Database::getDeletedMemesCount() {
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "SELECT COUNT(*) FROM memes WHERE deleted_at > 0");
 		if (stmt.executeStep()) { return stmt.getColumn(0).getInt(); }
-	} catch (...) {}
-	return 0;
+		return 0;
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("getDeletedMemesCount failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Database count failure");
+	}
 }
 
 bool Database::restoreMeme(int64_t id) {
@@ -799,6 +884,7 @@ int64_t Database::insertTag(const Tag &tag) {
 }
 
 std::vector<Tag> Database::getTags() {
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "SELECT id, name, color, created_at FROM tags ORDER BY name ASC");
 		std::vector<Tag>  tags;
@@ -809,7 +895,10 @@ std::vector<Tag> Database::getTags() {
 			                stmt.getColumn(3).getInt64()});
 		}
 		return tags;
-	} catch (...) { return {}; }
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("getTags failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Database query failure");
+	}
 }
 
 bool Database::deleteTag(int64_t tagId) {
@@ -825,6 +914,7 @@ bool Database::deleteTag(int64_t tagId) {
 }
 
 std::vector<Tag> Database::getMemeTags(int64_t memeId) {
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, R"(
             SELECT t.id, t.name, t.color, t.created_at
@@ -841,7 +931,10 @@ std::vector<Tag> Database::getMemeTags(int64_t memeId) {
 			                stmt.getColumn(3).getInt64()});
 		}
 		return tags;
-	} catch (...) { return {}; }
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("getMemeTags failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Database query failure");
+	}
 }
 
 bool Database::addMemeTag(int64_t memeId, int64_t tagId) {
@@ -976,7 +1069,10 @@ std::vector<Category> Database::getCategories() {
 			results.push_back(c);
 		}
 		return results;
-	} catch (...) { return {}; }
+	} catch (const SQLite::Exception &e) {
+		LOG_ERROR("persist", std::string("getCategories failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Database query failure");
+	}
 }
 
 bool Database::updateMemeCategory(int64_t memeId, int64_t categoryId) {
@@ -1008,6 +1104,7 @@ void Database::upsertDescriptionEmbedding(int64_t memeId, const std::vector<floa
 		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("upsertDescriptionEmbedding failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Description embedding upsert failed");
 	}
 }
 
@@ -1020,6 +1117,7 @@ void Database::upsertOcrEmbedding(int64_t memeId, const std::vector<float> &embe
 		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("upsertOcrEmbedding failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "OCR embedding upsert failed");
 	}
 }
 
@@ -1031,6 +1129,7 @@ void Database::deleteDescriptionEmbedding(int64_t memeId) {
 		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("deleteDescriptionEmbedding failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "Description embedding delete failed");
 	}
 }
 
@@ -1042,6 +1141,7 @@ void Database::deleteOcrEmbedding(int64_t memeId) {
 		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("deleteOcrEmbedding failed: ") + e.what());
+		throw ApiException(ERR_INTERNAL, "OCR embedding delete failed");
 	}
 }
 
@@ -1049,9 +1149,23 @@ void Database::rebuildEmbeddingTables(int newDimension) {
 	std::unique_lock lock(dbMutex_);
 	if (newDimension <= 0) { newDimension = embeddingDimensions_; }
 	if (newDimension <= 0) newDimension = EmbeddingModule::kDefaultDimensions;
-	embeddingDimensions_ = newDimension;
 
 	try {
+		const int  currentDimension = embeddingDimensions_;
+		const bool dimensionChanged = currentDimension > 0 && currentDimension != newDimension;
+		const auto descRows         = getTableRowCount(*db_, "vec_meme_desc");
+		const auto ocrRows          = getTableRowCount(*db_, "vec_meme_ocr");
+		if (dimensionChanged && (descRows > 0 || ocrRows > 0) && dbPath_ != ":memory:") {
+			const auto backupPath = backupDatabaseUnlocked(*db_, dbPath_);
+			if (!backupPath.empty()) {
+				LOG_WARN("persist",
+				         "Embedding dimension changed from " + std::to_string(currentDimension) + " to " +
+				             std::to_string(newDimension) + ". Existing vectors were snapshotted to " + backupPath +
+				             " before rebuild.");
+			}
+		}
+
+		embeddingDimensions_ = newDimension;
 		SQLite::Transaction txn(*db_);
 		db_->exec("DROP TABLE IF EXISTS vec_meme_desc;");
 		db_->exec("DROP TABLE IF EXISTS vec_meme_ocr;");
@@ -1071,21 +1185,9 @@ void Database::rebuildEmbeddingTables(int newDimension) {
 }
 
 std::string Database::backupDatabase() {
+	std::unique_lock lock(dbMutex_);
 	try {
-		auto    now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-		std::tm tm{};
-#ifdef _WIN32
-		localtime_s(&tm, &now);
-#else
-		localtime_r(&now, &tm);
-#endif
-
-		char buf[32];
-		std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", &tm);
-
-		std::string backupPath = dbPath_ + ".bak." + std::string(buf);
-		db_->exec("VACUUM INTO '" + backupPath + "'");
-		return backupPath;
+		return backupDatabaseUnlocked(*db_, dbPath_);
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("Backup failed: ") + e.what());
 		return "";
@@ -1093,61 +1195,97 @@ std::string Database::backupDatabase() {
 }
 
 bool Database::restoreDatabase(const std::string &backupPath) {
+	std::unique_lock lock(dbMutex_);
 	try {
-		// 检查备份文件是否存在
-		std::ifstream checkFile(backupPath);
-		if (!checkFile.good()) {
+		const auto currentPath         = std::filesystem::path(dbPath_);
+		const int  currentDimensions   = embeddingDimensions_;
+		const auto backupFilePath      = std::filesystem::path(backupPath);
+		const auto tempRestorePath     = std::filesystem::path(dbPath_ + ".restore_tmp");
+		const auto rollbackPath        = std::filesystem::path(dbPath_ + ".restore_old");
+		const bool hasRestorableTarget = !dbPath_.empty() && dbPath_ != ":memory:";
+
+		if (!hasRestorableTarget || !std::filesystem::is_regular_file(backupFilePath)) {
 			LOG_ERROR("persist", "Backup file not found: " + backupPath);
 			return false;
 		}
-		checkFile.close();
 
-		// 保存当前路径
-		std::string currentPath = dbPath_;
+		auto unlockForInit = [&]() {
+			if (lock.owns_lock()) lock.unlock();
+		};
 
-		// 关闭当前连接
+		std::error_code ec;
+		std::filesystem::remove(tempRestorePath, ec);
+		std::filesystem::remove(rollbackPath, ec);
+
 		shutdown();
 
-		// 采用写临时文件+原子重命名策略
-		std::string tempPath = currentPath + ".tmp";
-		{
-			std::ifstream src(backupPath, std::ios::binary);
-			std::ofstream dst(tempPath, std::ios::binary | std::ios::trunc);
-			if (!src || !dst) {
-				LOG_ERROR("persist", "Failed to open files for restore copy");
-				if (!dbPath_.empty()) initialize(currentPath, embeddingDimensions_);
-				return false;
-			}
-			dst << src.rdbuf();
-		}
-
-		// 原子替换
-		try {
-			std::filesystem::rename(tempPath, currentPath);
-		} catch (const std::exception &e) {
-			LOG_ERROR("persist", std::string("Rename failed during restore: ") + e.what());
-			std::filesystem::remove(tempPath);
-			if (!dbPath_.empty()) initialize(currentPath, embeddingDimensions_);
+		std::filesystem::copy_file(backupFilePath, tempRestorePath, std::filesystem::copy_options::overwrite_existing, ec);
+		if (ec) {
+			LOG_ERROR("persist", std::string("Failed to stage restore copy: ") + ec.message());
+			unlockForInit();
+			initialize(currentPath.string(), currentDimensions);
 			return false;
 		}
 
-		// 重新初始化
-		bool ok = initialize(currentPath, embeddingDimensions_);
+		const bool hadOriginal = std::filesystem::exists(currentPath);
+		if (hadOriginal) {
+			std::filesystem::rename(currentPath, rollbackPath, ec);
+			if (ec) {
+				LOG_ERROR("persist", std::string("Failed to move current database aside: ") + ec.message());
+				std::filesystem::remove(tempRestorePath, ec);
+				unlockForInit();
+				initialize(currentPath.string(), currentDimensions);
+				return false;
+			}
+		}
+
+		std::filesystem::rename(tempRestorePath, currentPath, ec);
+		if (ec) {
+			ec.clear();
+			std::filesystem::copy_file(tempRestorePath,
+			                           currentPath,
+			                           std::filesystem::copy_options::overwrite_existing,
+			                           ec);
+			std::filesystem::remove(tempRestorePath, ec);
+		}
+		if (ec) {
+			LOG_ERROR("persist", std::string("Failed to replace database during restore: ") + ec.message());
+			if (hadOriginal) {
+				std::error_code rollbackEc;
+				std::filesystem::rename(rollbackPath, currentPath, rollbackEc);
+			}
+			unlockForInit();
+			initialize(currentPath.string(), currentDimensions);
+			return false;
+		}
+
+		unlockForInit();
+		const bool ok = initialize(currentPath.string(), currentDimensions);
 		if (ok) {
+			std::filesystem::remove(rollbackPath, ec);
 			LOG_INFO("persist", "Database restored from: " + backupPath);
 		} else {
 			LOG_ERROR("persist", "Failed to reinitialize after restore");
+			if (hadOriginal) {
+				std::filesystem::remove(currentPath, ec);
+				std::filesystem::rename(rollbackPath, currentPath, ec);
+				initialize(currentPath.string(), currentDimensions);
+			}
 		}
 		return ok;
 	} catch (const std::exception &e) {
 		LOG_ERROR("persist", std::string("restoreDatabase failed: ") + e.what());
-		// 尝试重新打开原数据库
-		if (!dbPath_.empty()) initialize(dbPath_, embeddingDimensions_);
+		if (!dbPath_.empty() && dbPath_ != ":memory:") {
+			if (lock.owns_lock()) lock.unlock();
+			initialize(dbPath_, embeddingDimensions_);
+		}
 		return false;
 	}
 }
 
 bool Database::checkIntegrity() {
+	if (!db_) return false;
+	DatabaseReadLock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_, "PRAGMA integrity_check");
 		if (stmt.executeStep()) {
@@ -1159,6 +1297,7 @@ bool Database::checkIntegrity() {
 }
 
 void Database::recoverFromCrash() {
+	std::unique_lock lock(dbMutex_);
 	try {
 		SQLite::Statement stmt(*db_,
 		                       "UPDATE memes SET ocr_status = ?, ai_status = ? WHERE ocr_status = ? OR ai_status = ?");
@@ -1378,7 +1517,17 @@ void Database::ensureEmbeddingTableSchema() {
 	int              ocrDim  = getVecTableDimension("vec_meme_ocr");
 	lock.unlock();
 
-	if (descDim != embeddingDimensions_ || ocrDim != embeddingDimensions_) { rebuildEmbeddingTables(embeddingDimensions_); }
+	if (descDim == 0 || ocrDim == 0) {
+		rebuildEmbeddingTables(embeddingDimensions_);
+		return;
+	}
+
+	if (descDim != embeddingDimensions_ || ocrDim != embeddingDimensions_) {
+		LOG_WARN("persist",
+		         "Embedding table dimension mismatch detected (desc=" + std::to_string(descDim) +
+		             ", ocr=" + std::to_string(ocrDim) + ", expected=" + std::to_string(embeddingDimensions_) +
+		             "). Keeping existing vectors until an explicit rebuild to avoid silent data loss.");
+	}
 }
 
 SearchSql Database::buildSearchSql(const SearchQuery &query) {

@@ -184,6 +184,45 @@ TEST_F(EmbeddingMockTest, GenerateEmbeddings_AuthErrorsDoNotRetry) {
 	}
 }
 
+TEST_F(EmbeddingMockTest, SetHttpClient_NullptrRejected) {
+	EXPECT_THROW(module->setHttpClient(nullptr), std::invalid_argument);
+}
+
+TEST_F(EmbeddingMockTest, Reconfigure_InvalidConfig_RollsBackPreviousState) {
+	auto config = makeConfig();
+	ASSERT_TRUE(module->initialize(config));
+
+	EmbeddingConfig invalid = config;
+	invalid.provider        = "Other";
+	invalid.model           = "bad-model";
+
+	EXPECT_FALSE(module->reconfigure(invalid));
+	EXPECT_TRUE(module->isAvailable());
+	EXPECT_EQ(module->getConfig().provider, "JinaAI");
+	EXPECT_EQ(module->getConfig().model, "jina-embeddings-v5-text-small");
+}
+
+TEST_F(EmbeddingMockTest, InvalidJsonResponse_IsNotRetried) {
+	auto config       = makeConfig();
+	config.dimensions = 2;
+	config.maxRetries = 2;
+	ASSERT_TRUE(module->initialize(config));
+
+	EXPECT_CALL(*mockHttp, post(_, _, _, _)).WillOnce(Return("not-json"));
+
+	EXPECT_THROW(
+	    {
+		    try {
+			    (void)module->generateEmbedding("broken-json");
+		    } catch (const EmbeddingException &e) {
+			    EXPECT_FALSE(e.error().retryable);
+			    EXPECT_THAT(e.what(), HasSubstr("Invalid embedding response JSON"));
+			    throw;
+		    }
+	    },
+	    EmbeddingException);
+}
+
 TEST(EmbeddingLiveTest, GenerateEmbeddings_JinaAiOutputsSimilarityScores) {
 	if (std::getenv("QM_RUN_JINA_EMBEDDING_LIVE") == nullptr) {
 		GTEST_SKIP() << "Set QM_RUN_JINA_EMBEDDING_LIVE=1 to enable the live Jina embedding test";

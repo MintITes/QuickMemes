@@ -290,6 +290,7 @@ public:
 	 * @brief 插入或更新 Meme 的 embedding 向量
 	 * @param memeId int64_t Meme ID
 	 * @param embedding std::vector<float> 语义向量
+	 * @throws ApiException 写入失败时抛出，调用方可感知向量维护失败
 	 */
 	void upsertDescriptionEmbedding(int64_t memeId, const std::vector<float> &embedding);
 	void upsertOcrEmbedding(int64_t memeId, const std::vector<float> &embedding);

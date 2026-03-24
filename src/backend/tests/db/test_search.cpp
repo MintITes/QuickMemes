@@ -82,6 +82,27 @@ TEST_F(MemeDbTest, SearchMemes_ValidQuery_ReturnsMatchingResults) {
 	EXPECT_EQ(results.items[0].fileHash, "hash_search_1");
 }
 
+TEST_F(MemeDbTest, SearchMemes_EmptyPageStillReturnsTotalCount) {
+	for (int i = 0; i < 3; ++i) {
+		MemeEntry meme;
+		meme.fileHash = std::string("hash_search_total_") + std::to_string(i);
+		meme.filePath = getSubPath("total_" + std::to_string(i) + ".png");
+		meme.mimeType = "image/png";
+		meme.name     = "TotalCountMeme";
+		db->insertMeme(meme);
+	}
+
+	SearchQuery q;
+	q.keyword = "TotalCountMeme";
+	q.limit   = 2;
+	q.offset  = 10;
+
+	auto results = db->searchMemes(q);
+	EXPECT_TRUE(results.items.empty());
+	EXPECT_EQ(results.totalCount, 3);
+	EXPECT_EQ(db->countMemes(q), 3);
+}
+
 TEST_F(MemeDbTest, SearchMemes_NameKeywordSupportsPartialMatch) {
 	MemeEntry meme;
 	meme.fileHash = "hash_search_name_partial";

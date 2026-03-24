@@ -84,4 +84,20 @@ TEST_F(MemeDbTest, UpdateMeme_ValidPatch_UpdatesFields) {
 	EXPECT_EQ(loaded.description, "My New Description");
 }
 
+TEST_F(MemeDbTest, UpdateMeme_CategoryIdPreservesInt64Value) {
+	MemeEntry meme;
+	meme.fileHash = "testhash_category_int64";
+	meme.filePath = "/tmp/test-category.png";
+	meme.mimeType = "image/png";
+	int64_t id    = db->insertMeme(meme);
+
+	MemePatch patch;
+	patch.categoryId = (1LL << 33) + 7;
+
+	ASSERT_TRUE(db->updateMeme(id, patch));
+
+	MemeEntry loaded = db->getMeme(id);
+	EXPECT_EQ(loaded.categoryId, *patch.categoryId);
+}
+
 }} // namespace quickmemes::testing

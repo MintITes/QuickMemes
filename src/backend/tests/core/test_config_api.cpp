@@ -1,6 +1,8 @@
 #include "../mocks.hpp"
 #include "core/handlers.hpp"
 #include "core/server.hpp"
+#include "embedding/embedding.hpp"
+#include "vision/vision.hpp"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -11,17 +13,38 @@ class ConfigApiTest : public MemeDbTest {
 protected:
 	void SetUp() override {
 		MemeDbTest::SetUp();
-		// Initialize g_server for handlePatchConfig
+		mockHttp_ = std::make_shared<::testing::NiceMock<MockHttpClient>>();
+		EXPECT_CALL(*mockHttp_, get(::testing::_, ::testing::_, ::testing::_)).WillRepeatedly(::testing::Return("ok"));
+		VisionModule::get().setHttpClient(mockHttp_);
+		EmbeddingModule::get().setHttpClient(mockHttp_);
+
 		ServerConfig config;
-		config.visionConfig.apiKey = "old-key";
-		g_server                   = std::make_unique<Server>();
+		config.visionConfig.apiKey         = "old-key";
+		config.visionConfig.apiBaseUrl     = "https://vision.example.com";
+		config.visionConfig.visionModel    = "vision-model";
+		config.embeddingConfig.provider    = "JinaAI";
+		config.embeddingConfig.model       = "jina-embeddings-v5-text-small";
+		config.embeddingConfig.apiUrl      = "https://embedding.example.com/v1/embeddings";
+		config.embeddingConfig.apiKey      = "old-embedding-key";
+		config.embeddingConfig.dimensions  = 512;
+
+		ASSERT_TRUE(VisionModule::get().initialize(config.visionConfig));
+		ASSERT_TRUE(EmbeddingModule::get().initialize(config.embeddingConfig));
+
+		g_server = std::make_unique<Server>();
 		g_server->updateConfig(config);
 	}
 
 	void TearDown() override {
+		VisionModule::get().shutdown();
+		EmbeddingModule::get().shutdown();
+		VisionModule::get().setHttpClient(std::make_shared<HttpClient>());
+		EmbeddingModule::get().setHttpClient(std::make_shared<HttpClient>());
 		g_server.reset();
 		MemeDbTest::TearDown();
 	}
+
+	std::shared_ptr<::testing::NiceMock<MockHttpClient>> mockHttp_;
 };
 
 TEST_F(ConfigApiTest, PatchConfig_UpdateAiKey_Success) {
@@ -61,6 +84,20 @@ TEST_F(ConfigApiTest, PatchConfig_InvalidJson_ReturnsError) {
 	handlePatchConfig(req, res);
 
 	EXPECT_EQ(res.status, 400);
+}
+
+TEST_F(ConfigApiTest, PatchConfig_InvalidEmbeddingConfig_ReturnsErrorAndKeepsOldConfig) {
+	HttpRequestProxy req;
+	req.path   = "/api/config";
+	req.method = "PATCH";
+	req.body   = R"({"embeddingProvider": "UnsupportedProvider"})";
+	HttpResponseProxy res;
+
+	handlePatchConfig(req, res);
+
+	EXPECT_EQ(res.status, 400);
+	EXPECT_EQ(g_server->getConfig().embeddingConfig.provider, "JinaAI");
+	EXPECT_EQ(g_server->getConfig().embeddingConfig.model, "jina-embeddings-v5-text-small");
 }
 
 }} // namespace quickmemes::testing

@@ -10,15 +10,20 @@
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/host_name_verification.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <regex>
+#include <sstream>
+#include <utility>
 
 namespace quickmemes {
 
@@ -28,9 +33,69 @@ namespace net   = boost::asio;
 namespace ssl   = net::ssl;
 using tcp       = net::ip::tcp;
 
+namespace {
+
+using ResolveResults = tcp::resolver::results_type;
+
+ResolveResults resolveWithTimeout(net::io_context &ioc,
+                                  tcp::resolver    &resolver,
+                                  const std::string &host,
+                                  const std::string &port,
+                                  std::chrono::seconds timeout) {
+	ResolveResults         results;
+	boost::system::error_code ec;
+	bool                   completed = false;
+
+	net::steady_timer timer(ioc);
+	timer.expires_after(timeout);
+	timer.async_wait([&](const boost::system::error_code &timerEc) {
+		if (timerEc || completed) { return; }
+		completed = true;
+		ec        = net::error::timed_out;
+		resolver.cancel();
+	});
+
+	resolver.async_resolve(host, port, [&](const boost::system::error_code &resolveEc, ResolveResults resolved) {
+		if (completed) { return; }
+		completed = true;
+		ec        = resolveEc;
+		results    = std::move(resolved);
+		timer.cancel();
+	});
+
+	ioc.restart();
+	ioc.run();
+	ioc.restart();
+
+	if (ec) { throw boost::system::system_error(ec); }
+	return results;
+}
+
+constexpr std::uint64_t kMaxResponseBodyBytes = 10 * 1024 * 1024;
+
+template <typename Body>
+std::string readHttpResponseBody(Body &&stream, const std::string &methodTag) {
+	beast::flat_buffer buffer;
+	http::response_parser<http::string_body> parser;
+	parser.body_limit(kMaxResponseBodyBytes);
+
+	http::read(stream, buffer, parser);
+
+	auto res = parser.get();
+	if (res.result() != http::status::ok) {
+		throw ApiException(ERR_AI_REQUEST_FAILED,
+		                   methodTag + " HTTP Request returned " + std::to_string(res.result_int()) +
+		                       ". Body: " + res.body());
+	}
+	return res.body();
+}
+
+} // namespace
+
 std::string
 HttpClient::post(const std::string &url, const std::string &headers, const std::string &body, int timeoutSeconds) {
 	try {
+		if (timeoutSeconds <= 0) { timeoutSeconds = 1; }
 		// 1. 解析 URL
 		// 支持 https://api.openai.com/v1/... 或者 http://localhost:11434/...
 		std::regex  urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
@@ -49,9 +114,8 @@ HttpClient::post(const std::string &url, const std::string &headers, const std::
 		// 2. ASio IoContext & Connect
 		net::io_context ioc;
 
-		// 这里采用同步接口，依靠 Asio timeout/deadline_timer 能控制，但对于简单的 HttpClient，我们先直接调用。
 		tcp::resolver resolver(ioc);
-		auto const    results = resolver.resolve(host, port);
+		auto const    results = resolveWithTimeout(ioc, resolver, host, port, std::chrono::seconds(timeoutSeconds));
 
 		// 3. 构建 HTTP 负载
 		http::request<http::string_body> req{http::verb::post, target, 11};
@@ -98,49 +162,28 @@ HttpClient::post(const std::string &url, const std::string &headers, const std::
 				beast::error_code ec{static_cast<int>(::ERR_get_error()), net::error::get_ssl_category()};
 				throw beast::system_error{ec};
 			}
+			stream.set_verify_callback(ssl::host_name_verification(host));
 
-			beast::get_lowest_layer(stream).connect(results);
-			// 简单超时通过 beast tcp_stream 设置
 			beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(timeoutSeconds));
+			beast::get_lowest_layer(stream).connect(results);
 
 			stream.handshake(ssl::stream_base::client);
 			http::write(stream, req);
 
-			beast::flat_buffer                buffer;
-			http::response<http::string_body> res;
-
-			http::read(stream, buffer, res);
+			responseBody = readHttpResponseBody(stream, "POST");
 
 			beast::error_code ec;
 			stream.shutdown(ec);
-			// 收到 non_recoverable 或 EOF 往往在此处出现，不抛异常
-
-			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED,
-				                   "HTTP Request returned " + std::to_string(res.result_int()) +
-				                       ". Body: " + res.body());
-			}
-			responseBody = res.body();
 		} else {
 			// TCP
 			beast::tcp_stream stream(ioc);
-			stream.connect(results);
 			stream.expires_after(std::chrono::seconds(timeoutSeconds));
+			stream.connect(results);
 
 			http::write(stream, req);
-			beast::flat_buffer                buffer;
-			http::response<http::string_body> res;
-
-			http::read(stream, buffer, res);
+			responseBody = readHttpResponseBody(stream, "POST");
 			beast::error_code ec;
 			stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-
-			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED,
-				                   "HTTP Request returned " + std::to_string(res.result_int()) +
-				                       ". Body: " + res.body());
-			}
-			responseBody = res.body();
 		}
 
 		return responseBody;
@@ -153,6 +196,7 @@ HttpClient::post(const std::string &url, const std::string &headers, const std::
 
 std::string HttpClient::get(const std::string &url, const std::string &headers, int timeoutSeconds) {
 	try {
+		if (timeoutSeconds <= 0) { timeoutSeconds = 1; }
 		std::regex  urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
 		std::smatch urlMatchResults;
 
@@ -169,7 +213,7 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 		net::io_context ioc;
 
 		tcp::resolver resolver(ioc);
-		auto const    results = resolver.resolve(host, port);
+		auto const    results = resolveWithTimeout(ioc, resolver, host, port, std::chrono::seconds(timeoutSeconds));
 
 		http::request<http::string_body> req{http::verb::get, target, 11};
 		req.set(http::field::host, host);
@@ -208,46 +252,27 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 				beast::error_code ec{static_cast<int>(::ERR_get_error()), net::error::get_ssl_category()};
 				throw beast::system_error{ec};
 			}
+			stream.set_verify_callback(ssl::host_name_verification(host));
 
-			beast::get_lowest_layer(stream).connect(results);
 			beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(timeoutSeconds));
+			beast::get_lowest_layer(stream).connect(results);
 
 			stream.handshake(ssl::stream_base::client);
 			http::write(stream, req);
 
-			beast::flat_buffer                buffer;
-			http::response<http::string_body> res;
-
-			http::read(stream, buffer, res);
+			responseBody = readHttpResponseBody(stream, "GET");
 
 			beast::error_code ec;
 			stream.shutdown(ec);
-
-			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED,
-				                   "HTTP Request returned " + std::to_string(res.result_int()) +
-				                       ". Body: " + res.body());
-			}
-			responseBody = res.body();
 		} else {
 			beast::tcp_stream stream(ioc);
-			stream.connect(results);
 			stream.expires_after(std::chrono::seconds(timeoutSeconds));
+			stream.connect(results);
 
 			http::write(stream, req);
-			beast::flat_buffer                buffer;
-			http::response<http::string_body> res;
-
-			http::read(stream, buffer, res);
+			responseBody = readHttpResponseBody(stream, "GET");
 			beast::error_code ec;
 			stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-
-			if (res.result() != http::status::ok) {
-				throw ApiException(ERR_AI_REQUEST_FAILED,
-				                   "HTTP Request returned " + std::to_string(res.result_int()) +
-				                       ". Body: " + res.body());
-			}
-			responseBody = res.body();
 		}
 
 		return responseBody;

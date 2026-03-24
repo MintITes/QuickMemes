@@ -9,6 +9,7 @@
 #include "vision/http_client.hpp"
 
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -53,13 +54,11 @@ public:
 	void shutdown();
 	bool reconfigure(const EmbeddingConfig &config);
 
-	void setHttpClient(std::shared_ptr<HttpClientInterface> client) {
-		httpClient_ = std::move(client);
-	}
+	void setHttpClient(std::shared_ptr<HttpClientInterface> client);
 
 	[[nodiscard]] bool isAvailable() const;
 	[[nodiscard]] int  getDimensions() const;
-	[[nodiscard]] const EmbeddingConfig &getConfig() const;
+	[[nodiscard]] EmbeddingConfig getConfig() const;
 
 	static int sanitizeDimensions(const std::string &provider, const std::string &model, int dimensions);
 	static bool isSupportedProviderModel(const std::string &provider, const std::string &model);
@@ -69,16 +68,26 @@ public:
 	                                                   const std::string              &task = "text-matching");
 
 private:
+	struct RuntimeState {
+		EmbeddingConfig                      config{};
+		std::shared_ptr<HttpClientInterface> httpClient;
+		bool                                 isAvailable = false;
+	};
+
+	RuntimeState  buildState(const EmbeddingConfig &config,
+	                         std::shared_ptr<HttpClientInterface> client,
+	                         bool                                 allowUnavailable) const;
 	EmbeddingError parseApiError(const std::exception &e) const;
 	EmbeddingError parseApiError(int statusCode, const std::string &body) const;
 	bool           shouldRetry(const EmbeddingError &error) const;
-	std::string    buildHeaders() const;
-	std::string    buildRequestBody(const std::vector<std::string> &texts, const std::string &task) const;
+	std::string    buildHeaders(const EmbeddingConfig &config) const;
+	std::string    buildRequestBody(const EmbeddingConfig       &config,
+	                                const std::vector<std::string> &texts,
+	                                const std::string              &task) const;
 	void           validateTask(const std::string &task) const;
 
-	EmbeddingConfig                      config_{};
-	std::shared_ptr<HttpClientInterface> httpClient_;
-	bool                                 isAvailable_ = false;
+	mutable std::shared_mutex stateMutex_;
+	RuntimeState              state_{};
 };
 
 } // namespace quickmemes
