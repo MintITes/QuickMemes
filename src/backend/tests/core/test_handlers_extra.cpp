@@ -277,7 +277,8 @@ TEST_F(HandlersExtraTest, GetMemeThumbnail_TaskQueueUnavailableFallsBackToOrigin
 	handleGetMemeThumbnail(req, res);
 
 	EXPECT_EQ(res.status, 200);
-	EXPECT_EQ(std::filesystem::path(res.filePath), std::filesystem::path(imagePath));
+	EXPECT_EQ(std::filesystem::weakly_canonical(std::filesystem::path(res.filePath)),
+	          std::filesystem::weakly_canonical(std::filesystem::path(imagePath)));
 	EXPECT_EQ(res.contentType, "image/jpeg");
 }
 
