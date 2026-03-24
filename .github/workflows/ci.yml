@@ -96,7 +96,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Cache backend FetchContent
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: src/backend/.deps
           key: backend-deps-${{ matrix.os }}-${{ hashFiles('src/backend/CMakeLists.txt', 'src/backend/tests/CMakeLists.txt', 'scripts/build.sh', 'scripts/build.ps1', 'scripts/test.sh', 'scripts/test.ps1') }}
@@ -110,7 +110,7 @@ jobs:
 
       - name: Cache vcpkg (Windows)
         if: runner.os == 'Windows'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             C:\vcpkg\downloads
@@ -133,7 +133,7 @@ jobs:
 
       - name: Upload backend diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: backend-${{ matrix.os }}-logs
           path: |
@@ -206,7 +206,7 @@ jobs:
 
       - name: Upload frontend diagnostics
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: frontend-${{ matrix.os }}-logs
           path: |
