@@ -8,8 +8,10 @@
 #include "db/database.hpp"
 #include "error_codes.hpp"
 
+#include <chrono>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <thread>
 #include <vector>
 
 namespace quickmemes { namespace testing {
@@ -52,6 +54,18 @@ protected:
 		for (int i = 0; i < 64; ++i) {
 			ofs.write(chunk.data(), static_cast<std::streamsize>(chunk.size()));
 		}
+	}
+
+	bool waitForProcessing(const std::string &taskId) {
+		for (int i = 0; i < 100; ++i) {
+			auto task = TaskQueue::get().getTask(taskId);
+			if (task.status == TaskStatus::PROCESSING) { return true; }
+			if (task.status == TaskStatus::DONE || task.status == TaskStatus::FAILED || task.status == TaskStatus::CANCELLED) {
+				return false;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+		}
+		return false;
 	}
 
 	std::unique_ptr<TestDirectory> tempDir_;
@@ -104,9 +118,11 @@ TEST_F(TaskQueueTest, SubmitTask_BatchTooLarge_DoesNotPoisonQueueState) {
 
 TEST_F(TaskQueueTest, CancelTask_ExistingTask_ReturnsTrue) {
 	ImportRequest req;
-	req.inputs         = {imagePath3_};
+	// Use the slower input so the task stays active long enough across platforms.
+	req.inputs         = {imagePath2_};
 	std::string taskId = TaskQueue::get().submitImportTask(req);
 
+	EXPECT_TRUE(waitForProcessing(taskId));
 	EXPECT_TRUE(TaskQueue::get().cancelTask(taskId));
 }
 
