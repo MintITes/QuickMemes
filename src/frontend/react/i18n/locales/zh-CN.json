@@ -275,15 +275,35 @@
         },
         "ai": {
             "title": "AI 视觉分析",
-            "not_configured": "AI 自动打标模型尚未配置，请在后续版本配置 API Key",
-            "todo": "此功能暂不可用，还未完善，之后版本再完善...",
-            "apiBaseUrl": {
-                "label": "AI API Base URL",
-                "desc": "自定义的 AI 模型接口基础地址"
+            "provider": {
+                "label": "模型提供商",
+                "desc": "处理视觉及向量数据的服务商 (当前仅支持 JinaAI)",
+                "none": "关闭"
+            },
+            "model": {
+                "label": "模型名称",
+                "desc": "选择用于生成特征向量或图像分析的具体模型",
+                "none": "关闭"
+            },
+            "apiUrl": {
+                "label": "API 地址 (URL)",
+                "desc": "自定义服务接口的基础访问地址"
             },
             "apiKey": {
-                "label": "AI API Key",
-                "desc": "访问 AI 视觉模型的认证密钥"
+                "label": "API 密钥 (Key)",
+                "desc": "访问云端模型服务的认证口令"
+            },
+            "dimensions": {
+                "label": "向量维度",
+                "desc": "特征嵌入向量的固定尺寸"
+            },
+            "timeout": {
+                "label": "超时限制",
+                "desc": "单次网络请求的最长等待时间 (秒)"
+            },
+            "retries": {
+                "label": "重试次数",
+                "desc": "网络错误时的最大重试次数"
             }
         },
         "shortcuts": {

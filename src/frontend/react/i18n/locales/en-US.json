@@ -275,15 +275,35 @@
         },
         "ai": {
             "title": "AI Vision Analysis",
-            "not_configured": "AI auto-tagging model is not yet configured, please set API Key in future versions",
-            "todo": "This feature is currently unavailable, it's not yet perfected and will be completed in a future version...",
-            "apiBaseUrl": {
-                "label": "AI API Base URL",
-                "desc": "Custom base URL for the AI vision model interface"
+            "provider": {
+                "label": "Embedding Provider",
+                "desc": "Service provider for processing vision and vector data (JinaAI only currently)",
+                "none": "Disabled"
+            },
+            "model": {
+                "label": "Embedding Model",
+                "desc": "Select the specific model used to generate feature vectors",
+                "none": "Disabled"
+            },
+            "apiUrl": {
+                "label": "API URL",
+                "desc": "Custom base address for the API service"
             },
             "apiKey": {
-                "label": "AI API Key",
-                "desc": "Authentication key for accessing the AI vision model"
+                "label": "API Key",
+                "desc": "Authentication token for accessing cloud model services"
+            },
+            "dimensions": {
+                "label": "Dimensions",
+                "desc": "Fixed size of the feature embedding vector"
+            },
+            "timeout": {
+                "label": "Timeout (s)",
+                "desc": "Maximum wait time for a single network request in seconds"
+            },
+            "retries": {
+                "label": "Max Retries",
+                "desc": "Maximum automatic resend attempts on network error"
             }
         },
         "shortcuts": {

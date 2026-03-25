@@ -362,15 +362,15 @@ export function SettingsModal() {
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
                                 <div className="flex justify-between items-center mb-1">
                                     <div className="font-medium text-sm">{t('settings.storage.thumbnail_size.label')}</div>
-                                    <div className="text-xs font-mono opacity-50 px-1.5 py-0.5 bg-black/20 rounded">{(thumbnailMaxSizeDraft ?? config?.thumbnail.maxSize ?? 500)}px</div>
+                                    <div className="text-xs font-mono opacity-50 px-1.5 py-0.5 bg-black/20 rounded">{(thumbnailMaxSizeDraft ?? config?.thumbnail.maxSize ?? 300)}px</div>
                                 </div>
                                 <div className="text-xs opacity-60 mb-1">{t('settings.storage.thumbnail_size.desc')}</div>
 
                                 <Slider
-                                    value={thumbnailMaxSizeDraft ?? config?.thumbnail.maxSize ?? 500}
-                                    min={500}
-                                    max={2048}
-                                    step={32}
+                                    value={thumbnailMaxSizeDraft ?? config?.thumbnail.maxSize ?? 300}
+                                    min={100}
+                                    max={2000}
+                                    step={50}
                                     disabled={isSavingThumbnailMaxSize}
                                     onChange={setThumbnailMaxSizeDraft}
                                     onAfterChange={(val) => void saveThumbnailField('maxSize', val)}
@@ -439,27 +439,59 @@ export function SettingsModal() {
                     <div className="space-y-6">
                         <h3 className="font-semibold text-lg border-b border-white/10 pb-2 mb-4">{t('settings.ai.title')}</h3>
                         <div className="space-y-4">
-                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">Embedding Provider</div>
-                                <div className="text-xs opacity-60 mb-3">当前仅支持 JinaAI。</div>
-                                <input
-                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
-                                    value={config?.embedding.provider ?? ''}
-                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, provider: e.target.value } } : prev)}
-                                    onBlur={(e) => void saveEmbeddingField('provider', e.target.value)}
-                                />
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div>
+                                    <div className="font-medium text-sm">{t('settings.ai.provider.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.ai.provider.desc')}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {[
+                                        { id: '', label: t('settings.ai.provider.none') },
+                                        { id: 'JinaAI', label: 'JinaAI' }
+                                    ].map((p) => (
+                                        <button
+                                            key={p.id}
+                                            className={clsx(
+                                                "px-3 py-1 text-sm rounded-lg transition-colors border",
+                                                (config?.embedding.provider ?? '') === p.id
+                                                    ? "bg-accent text-white border-accent"
+                                                    : "border-white/10 opacity-70 hover:bg-white/10"
+                                            )}
+                                            onClick={() => void saveEmbeddingField('provider', p.id)}
+                                        >
+                                            {p.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
+                                <div>
+                                    <div className="font-medium text-sm">{t('settings.ai.model.label')}</div>
+                                    <div className="text-xs opacity-60">{t('settings.ai.model.desc')}</div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {[
+                                        { id: '', label: t('settings.ai.model.none') },
+                                        { id: 'v5-small', label: 'v5-small' }
+                                    ].map((m) => (
+                                        <button
+                                            key={m.id}
+                                            className={clsx(
+                                                "px-3 py-1 text-sm rounded-lg transition-colors border",
+                                                (config?.embedding.model ?? '') === m.id
+                                                    ? "bg-accent text-white border-accent"
+                                                    : "border-white/10 opacity-70 hover:bg-white/10"
+                                            )}
+                                            onClick={() => void saveEmbeddingField('model', m.id)}
+                                        >
+                                            {m.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">Embedding Model</div>
-                                <input
-                                    className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
-                                    value={config?.embedding.model ?? ''}
-                                    onChange={(e) => setConfig((prev) => prev ? { ...prev, embedding: { ...prev.embedding, model: e.target.value } } : prev)}
-                                    onBlur={(e) => void saveEmbeddingField('model', e.target.value)}
-                                />
-                            </div>
-                            <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">Embedding API URL</div>
+                                <div className="font-medium text-sm mb-1">{t('settings.ai.apiUrl.label')}</div>
+                                <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiUrl.desc')}</div>
                                 <input
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
                                     value={config?.embedding.apiUrl ?? ''}
@@ -468,7 +500,8 @@ export function SettingsModal() {
                                 />
                             </div>
                             <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                <div className="font-medium text-sm mb-1">Embedding API Key</div>
+                                <div className="font-medium text-sm mb-1">{t('settings.ai.apiKey.label')}</div>
+                                <div className="text-xs opacity-60 mb-3">{t('settings.ai.apiKey.desc')}</div>
                                 <input
                                     className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
                                     value={config?.embedding.apiKey ?? ''}
@@ -478,7 +511,8 @@ export function SettingsModal() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                    <div className="font-medium text-sm mb-1">Dimensions</div>
+                                    <div className="font-medium text-sm mb-1">{t('settings.ai.dimensions.label')}</div>
+                                    <div className="text-xs opacity-60 mb-3">{t('settings.ai.dimensions.desc')}</div>
                                     <input
                                         type="number"
                                         className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
@@ -488,7 +522,8 @@ export function SettingsModal() {
                                     />
                                 </div>
                                 <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                    <div className="font-medium text-sm mb-1">Timeout</div>
+                                    <div className="font-medium text-sm mb-1">{t('settings.ai.timeout.label')}</div>
+                                    <div className="text-xs opacity-60 mb-3">{t('settings.ai.timeout.desc')}</div>
                                     <input
                                         type="number"
                                         className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
@@ -498,7 +533,8 @@ export function SettingsModal() {
                                     />
                                 </div>
                                 <div className="p-3 rounded-xl border border-borderColor bg-white/5">
-                                    <div className="font-medium text-sm mb-1">Retries</div>
+                                    <div className="font-medium text-sm mb-1">{t('settings.ai.retries.label')}</div>
+                                    <div className="text-xs opacity-60 mb-3">{t('settings.ai.retries.desc')}</div>
                                     <input
                                         type="number"
                                         className="w-full bg-black/20 dark:bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-sm themed-input-focus"
