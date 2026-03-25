@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { X, Shield, Globe, Github } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconButton } from '../common/IconButton';
@@ -28,7 +28,8 @@ export function SettingsModal() {
     const { t } = useTranslation();
     const addNotification = useNotificationStore((state) => state.addNotification);
     const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-    const [debugClickCount, setDebugClickCount] = useState(0);
+    const debugTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const debugClickCountRef = useRef(0);
     const [config, setConfig] = useState<AppConfig | null>(null);
     const [savedConfig, setSavedConfig] = useState<AppConfig | null>(null);
     const [glassBlurDraft, setGlassBlurDraft] = useState<number | null>(null);
@@ -108,6 +109,14 @@ export function SettingsModal() {
     useEffect(() => {
         setThumbnailMaxSizeDraft(config?.thumbnail.maxSize ?? null);
     }, [config]);
+
+    useEffect(() => {
+        return () => {
+            if (debugTimerRef.current) {
+                clearTimeout(debugTimerRef.current);
+            }
+        };
+    }, []);
 
     const savePatch = async (patch: Partial<AppConfig>) => {
         if (!savedConfig || !hasPatchChanges(savedConfig, patch)) {
@@ -189,14 +198,20 @@ export function SettingsModal() {
     };
 
     const handleLogoClick = () => {
-        const newCount = debugClickCount + 1;
-        if (newCount >= 5) {
-            window.electronAPI?.openDevTools();
-            setDebugClickCount(0);
+        if (debugTimerRef.current) {
+            clearTimeout(debugTimerRef.current);
+            debugTimerRef.current = null;
+        }
+
+        debugClickCountRef.current += 1;
+        if (debugClickCountRef.current >= 5) {
+            window.electronAPI?.openDevTools?.();
+            debugClickCountRef.current = 0;
         } else {
-            setDebugClickCount(newCount);
-            const timer = setTimeout(() => setDebugClickCount(0), 2000);
-            return () => clearTimeout(timer);
+            debugTimerRef.current = setTimeout(() => {
+                debugClickCountRef.current = 0;
+                debugTimerRef.current = null;
+            }, 2000);
         }
     };
 
