@@ -85,6 +85,15 @@ export function ContextMenu() {
     const subMenuAnchorRef = useRef<HTMLDivElement>(null);
     const subMenuTimerRef = useRef<number | null>(null);
 
+    // Cleanup timers on unmount
+    useEffect(() => {
+        return () => {
+            if (subMenuTimerRef.current) {
+                clearTimeout(subMenuTimerRef.current);
+            }
+        };
+    }, []);
+
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [isSubMenuOpen, setIsSubMenuOpen] = useState(false);
     const [subMenuFocusedIndex, setSubMenuFocusedIndex] = useState(-1);
@@ -121,6 +130,10 @@ export function ContextMenu() {
     }, [menuInfo, isMultiSelect]);
 
     const closeMenu = useCallback(() => {
+        if (subMenuTimerRef.current) {
+            clearTimeout(subMenuTimerRef.current);
+            subMenuTimerRef.current = null;
+        }
         setContextMenu(null);
         setIsSubMenuOpen(false);
         setFocusedIndex(-1);
@@ -190,6 +203,7 @@ export function ContextMenu() {
 
         if (subMenuTimerRef.current) {
             clearTimeout(subMenuTimerRef.current);
+            subMenuTimerRef.current = null;
         }
 
         if (hasSubMenu) {
@@ -535,10 +549,16 @@ export function ContextMenu() {
                         className="fixed z-[10000] w-[200px] rounded-xl p-1.5 shadow-2xl bg-white/80 dark:bg-zinc-900/80 backdrop-blur-3xl border border-black/10 dark:border-white/10 max-h-[300px] overflow-y-auto scrollbar-hide"
                         style={{ top: subMenuCoords.top, left: subMenuCoords.left }}
                         onMouseEnter={() => {
-                            if (subMenuTimerRef.current) clearTimeout(subMenuTimerRef.current);
+                            if (subMenuTimerRef.current) {
+                                clearTimeout(subMenuTimerRef.current);
+                                subMenuTimerRef.current = null;
+                            }
                             setIsSubMenuOpen(true);
                         }}
                         onMouseLeave={() => {
+                            if (subMenuTimerRef.current) {
+                                clearTimeout(subMenuTimerRef.current);
+                            }
                             subMenuTimerRef.current = window.setTimeout(() => setIsSubMenuOpen(false), 300);
                         }}
                     >
