@@ -62,7 +62,7 @@ export const SidebarCategoryCreator = memo(({
                     initial={{ opacity: 0, y: -10, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="px-1 pb-2 gpu-transform-opacity"
+                    className="pb-2 gpu-transform-opacity"
                 >
                     <div className="rounded-2xl border p-2 space-y-2" style={categoryComposerStyle}>
                         <input

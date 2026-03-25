@@ -220,7 +220,7 @@ export const SidebarCategoryItem = memo(({
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
                 transition={{ duration: 0.3, delay: index * 0.03 }}
-                className={clsx("relative group/category px-1 gpu-transform-opacity", sortableProps.isDragging && "z-50")}
+                className={clsx("relative group/category gpu-transform-opacity", sortableProps.isDragging && "z-50")}
                 data-category-menu-root={cat.id}
             >
                 {isEditing ? (
