@@ -31,6 +31,7 @@ void handlePutCategory(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handleDeleteCategory(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handlePostMemesBatchCategory(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handleGetMemesTrash(const HttpRequestProxy &req, HttpResponseProxy &res);
+void handleDeleteTrashBatch(const HttpRequestProxy &req, HttpResponseProxy &res);
 void handlePostAdminRebuildEmbeddings(const HttpRequestProxy &req, HttpResponseProxy &res);
 
 } // namespace quickmemes

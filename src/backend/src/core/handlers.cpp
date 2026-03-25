@@ -91,9 +91,7 @@ std::filesystem::path buildThumbnailPath(const std::filesystem::path &rootPath, 
 void submitThumbnailTaskBestEffort(int64_t memeId, const char *logContext) {
 	try {
 		TaskQueue::get().submitThumbnailTask(memeId);
-	} catch (const std::exception &e) {
-		LOG_WARN("handlers", std::string(logContext) + ": " + e.what());
-	}
+	} catch (const std::exception &e) { LOG_WARN("handlers", std::string(logContext) + ": " + e.what()); }
 }
 } // namespace
 
@@ -369,12 +367,13 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 			throw ApiException(ERR_INVALID_PARAMS, "Invalid file path in database");
 		}
 
-		const auto rootPath     = getStorageRootPath();
+		const auto rootPath = getStorageRootPath();
 		const auto originalPath =
 		    resolvePathInsideRoot(rootPath, std::filesystem::path(meme.filePath), "Original meme path invalid");
 		const auto thumbPath =
-		    resolvePathInsideRoot(rootPath, std::filesystem::path("thumbs") / std::filesystem::path(meme.filePath).parent_path() /
-		                                     (meme.fileHash + ".jpg"),
+		    resolvePathInsideRoot(rootPath,
+		                          std::filesystem::path("thumbs") / std::filesystem::path(meme.filePath).parent_path() /
+		                              (meme.fileHash + ".jpg"),
 		                          "Thumb path traversal attempt");
 
 		if (!std::filesystem::exists(thumbPath)) {
@@ -679,6 +678,35 @@ void handleDeleteTrashPurge(const HttpRequestProxy &req, HttpResponseProxy &res)
 	}
 }
 
+void handleDeleteTrashBatch(const HttpRequestProxy &req, HttpResponseProxy &res) {
+	try {
+		auto j = nlohmann::json::parse(req.body);
+		if (!j.contains("ids") || !j["ids"].is_array()) { throw std::invalid_argument("ids array missing"); }
+		BatchResult data;
+		for (const auto &id_json : j["ids"]) {
+			int64_t id = id_json.get<int64_t>();
+			// Only permanently delete memes that are already soft-deleted (in trash)
+			try {
+				auto meme = Database::get().getMeme(id);
+				if (meme.deletedAt > 0) {
+					if (Database::get().deleteMeme(id)) {
+						data.succeeded++;
+					} else {
+						data.failed++;
+					}
+				} else {
+					data.failed++;
+				}
+			} catch (...) { data.failed++; }
+		}
+		res.status = 200;
+		res.body   = makeSuccessResponse(data);
+	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
+		res.status = 400;
+		res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid request");
+	}
+}
+
 void handleDeleteMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto    pos = req.path.find_last_of('/');
@@ -703,10 +731,10 @@ void handlePatchConfig(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto patch = nlohmann::json::parse(req.body).get<RuntimeConfigPatch>();
 		if (g_server) {
-			ServerConfig config  = g_server->getConfig();
-			bool         changed = false;
-			bool         visionChanged = false;
-			bool         embeddingChanged = false;
+			ServerConfig config                     = g_server->getConfig();
+			bool         changed                    = false;
+			bool         visionChanged              = false;
+			bool         embeddingChanged           = false;
 			bool         embeddingDimensionsChanged = false;
 
 			if (patch.logMinLevel) { Logger::get().setMinLevel(logLevelFromString(*patch.logMinLevel)); }

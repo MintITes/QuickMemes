@@ -140,6 +140,8 @@
             "move_to_trash": "Move to trash",
             "restore": "Restore",
             "restore_success": "Restored",
+            "delete_permanently": "Delete permanently",
+            "delete_permanently_success": "Permanently deleted",
             "trash_undo": "Undo",
             "trash_success": "Moved to trash",
             "export_title": "Select Export Directory",

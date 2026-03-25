@@ -9,7 +9,7 @@ import { useNotificationStore } from '../../stores/NotificationStore';
 import clsx from 'clsx';
 import { Portal } from '../common/Portal';
 import { resolveContextMenuPosition } from './contextMenuPosition';
-import { moveMemeToTrash, restoreMemeFromTrash, moveMemesToTrash, restoreMemesFromTrash, exportMemes, moveMemesToCategory, updateMeme as updateMemeService } from '../../services/memeService';
+import { moveMemeToTrash, restoreMemeFromTrash, moveMemesToTrash, restoreMemesFromTrash, permanentlyDeleteMemes, exportMemes, moveMemesToCategory, updateMeme as updateMemeService } from '../../services/memeService';
 
 // ContextMenuItem
 interface ContextMenuItemProps {
@@ -310,6 +310,24 @@ export function ContextMenu() {
                     });
                 }
                 break;
+            case 6: // Delete permanently (trash view only)
+                if (!isTrashView) break;
+                try {
+                    await permanentlyDeleteMemes(idsToProcess);
+                    removeMemes(idsToProcess);
+                    addNotification({
+                        type: 'success',
+                        title: t('gallery.context_menu.delete_permanently_success'),
+                        description: isMultiSelect ? t('gallery.context_menu.n_items', { count: selectedMemeIds.length }) : targetMeme.name,
+                    });
+                } catch (error) {
+                    addNotification({
+                        type: 'error',
+                        title: t('gallery.context_menu.delete_permanently'),
+                        description: error instanceof Error ? error.message : String(error),
+                    });
+                }
+                break;
         }
 
         if (index !== 4) closeMenu();
@@ -366,7 +384,7 @@ export function ContextMenu() {
         if (!menuInfo) return;
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            const menuLength = 6; // Number of items in main menu
+            const menuLength = isTrashView ? 7 : 6; // Number of items in main menu
             const subMenuLength = visibleCategories.length;
 
             if (isSubMenuOpen) {
@@ -493,6 +511,16 @@ export function ContextMenu() {
                         onMouseEnter={() => handleMouseEnterMenuItem(5, false)}
                         onClick={() => executeAction(5)}
                     />
+                    {isTrashView && (
+                        <ContextMenuItem
+                            icon={<Trash2 size={16} />}
+                            label={t('gallery.context_menu.delete_permanently')}
+                            danger
+                            isActive={focusedIndex === 6}
+                            onMouseEnter={() => handleMouseEnterMenuItem(6, false)}
+                            onClick={() => executeAction(6)}
+                        />
+                    )}
                 </div>
 
             </motion.div>

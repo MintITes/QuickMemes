@@ -95,6 +95,11 @@ export async function restoreMemesFromTrash(ids: number[]) {
     return Promise.all(ids.map(id => restoreMemeFromTrash(id)));
 }
 
+export async function permanentlyDeleteMemes(ids: number[]) {
+    return sendHttpRequest<{ succeeded: number; failed: number }>('DELETE', '/api/memes/trash/batch', { ids });
+}
+
+
 export async function getMeme(id: number) {
     return sendHttpRequest<Meme>('GET', `/api/meme/${id}`);
 }

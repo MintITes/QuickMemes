@@ -27,6 +27,7 @@ Router::Router()
 	impl->exactRoutes["GET /api/tags"]                      = handleGetTags;
 	impl->exactRoutes["POST /api/export"]                   = handlePostExport;
 	impl->exactRoutes["DELETE /api/memes/trash/purge"]      = handleDeleteTrashPurge;
+	impl->exactRoutes["DELETE /api/memes/trash/batch"]      = handleDeleteTrashBatch;
 	impl->exactRoutes["DELETE /api/memes/batch"]            = handleDeleteMemesBatch;
 	impl->exactRoutes["POST /api/memes/batch/tags"]         = handlePostMemesBatchTags;
 	impl->exactRoutes["GET /api/memes/trash"]               = handleGetMemesTrash;

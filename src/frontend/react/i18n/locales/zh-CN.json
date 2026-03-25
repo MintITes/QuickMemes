@@ -140,6 +140,8 @@
             "move_to_trash": "移入回收站",
             "restore": "恢复",
             "restore_success": "已恢复",
+            "delete_permanently": "彻底删除",
+            "delete_permanently_success": "已彻底删除",
             "trash_undo": "撤销",
             "trash_success": "已移入回收站",
             "export_title": "选择导出目录",
