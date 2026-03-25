@@ -47,13 +47,17 @@ export function Lightbox() {
 
         let cancelled = false;
         // Fetch full res image for lightbox
-        void getFileUrl(meme.id).then((nextUrl: string | null) => {
-            if (!cancelled) setSrc(nextUrl);
-        });
+        void getFileUrl(meme.id)
+            .then((nextUrl: string | null) => {
+                if (!cancelled) setSrc(nextUrl);
+            })
+            .catch(() => {
+                if (!cancelled) setSrc(null);
+            });
 
         return () => {
             cancelled = true;
-            if (meme) revokeAssetUrl(meme.id.toString());
+            if (meme) revokeAssetUrl(`file:${meme.id}`);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [meme?.id]);
