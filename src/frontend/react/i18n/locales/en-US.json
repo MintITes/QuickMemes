@@ -18,7 +18,9 @@
         "confirm": "Confirm",
         "cancel": "Cancel",
         "save_failed": "Save Failed",
-        "copy_failed": "Copy Failed"
+        "copy_failed": "Copy Failed",
+        "export_failed": "Export Failed",
+        "not_implemented": "Function not implemented yet"
     },
     "layouts": {
         "full": "Expanded-Full",

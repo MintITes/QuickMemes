@@ -1,7 +1,7 @@
 {
     "common": {
         "all_memes": "存储库",
-        "categories": "",
+        "categories": "分类",
         "search_placeholder": "搜索 Meme...",
         "add": "添加",
         "settings": "设置",
@@ -18,7 +18,9 @@
         "confirm": "确定",
         "cancel": "取消",
         "save_failed": "保存失败",
-        "copy_failed": "复制失败"
+        "copy_failed": "复制失败",
+        "export_failed": "导出失败",
+        "not_implemented": "该功能尚未实现"
     },
     "layouts": {
         "full": "左展+右展",
