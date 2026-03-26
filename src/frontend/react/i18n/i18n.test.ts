@@ -2,23 +2,36 @@ import { describe, it, expect } from 'vitest';
 import zhCN from './locales/zh-CN.json';
 import enUS from './locales/en-US.json';
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
 // Helper to get all nested keys from an object as dot-separated strings
-const getKeys = (obj: any, prefix = ''): string[] => {
+const getKeys = (obj: unknown, prefix = ''): string[] => {
+    if (!isRecord(obj)) {
+        return [];
+    }
+
     return Object.keys(obj).reduce((res: string[], el: string) => {
-        if (typeof obj[el] === 'object' && obj[el] !== null) {
-            return [...res, ...getKeys(obj[el], prefix + el + '.')];
+        const value = obj[el];
+        if (isRecord(value)) {
+            return [...res, ...getKeys(value, `${prefix}${el}.`)];
         }
         return [...res, prefix + el];
     }, []);
 };
 
 // Helper to find empty string values
-const getEmptyValues = (obj: any, prefix = ''): string[] => {
+const getEmptyValues = (obj: unknown, prefix = ''): string[] => {
+    if (!isRecord(obj)) {
+        return [];
+    }
+
     return Object.keys(obj).reduce((res: string[], el: string) => {
-        if (typeof obj[el] === 'object' && obj[el] !== null) {
-            return [...res, ...getEmptyValues(obj[el], prefix + el + '.')];
+        const value = obj[el];
+        if (isRecord(value)) {
+            return [...res, ...getEmptyValues(value, `${prefix}${el}.`)];
         }
-        if (obj[el] === '') {
+        if (value === '') {
             return [...res, prefix + el];
         }
         return res;
