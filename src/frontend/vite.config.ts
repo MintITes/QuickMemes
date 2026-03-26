@@ -8,7 +8,12 @@ function manualChunks(id: string) {
   }
 
   // Keep the most commonly reused framework/runtime pieces in stable chunks.
-  if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+  if (
+    id.includes('/react/') ||
+    id.includes('/react-dom/') ||
+    id.includes('/scheduler/') ||
+    id.includes('/zustand/')
+  ) {
     return 'react-vendor'
   }
 
@@ -43,10 +48,6 @@ function manualChunks(id: string) {
     id.includes('/class-variance-authority/')
   ) {
     return 'ui-utils'
-  }
-
-  if (id.includes('/zustand/')) {
-    return 'state'
   }
 
   return 'vendor'
