@@ -18,4 +18,17 @@ describe('TagStore', () => {
         useTagStore.getState().removeTag(1);
         expect(useTagStore.getState().tags).toHaveLength(0);
     });
+
+    it('should upsert tags by id when the same tag is added twice', () => {
+        useTagStore.getState().addTag({ id: 1, name: 'funny', color: '#fff', createdAt: 0 });
+        useTagStore.getState().addTag({ id: 1, name: 'funny', color: '#000', createdAt: 1 });
+
+        expect(useTagStore.getState().tags).toHaveLength(1);
+        expect(useTagStore.getState().tags[0]).toEqual({
+            id: 1,
+            name: 'funny',
+            color: '#000',
+            createdAt: 1,
+        });
+    });
 });

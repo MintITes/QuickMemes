@@ -17,7 +17,11 @@ export const useTagStore = create<TagState>((set) => ({
     isLoading: false,
 
     setTags: (tags) => set({ tags }),
-    addTag: (tag) => set((state) => ({ tags: [...state.tags, tag] })),
+    addTag: (tag) => set((state) => ({
+        tags: state.tags.some((entry) => entry.id === tag.id)
+            ? state.tags.map((entry) => entry.id === tag.id ? tag : entry)
+            : [...state.tags, tag],
+    })),
     updateTag: (id, updates) => set((state) => ({
         tags: state.tags.map(t => t.id === id ? { ...t, ...updates } : t)
     })),
