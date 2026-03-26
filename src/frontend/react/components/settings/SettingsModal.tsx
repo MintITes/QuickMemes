@@ -285,12 +285,12 @@ export function SettingsModal() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5">
+                            <div className="flex items-center justify-between p-3 rounded-xl border border-borderColor bg-white/5 opacity-50">
                                 <div>
                                     <div className="font-medium text-sm">{t('settings.general.auto_start.label')}</div>
                                     <div className="text-xs opacity-60">{t('settings.general.auto_start.desc')}</div>
                                 </div>
-                                <Switch checked={false} onChange={() => { }} aria-label="Toggle auto start" />
+                                <Switch checked={false} onChange={() => { }} disabled aria-label="Toggle auto start" />
                             </div>
                         </div>
                     </div>
