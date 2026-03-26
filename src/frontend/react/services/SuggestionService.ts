@@ -79,6 +79,19 @@ export class SuggestionService {
             }
         });
 
+        // Add browsing-based categories
+        browsingCats.forEach((score, catId) => {
+            const cat = categories.find(c => c.id === catId);
+            if (cat && (!normalizedKeyword || cat.name.toLowerCase().includes(normalizedKeyword))) {
+                candidates.push({
+                    id: `brows-cat-${cat.id}`,
+                    text: cat.name,
+                    type: 'browsing',
+                    score: score * this.WEIGHTS.BROWSING
+                });
+            }
+        });
+
         // 3. Process Popular Metadata (Tags/Categories with most items)
         const tagCounts = new Map<number, number>();
         const catCounts = new Map<number, number>();
