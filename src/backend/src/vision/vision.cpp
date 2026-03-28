@@ -39,18 +39,20 @@ static const char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrs
 
 static std::string base64Encode(const unsigned char *data, size_t len) {
 	std::string result;
-	result.reserve(((len + 2) / 3) * 4);
+	result.resize_and_overwrite(((len + 2) / 3) * 4, [&](char *buf, size_t /* n */) {
+		size_t outIdx = 0;
+		for (size_t i = 0; i < len; i += 3) {
+			unsigned int triple = (data[i] << 16);
+			if (i + 1 < len) triple |= (data[i + 1] << 8);
+			if (i + 2 < len) triple |= data[i + 2];
 
-	for (size_t i = 0; i < len; i += 3) {
-		unsigned int triple = (data[i] << 16);
-		if (i + 1 < len) triple |= (data[i + 1] << 8);
-		if (i + 2 < len) triple |= data[i + 2];
-
-		result += base64Chars[(triple >> 18) & 0x3F];
-		result += base64Chars[(triple >> 12) & 0x3F];
-		result += (i + 1 < len) ? base64Chars[(triple >> 6) & 0x3F] : '=';
-		result += (i + 2 < len) ? base64Chars[triple & 0x3F] : '=';
-	}
+			buf[outIdx++] = base64Chars[(triple >> 18) & 0x3F];
+			buf[outIdx++] = base64Chars[(triple >> 12) & 0x3F];
+			buf[outIdx++] = (i + 1 < len) ? base64Chars[(triple >> 6) & 0x3F] : '=';
+			buf[outIdx++] = (i + 2 < len) ? base64Chars[triple & 0x3F] : '=';
+		}
+		return outIdx;
+	});
 	return result;
 }
 
@@ -793,12 +795,12 @@ std::string VisionModule::encodeImageToBase64(const std::string &imagePath) cons
 			int nextH = std::max(1, static_cast<int>(newH * 0.85f));
 			if (nextW == newW && nextH == newH) { break; }
 
-			resizedData.clear();
-			resizedData.resize(nextW * nextH * 4);
-			if (!stbir_resize_uint8_linear(processData, newW, newH, 0, resizedData.data(), nextW, nextH, 0, STBIR_RGBA)) {
+			std::vector<unsigned char> nextResizedData(nextW * nextH * 4);
+			if (!stbir_resize_uint8_linear(processData, newW, newH, 0, nextResizedData.data(), nextW, nextH, 0, STBIR_RGBA)) {
 				LOG_ERROR("vision", "Failed to downscale image during OCR compression: " + imagePath);
 				return "";
 			}
+			resizedData = std::move(nextResizedData);
 			processData = resizedData.data();
 			newW        = nextW;
 			newH        = nextH;
