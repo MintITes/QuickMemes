@@ -350,9 +350,9 @@ VisionModule::RuntimeState VisionModule::buildState(const VisionConfig &config,
 		}
 	}
 
-	nextState.isOcrAvailable = (!nextState.config.ocrApiKey.empty() && !nextState.config.ocrApiUrl.empty() &&
+	nextState.isOcrAvailable = (!nextState.config.ocrApiUrl.empty() &&
 	                            (isPaddleOcrProvider(nextState.config.ocrProvider) ||
-	                             isOcrSpaceProvider(nextState.config.ocrProvider)));
+	                             (isOcrSpaceProvider(nextState.config.ocrProvider) && !nextState.config.ocrApiKey.empty())));
 	if (!nextState.config.ocrProvider.empty() && !isPaddleOcrProvider(nextState.config.ocrProvider) &&
 	    !isOcrSpaceProvider(nextState.config.ocrProvider)) {
 		LOG_WARN("vision",
@@ -362,10 +362,6 @@ VisionModule::RuntimeState VisionModule::buildState(const VisionConfig &config,
 		    !nextState.config.ocrProvider.empty()) {
 			throw std::invalid_argument("Unsupported OCR provider: " + nextState.config.ocrProvider);
 		}
-	}
-
-	if (!allowUnavailable && !nextState.isAiAvailable && !nextState.isOcrAvailable) {
-		throw std::invalid_argument("Vision configuration is unavailable after validation");
 	}
 
 	return nextState;
