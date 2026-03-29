@@ -108,6 +108,26 @@ ParsedUrl parseUrl(std::string_view url) {
 
 constexpr std::uint64_t kMaxResponseBodyBytes = 10 * 1024 * 1024;
 
+bool readSkipSslVerifyFromEnv() {
+	const char *noVerify = std::getenv("QM_SSL_NOVERIFY");
+	return noVerify != nullptr && std::string_view(noVerify) == "1";
+}
+
+bool getDefaultSkipSslVerify() {
+	static const bool skipSslVerify = readSkipSslVerifyFromEnv();
+	return skipSslVerify;
+}
+
+void configureSslContext(ssl::context &ctx, bool skipSslVerify) {
+	if (skipSslVerify) {
+		ctx.set_verify_mode(ssl::verify_none);
+		return;
+	}
+
+	ctx.set_default_verify_paths();
+	ctx.set_verify_mode(ssl::verify_peer);
+}
+
 template <typename Body>
 std::string readHttpResponseBody(Body &&stream, const std::string &methodTag) {
 	beast::flat_buffer buffer;
@@ -126,6 +146,8 @@ std::string readHttpResponseBody(Body &&stream, const std::string &methodTag) {
 }
 
 } // namespace
+
+HttpClient::HttpClient() : skipSslVerify_(getDefaultSkipSslVerify()) {}
 
 std::string
 HttpClient::post(const std::string &url, const std::string &headers, const std::string &body, int timeoutSeconds) {
@@ -182,21 +204,16 @@ HttpClient::post(const std::string &url, const std::string &headers, const std::
 		if (protocol == "https") {
 			// TLS
 			ssl::context ctx(ssl::context::tlsv12_client);
-			// 默认启用证书验证；开发环境可通过 QM_SSL_NOVERIFY=1 跳过
-			const char  *noVerify = std::getenv("QM_SSL_NOVERIFY");
-			if (noVerify && std::string(noVerify) == "1") {
-				ctx.set_verify_mode(ssl::verify_none);
-			} else {
-				ctx.set_default_verify_paths();
-				ctx.set_verify_mode(ssl::verify_peer);
-			}
+			configureSslContext(ctx, skipSslVerify_);
 
 			beast::ssl_stream<beast::tcp_stream> stream(ioc, ctx);
 			if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str())) {
 				beast::error_code ec{static_cast<int>(::ERR_get_error()), net::error::get_ssl_category()};
 				throw beast::system_error{ec};
 			}
-			stream.set_verify_callback(ssl::host_name_verification(host));
+			if (!skipSslVerify_) {
+				stream.set_verify_callback(ssl::host_name_verification(host));
+			}
 
 			beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(timeoutSeconds));
 			beast::get_lowest_layer(stream).connect(results);
@@ -273,20 +290,16 @@ std::string HttpClient::get(const std::string &url, const std::string &headers, 
 
 		if (protocol == "https") {
 			ssl::context ctx(ssl::context::tlsv12_client);
-			const char  *noVerify = std::getenv("QM_SSL_NOVERIFY");
-			if (noVerify && std::string(noVerify) == "1") {
-				ctx.set_verify_mode(ssl::verify_none);
-			} else {
-				ctx.set_default_verify_paths();
-				ctx.set_verify_mode(ssl::verify_peer);
-			}
+			configureSslContext(ctx, skipSslVerify_);
 
 			beast::ssl_stream<beast::tcp_stream> stream(ioc, ctx);
 			if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str())) {
 				beast::error_code ec{static_cast<int>(::ERR_get_error()), net::error::get_ssl_category()};
 				throw beast::system_error{ec};
 			}
-			stream.set_verify_callback(ssl::host_name_verification(host));
+			if (!skipSslVerify_) {
+				stream.set_verify_callback(ssl::host_name_verification(host));
+			}
 
 			beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(timeoutSeconds));
 			beast::get_lowest_layer(stream).connect(results);

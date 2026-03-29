@@ -46,7 +46,7 @@ public:
  */
 class HttpClient : public HttpClientInterface {
 public:
-	HttpClient()           = default;
+	HttpClient();
 	~HttpClient() override = default;
 
 	/**
@@ -62,6 +62,9 @@ public:
 	post(const std::string &url, const std::string &headers, const std::string &body, int timeoutSeconds) override;
 
 	std::string get(const std::string &url, const std::string &headers, int timeoutSeconds) override;
+
+private:
+	bool skipSslVerify_ = false;
 };
 
 } // namespace quickmemes
