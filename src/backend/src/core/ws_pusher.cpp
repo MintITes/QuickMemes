@@ -46,9 +46,10 @@ WsPusher &WsPusher::get() {
 void WsPusher::broadcast(const WsEvent &event) {
 	auto impl = static_cast<WsPusherImpl *>(impl_);
 
-	nlohmann::json payload;
-	payload["event"] = event.event;
-	payload["data"]  = event.payload;
+	nlohmann::json payload = {
+		{"event", event.event},
+		{"data",  event.payload}
+	};
 
 	auto msg = std::make_shared<std::string>(payload.dump());
 
