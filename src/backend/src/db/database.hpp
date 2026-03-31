@@ -388,33 +388,12 @@ private:
 	 */
 	SearchSql buildSearchSql(const SearchQuery &query);
 
-	int       getVecTableDimension(const std::string &tableName) const;
-	void      ensureEmbeddingTableSchema();
-	void      prepareStatements();
+	int  getVecTableDimension(const std::string &tableName) const;
+	void ensureEmbeddingTableSchema();
 
-	std::unique_ptr<SQLite::Database>  db_; ///< SQLiteCpp 数据库实例
-	std::string                        dbPath_;               ///< 数据库文件路径
-	int                                embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
-
-	// ── Pre-compiled Statements ──
-	std::unique_ptr<SQLite::Statement> insertMemeStmt_;
-	std::unique_ptr<SQLite::Statement> getMemeStmt_;
-	std::unique_ptr<SQLite::Statement> getMemeTagIdsStmt_;
-	std::unique_ptr<SQLite::Statement> updateMemeLastUsedStmt_;
-	std::unique_ptr<SQLite::Statement> softDeleteMemeStmt_;
-	std::unique_ptr<SQLite::Statement> restoreMemeStmt_;
-	std::unique_ptr<SQLite::Statement> getMemeTagsStmt_;
-	std::unique_ptr<SQLite::Statement> addMemeTagStmt_;
-	std::unique_ptr<SQLite::Statement> removeMemeTagStmt_;
-	std::unique_ptr<SQLite::Statement> updateMemeCategoryStmt_;
-	std::unique_ptr<SQLite::Statement> upsertDescriptionEmbeddingStmt_;
-	std::unique_ptr<SQLite::Statement> upsertOcrEmbeddingStmt_;
-	std::unique_ptr<SQLite::Statement> updateMemeProcessingStmt_;
-	std::unique_ptr<SQLite::Statement> deleteMemeStmt_;
-	std::unique_ptr<SQLite::Statement> deleteDescStmt_;
-	std::unique_ptr<SQLite::Statement> deleteOcrStmt_;
-	std::unique_ptr<SQLite::Statement> deleteMemeFromTrashStmt_;
-	std::unique_ptr<SQLite::Statement> vectorSearchStmt_;
+	std::unique_ptr<SQLite::Database> db_;                  ///< SQLiteCpp 数据库实例
+	std::string                       dbPath_;               ///< 数据库文件路径
+	int embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
 };
 
 } // namespace quickmemes

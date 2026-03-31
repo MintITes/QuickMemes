@@ -318,7 +318,6 @@ bool Database::initialize(const std::string &dbPath, int embeddingDimensions) {
 
 		runMigrations();
 		ensureEmbeddingTableSchema();
-		prepareStatements();
 
 		LOG_INFO("persist", "Database initialized successfully.");
 		return true;
@@ -339,137 +338,43 @@ void Database::shutdown() {
 			// 忽略关闭时的异常
 		}
 
-		// Reset all pre-compiled statements before resetting db_
-		insertMemeStmt_.reset();
-		getMemeStmt_.reset();
-		getMemeTagIdsStmt_.reset();
-		updateMemeLastUsedStmt_.reset();
-		softDeleteMemeStmt_.reset();
-		restoreMemeStmt_.reset();
-		getMemeTagsStmt_.reset();
-		addMemeTagStmt_.reset();
-		removeMemeTagStmt_.reset();
-		updateMemeCategoryStmt_.reset();
-		upsertDescriptionEmbeddingStmt_.reset();
-		upsertOcrEmbeddingStmt_.reset();
-		updateMemeProcessingStmt_.reset();
-		deleteMemeStmt_.reset();
-		deleteDescStmt_.reset();
-		deleteOcrStmt_.reset();
-		deleteMemeFromTrashStmt_.reset();
-		vectorSearchStmt_.reset();
-
 		db_.reset();
 		LOG_INFO("persist", "Database connection closed.");
 	}
 }
 
-void Database::prepareStatements() {
-	if (!db_) return;
-
-	insertMemeStmt_ = std::make_unique<SQLite::Statement>(*db_, R"(
-        INSERT INTO memes (
-            file_hash, file_path, mime_type, file_size, width, height,
-            source_name, source_url, name, description, ocr_text,
-            ocr_status, ai_status, created_at, updated_at, last_used_at, deleted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    )");
-
-	getMemeStmt_ = std::make_unique<SQLite::Statement>(*db_, R"(
-        SELECT id, file_hash, file_path, mime_type, file_size, width, height,
-               source_name, source_url, name, description, ocr_text,
-               ocr_status, ai_status, created_at, updated_at, last_used_at, deleted_at,
-               category_id
-        FROM memes
-        WHERE id = ?
-    )");
-
-	getMemeTagIdsStmt_ = std::make_unique<SQLite::Statement>(*db_, "SELECT tag_id FROM meme_tags WHERE meme_id = ?");
-
-	updateMemeLastUsedStmt_ = std::make_unique<SQLite::Statement>(*db_, "UPDATE memes SET last_used_at = ? WHERE id = ?");
-
-	softDeleteMemeStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "UPDATE memes SET deleted_at = ? WHERE id = ? AND deleted_at = 0");
-
-	restoreMemeStmt_ = std::make_unique<SQLite::Statement>(*db_, "UPDATE memes SET deleted_at = 0 WHERE id = ?");
-
-	getMemeTagsStmt_ = std::make_unique<SQLite::Statement>(*db_, R"(
-        SELECT t.id, t.name, t.color, t.created_at
-        FROM tags t
-        JOIN meme_tags mt ON t.id = mt.tag_id
-        WHERE mt.meme_id = ?
-    )");
-
-	addMemeTagStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "INSERT OR IGNORE INTO meme_tags (meme_id, tag_id) VALUES (?, ?)");
-
-	removeMemeTagStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "DELETE FROM meme_tags WHERE meme_id = ? AND tag_id = ?");
-
-	updateMemeCategoryStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "UPDATE memes SET category_id = ?, updated_at = ? WHERE id = ?");
-
-	upsertDescriptionEmbeddingStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "INSERT OR REPLACE INTO vec_meme_desc (meme_id, embedding) VALUES (?, ?)");
-
-	upsertOcrEmbeddingStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "INSERT OR REPLACE INTO vec_meme_ocr (meme_id, embedding) VALUES (?, ?)");
-
-	updateMemeProcessingStmt_ = std::make_unique<SQLite::Statement>(
-	    *db_,
-	    "UPDATE memes SET updated_at = ?, ocr_status = ?, ai_status = ?, ocr_text = ?, description = ? WHERE id = ?");
-
-	deleteMemeStmt_ = std::make_unique<SQLite::Statement>(*db_, "DELETE FROM memes WHERE id = ?");
-
-	deleteDescStmt_ = std::make_unique<SQLite::Statement>(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
-
-	deleteOcrStmt_ = std::make_unique<SQLite::Statement>(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
-
-	deleteMemeFromTrashStmt_ =
-	    std::make_unique<SQLite::Statement>(*db_, "DELETE FROM memes WHERE id = ? AND deleted_at > 0");
-
-	vectorSearchStmt_ = std::make_unique<SQLite::Statement>(*db_, R"(
-        SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
-               m.source_name, m.source_url, m.name, m.description, m.ocr_text,
-               m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
-               m.category_id,
-               (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
-                FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json
-        FROM vec_meme_desc v
-        JOIN memes m ON v.meme_id = m.id
-        WHERE v.embedding MATCH ?
-          AND v.k = ?
-          AND m.deleted_at = 0
-        ORDER BY v.distance
-    )");
-}
 
 int64_t Database::insertMeme(const MemeEntry &meme) {
 	try {
 		SQLite::Transaction txn(*db_);
 
-		insertMemeStmt_->clearBindings();
-		insertMemeStmt_->bind(1, meme.fileHash);
-		insertMemeStmt_->bind(2, meme.filePath);
-		insertMemeStmt_->bind(3, meme.mimeType);
-		insertMemeStmt_->bind(4, static_cast<int64_t>(meme.fileSize));
-		insertMemeStmt_->bind(5, meme.width);
-		insertMemeStmt_->bind(6, meme.height);
-		insertMemeStmt_->bind(7, meme.sourceName);
-		insertMemeStmt_->bind(8, meme.sourceUrl);
-		insertMemeStmt_->bind(9, meme.name);
-		insertMemeStmt_->bind(10, meme.description);
-		insertMemeStmt_->bind(11, meme.ocrText);
-		insertMemeStmt_->bind(12, static_cast<int>(meme.ocrStatus));
-		insertMemeStmt_->bind(13, static_cast<int>(meme.aiStatus));
-		insertMemeStmt_->bind(14, static_cast<int64_t>(meme.createdAt));
-		insertMemeStmt_->bind(15, static_cast<int64_t>(meme.updatedAt));
-		insertMemeStmt_->bind(16, static_cast<int64_t>(meme.lastUsedAt));
-		insertMemeStmt_->bind(17, static_cast<int64_t>(meme.deletedAt));
+		SQLite::Statement stmt(*db_, R"(
+            INSERT INTO memes (
+                file_hash, file_path, mime_type, file_size, width, height,
+                source_name, source_url, name, description, ocr_text,
+                ocr_status, ai_status, created_at, updated_at, last_used_at, deleted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        )");
+		stmt.bind(1, meme.fileHash);
+		stmt.bind(2, meme.filePath);
+		stmt.bind(3, meme.mimeType);
+		stmt.bind(4, static_cast<int64_t>(meme.fileSize));
+		stmt.bind(5, meme.width);
+		stmt.bind(6, meme.height);
+		stmt.bind(7, meme.sourceName);
+		stmt.bind(8, meme.sourceUrl);
+		stmt.bind(9, meme.name);
+		stmt.bind(10, meme.description);
+		stmt.bind(11, meme.ocrText);
+		stmt.bind(12, static_cast<int>(meme.ocrStatus));
+		stmt.bind(13, static_cast<int>(meme.aiStatus));
+		stmt.bind(14, static_cast<int64_t>(meme.createdAt));
+		stmt.bind(15, static_cast<int64_t>(meme.updatedAt));
+		stmt.bind(16, static_cast<int64_t>(meme.lastUsedAt));
+		stmt.bind(17, static_cast<int64_t>(meme.deletedAt));
 
-		insertMemeStmt_->exec();
+		stmt.exec();
 		int64_t lastInsertId = db_->getLastInsertRowid();
-		insertMemeStmt_->reset();
 
 		txn.commit();
 		return lastInsertId;
@@ -488,44 +393,49 @@ int64_t Database::insertMeme(const MemeEntry &meme) {
 
 MemeEntry Database::getMeme(int64_t id) {
 	try {
-		getMemeStmt_->bind(1, id);
+		SQLite::Statement memeStmt(*db_, R"(
+            SELECT id, file_hash, file_path, mime_type, file_size, width, height,
+                   source_name, source_url, name, description, ocr_text,
+                   ocr_status, ai_status, created_at, updated_at, last_used_at, deleted_at,
+                   category_id
+            FROM memes
+            WHERE id = ?
+        )");
+		memeStmt.bind(1, id);
 
-		if (!getMemeStmt_->executeStep()) {
-			getMemeStmt_->reset();
+		if (!memeStmt.executeStep()) {
 			throw ApiException(ERR_NOT_FOUND, "Meme ID " + std::to_string(id) + " not found.");
 		}
 
 		MemeEntry meme;
-		meme.id       = getMemeStmt_->getColumn(0).getInt64();
-		meme.fileHash = getMemeStmt_->getColumn(1).getString();
-		meme.filePath = getMemeStmt_->getColumn(2).getString();
-		meme.mimeType = getMemeStmt_->getColumn(3).getString();
-		meme.fileSize = getMemeStmt_->getColumn(4).getInt64();
-		meme.width    = getMemeStmt_->getColumn(5).getInt();
-		meme.height   = getMemeStmt_->getColumn(6).getInt();
+		meme.id       = memeStmt.getColumn(0).getInt64();
+		meme.fileHash = memeStmt.getColumn(1).getString();
+		meme.filePath = memeStmt.getColumn(2).getString();
+		meme.mimeType = memeStmt.getColumn(3).getString();
+		meme.fileSize = memeStmt.getColumn(4).getInt64();
+		meme.width    = memeStmt.getColumn(5).getInt();
+		meme.height   = memeStmt.getColumn(6).getInt();
 
-		if (!getMemeStmt_->getColumn(7).isNull()) meme.sourceName = getMemeStmt_->getColumn(7).getString();
-		if (!getMemeStmt_->getColumn(8).isNull()) meme.sourceUrl = getMemeStmt_->getColumn(8).getString();
-		if (!getMemeStmt_->getColumn(9).isNull()) meme.name = getMemeStmt_->getColumn(9).getString();
-		if (!getMemeStmt_->getColumn(10).isNull()) meme.description = getMemeStmt_->getColumn(10).getString();
-		if (!getMemeStmt_->getColumn(11).isNull()) meme.ocrText = getMemeStmt_->getColumn(11).getString();
+		if (!memeStmt.getColumn(7).isNull()) meme.sourceName = memeStmt.getColumn(7).getString();
+		if (!memeStmt.getColumn(8).isNull()) meme.sourceUrl = memeStmt.getColumn(8).getString();
+		if (!memeStmt.getColumn(9).isNull()) meme.name = memeStmt.getColumn(9).getString();
+		if (!memeStmt.getColumn(10).isNull()) meme.description = memeStmt.getColumn(10).getString();
+		if (!memeStmt.getColumn(11).isNull()) meme.ocrText = memeStmt.getColumn(11).getString();
 
-		meme.ocrStatus  = static_cast<ProcessingStatus>(getMemeStmt_->getColumn(12).getInt());
-		meme.aiStatus   = static_cast<ProcessingStatus>(getMemeStmt_->getColumn(13).getInt());
-		meme.createdAt  = getMemeStmt_->getColumn(14).getInt64();
-		meme.updatedAt  = getMemeStmt_->getColumn(15).getInt64();
-		meme.lastUsedAt = getMemeStmt_->getColumn(16).getInt64();
-		meme.deletedAt  = getMemeStmt_->getColumn(17).getInt64();
-		meme.categoryId = getMemeStmt_->getColumn(18).getInt64();
-
-		getMemeStmt_->reset();
+		meme.ocrStatus  = static_cast<ProcessingStatus>(memeStmt.getColumn(12).getInt());
+		meme.aiStatus   = static_cast<ProcessingStatus>(memeStmt.getColumn(13).getInt());
+		meme.createdAt  = memeStmt.getColumn(14).getInt64();
+		meme.updatedAt  = memeStmt.getColumn(15).getInt64();
+		meme.lastUsedAt = memeStmt.getColumn(16).getInt64();
+		meme.deletedAt  = memeStmt.getColumn(17).getInt64();
+		meme.categoryId = memeStmt.getColumn(18).getInt64();
 
 		// 级联查出 tags
-		getMemeTagIdsStmt_->bind(1, id);
-		while (getMemeTagIdsStmt_->executeStep()) {
-			meme.tagIds.push_back(getMemeTagIdsStmt_->getColumn(0).getInt64());
+		SQLite::Statement tagStmt(*db_, "SELECT tag_id FROM meme_tags WHERE meme_id = ?");
+		tagStmt.bind(1, id);
+		while (tagStmt.executeStep()) {
+			meme.tagIds.push_back(tagStmt.getColumn(0).getInt64());
 		}
-		getMemeTagIdsStmt_->reset();
 
 		return meme;
 
@@ -624,37 +534,51 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
 		std::vector<MemeEntry> results;
 		int                    searchLimit = limit * 3;
 
-		vectorSearchStmt_->bind(1, embedding.data(), embedding.size() * sizeof(float));
-		vectorSearchStmt_->bind(2, searchLimit);
+		SQLite::Statement stmt(*db_, R"(
+            SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
+                   m.source_name, m.source_url, m.name, m.description, m.ocr_text,
+                   m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
+                   m.category_id,
+                   (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
+                    FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json
+            FROM vec_meme_desc v
+            JOIN memes m ON v.meme_id = m.id
+            WHERE v.embedding MATCH ?
+              AND v.k = ?
+              AND m.deleted_at = 0
+            ORDER BY v.distance
+        )");
+		stmt.bind(1, embedding.data(), embedding.size() * sizeof(float));
+		stmt.bind(2, searchLimit);
 
-		while (vectorSearchStmt_->executeStep()) {
+		while (stmt.executeStep()) {
 			if (results.size() >= static_cast<size_t>(limit)) { break; }
 
 			MemeEntry meme;
-			meme.id       = vectorSearchStmt_->getColumn(0).getInt64();
-			meme.fileHash = vectorSearchStmt_->getColumn(1).getString();
-			meme.filePath = vectorSearchStmt_->getColumn(2).getString();
-			meme.mimeType = vectorSearchStmt_->getColumn(3).getString();
-			meme.fileSize = vectorSearchStmt_->getColumn(4).getInt64();
-			meme.width    = vectorSearchStmt_->getColumn(5).getInt();
-			meme.height   = vectorSearchStmt_->getColumn(6).getInt();
+			meme.id       = stmt.getColumn(0).getInt64();
+			meme.fileHash = stmt.getColumn(1).getString();
+			meme.filePath = stmt.getColumn(2).getString();
+			meme.mimeType = stmt.getColumn(3).getString();
+			meme.fileSize = stmt.getColumn(4).getInt64();
+			meme.width    = stmt.getColumn(5).getInt();
+			meme.height   = stmt.getColumn(6).getInt();
 
-			if (!vectorSearchStmt_->getColumn(7).isNull()) meme.sourceName = vectorSearchStmt_->getColumn(7).getString();
-			if (!vectorSearchStmt_->getColumn(8).isNull()) meme.sourceUrl = vectorSearchStmt_->getColumn(8).getString();
-			if (!vectorSearchStmt_->getColumn(9).isNull()) meme.name = vectorSearchStmt_->getColumn(9).getString();
-			if (!vectorSearchStmt_->getColumn(10).isNull()) meme.description = vectorSearchStmt_->getColumn(10).getString();
-			if (!vectorSearchStmt_->getColumn(11).isNull()) meme.ocrText = vectorSearchStmt_->getColumn(11).getString();
+			if (!stmt.getColumn(7).isNull()) meme.sourceName = stmt.getColumn(7).getString();
+			if (!stmt.getColumn(8).isNull()) meme.sourceUrl = stmt.getColumn(8).getString();
+			if (!stmt.getColumn(9).isNull()) meme.name = stmt.getColumn(9).getString();
+			if (!stmt.getColumn(10).isNull()) meme.description = stmt.getColumn(10).getString();
+			if (!stmt.getColumn(11).isNull()) meme.ocrText = stmt.getColumn(11).getString();
 
-			meme.ocrStatus  = static_cast<ProcessingStatus>(vectorSearchStmt_->getColumn(12).getInt());
-			meme.aiStatus   = static_cast<ProcessingStatus>(vectorSearchStmt_->getColumn(13).getInt());
-			meme.createdAt  = vectorSearchStmt_->getColumn(14).getInt64();
-			meme.updatedAt  = vectorSearchStmt_->getColumn(15).getInt64();
-			meme.lastUsedAt = vectorSearchStmt_->getColumn(16).getInt64();
-			meme.deletedAt  = vectorSearchStmt_->getColumn(17).getInt64();
-			meme.categoryId = vectorSearchStmt_->getColumn(18).getInt64();
+			meme.ocrStatus  = static_cast<ProcessingStatus>(stmt.getColumn(12).getInt());
+			meme.aiStatus   = static_cast<ProcessingStatus>(stmt.getColumn(13).getInt());
+			meme.createdAt  = stmt.getColumn(14).getInt64();
+			meme.updatedAt  = stmt.getColumn(15).getInt64();
+			meme.lastUsedAt = stmt.getColumn(16).getInt64();
+			meme.deletedAt  = stmt.getColumn(17).getInt64();
+			meme.categoryId = stmt.getColumn(18).getInt64();
 
-			if (!vectorSearchStmt_->getColumn(19).isNull()) {
-				std::string tagsJson = vectorSearchStmt_->getColumn(19).getString();
+			if (!stmt.getColumn(19).isNull()) {
+				std::string tagsJson = stmt.getColumn(19).getString();
 				auto        jTags    = nlohmann::json::parse(tagsJson);
 				for (const auto &jt : jTags) {
 					Tag t;
@@ -669,7 +593,6 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
 
 			results.push_back(meme);
 		}
-		vectorSearchStmt_->reset();
 
 		return results;
 	} catch (const SQLite::Exception &e) {
@@ -738,13 +661,13 @@ bool Database::updateMeme(int64_t id, const MemePatch &patch) {
 
 bool Database::updateMemeLastUsed(int64_t id) {
 	try {
-		auto now   = std::chrono::system_clock::now();
-		auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-		updateMemeLastUsedStmt_->bind(1, static_cast<int64_t>(nowMs));
-		updateMemeLastUsedStmt_->bind(2, id);
-		int rows = updateMemeLastUsedStmt_->exec();
-		updateMemeLastUsedStmt_->reset();
-		return rows > 0;
+		auto nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		SQLite::Statement stmt(*db_, "UPDATE memes SET last_used_at = ? WHERE id = ?");
+		stmt.bind(1, static_cast<int64_t>(nowMs));
+		stmt.bind(2, id);
+		return stmt.exec() > 0;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("updateMemeLastUsed failed: ") + e.what());
 		return false;
@@ -753,13 +676,13 @@ bool Database::updateMemeLastUsed(int64_t id) {
 
 bool Database::softDeleteMeme(int64_t id) {
 	try {
-		auto now   = std::chrono::system_clock::now();
-		auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-		softDeleteMemeStmt_->bind(1, static_cast<int64_t>(nowMs));
-		softDeleteMemeStmt_->bind(2, id);
-		int rows = softDeleteMemeStmt_->exec();
-		softDeleteMemeStmt_->reset();
-		return rows > 0;
+		auto nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		SQLite::Statement stmt(*db_, "UPDATE memes SET deleted_at = ? WHERE id = ? AND deleted_at = 0");
+		stmt.bind(1, static_cast<int64_t>(nowMs));
+		stmt.bind(2, id);
+		return stmt.exec() > 0;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("softDeleteMeme failed: ") + e.what());
 		return false;
@@ -824,10 +747,9 @@ int Database::getDeletedMemesCount() {
 
 bool Database::restoreMeme(int64_t id) {
 	try {
-		restoreMemeStmt_->bind(1, id);
-		int rows = restoreMemeStmt_->exec();
-		restoreMemeStmt_->reset();
-		return rows > 0;
+		SQLite::Statement stmt(*db_, "UPDATE memes SET deleted_at = 0 WHERE id = ?");
+		stmt.bind(1, id);
+		return stmt.exec() > 0;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("restoreMeme failed: ") + e.what());
 		return false;
@@ -872,16 +794,16 @@ bool Database::updateMemeProcessing(int64_t            id,
 		auto nowMs =
 		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
 		        .count();
-		updateMemeProcessingStmt_->bind(1, static_cast<int64_t>(nowMs));
-		updateMemeProcessingStmt_->bind(2, static_cast<int>(ocrStatus));
-		updateMemeProcessingStmt_->bind(3, static_cast<int>(aiStatus));
-		updateMemeProcessingStmt_->bind(4, ocrText);
-		updateMemeProcessingStmt_->bind(5, description);
-		updateMemeProcessingStmt_->bind(6, id);
-		int rows = updateMemeProcessingStmt_->exec();
-		updateMemeProcessingStmt_->reset();
-		// Already handled by trigger
-		return rows > 0;
+		SQLite::Statement stmt(*db_,
+		                       "UPDATE memes SET updated_at = ?, ocr_status = ?, ai_status = ?, ocr_text = ?, "
+		                       "description = ? WHERE id = ?");
+		stmt.bind(1, static_cast<int64_t>(nowMs));
+		stmt.bind(2, static_cast<int>(ocrStatus));
+		stmt.bind(3, static_cast<int>(aiStatus));
+		stmt.bind(4, ocrText);
+		stmt.bind(5, description);
+		stmt.bind(6, id);
+		return stmt.exec() > 0;
 	} catch (const std::exception &e) {
 		LOG_ERROR("persist", std::string("updateMemeProcessing failed: ") + e.what());
 		return false;
@@ -891,21 +813,21 @@ bool Database::updateMemeProcessing(int64_t            id,
 bool Database::deleteMeme(int64_t id) {
 	try {
 		SQLite::Transaction txn(*db_);
-		// delete from main (foreign keys to meme_tags cascading)
-		deleteMemeStmt_->bind(1, id);
-		int rows = deleteMemeStmt_->exec();
-		deleteMemeStmt_->reset();
+
+		SQLite::Statement delStmt(*db_, "DELETE FROM memes WHERE id = ?");
+		delStmt.bind(1, id);
+		int rows = delStmt.exec();
 
 		if (rows > 0) {
 			// FTS delete is handled by triggers
 			// Delete from vector tables specifically
-			deleteDescStmt_->bind(1, id);
-			deleteDescStmt_->exec();
-			deleteDescStmt_->reset();
+			SQLite::Statement descStmt(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
+			descStmt.bind(1, id);
+			descStmt.exec();
 
-			deleteOcrStmt_->bind(1, id);
-			deleteOcrStmt_->exec();
-			deleteOcrStmt_->reset();
+			SQLite::Statement ocrStmt(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
+			ocrStmt.bind(1, id);
+			ocrStmt.exec();
 		}
 
 		txn.commit();
@@ -971,15 +893,20 @@ bool Database::deleteTag(int64_t tagId) {
 
 std::vector<Tag> Database::getMemeTags(int64_t memeId) {
 	try {
-		getMemeTagsStmt_->bind(1, memeId);
+		SQLite::Statement stmt(*db_, R"(
+            SELECT t.id, t.name, t.color, t.created_at
+            FROM tags t
+            JOIN meme_tags mt ON t.id = mt.tag_id
+            WHERE mt.meme_id = ?
+        )");
+		stmt.bind(1, memeId);
 		std::vector<Tag> tags;
-		while (getMemeTagsStmt_->executeStep()) {
-			tags.push_back({getMemeTagsStmt_->getColumn(0).getInt64(),
-			                getMemeTagsStmt_->getColumn(1).getString(),
-			                getMemeTagsStmt_->getColumn(2).getString(),
-			                getMemeTagsStmt_->getColumn(3).getInt64()});
+		while (stmt.executeStep()) {
+			tags.push_back({stmt.getColumn(0).getInt64(),
+			                stmt.getColumn(1).getString(),
+			                stmt.getColumn(2).getString(),
+			                stmt.getColumn(3).getInt64()});
 		}
-		getMemeTagsStmt_->reset();
 		return tags;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("getMemeTags failed: ") + e.what());
@@ -989,11 +916,10 @@ std::vector<Tag> Database::getMemeTags(int64_t memeId) {
 
 bool Database::addMemeTag(int64_t memeId, int64_t tagId) {
 	try {
-		addMemeTagStmt_->bind(1, memeId);
-		addMemeTagStmt_->bind(2, tagId);
-		int rows = addMemeTagStmt_->exec();
-		addMemeTagStmt_->reset();
-		return rows >= 0;
+		SQLite::Statement stmt(*db_, "INSERT OR IGNORE INTO meme_tags (meme_id, tag_id) VALUES (?, ?)");
+		stmt.bind(1, memeId);
+		stmt.bind(2, tagId);
+		return stmt.exec() >= 0;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("addMemeTag failed: ") + e.what());
 		return false;
@@ -1002,11 +928,10 @@ bool Database::addMemeTag(int64_t memeId, int64_t tagId) {
 
 bool Database::removeMemeTag(int64_t memeId, int64_t tagId) {
 	try {
-		removeMemeTagStmt_->bind(1, memeId);
-		removeMemeTagStmt_->bind(2, tagId);
-		int rows = removeMemeTagStmt_->exec();
-		removeMemeTagStmt_->reset();
-		return rows > 0;
+		SQLite::Statement stmt(*db_, "DELETE FROM meme_tags WHERE meme_id = ? AND tag_id = ?");
+		stmt.bind(1, memeId);
+		stmt.bind(2, tagId);
+		return stmt.exec() > 0;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("removeMemeTag failed: ") + e.what());
 		throw ApiException(ERR_INTERNAL, "Database tag removal failure");
@@ -1127,13 +1052,11 @@ bool Database::updateMemeCategory(int64_t memeId, int64_t categoryId) {
 		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
 		        .count();
 
-		updateMemeCategoryStmt_->bind(1, categoryId);
-		updateMemeCategoryStmt_->bind(2, static_cast<int64_t>(nowMs));
-		updateMemeCategoryStmt_->bind(3, memeId);
-
-		int rows = updateMemeCategoryStmt_->exec();
-		updateMemeCategoryStmt_->reset();
-		return rows > 0;
+		SQLite::Statement stmt(*db_, "UPDATE memes SET category_id = ?, updated_at = ? WHERE id = ?");
+		stmt.bind(1, categoryId);
+		stmt.bind(2, static_cast<int64_t>(nowMs));
+		stmt.bind(3, memeId);
+		return stmt.exec() > 0;
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("updateMemeCategory failed: ") + e.what());
 		return false;
@@ -1141,10 +1064,10 @@ bool Database::updateMemeCategory(int64_t memeId, int64_t categoryId) {
 }
 void Database::upsertDescriptionEmbedding(int64_t memeId, const std::vector<float> &embedding) {
 	try {
-		upsertDescriptionEmbeddingStmt_->bind(1, memeId);
-		upsertDescriptionEmbeddingStmt_->bind(2, embedding.data(), embedding.size() * sizeof(float));
-		upsertDescriptionEmbeddingStmt_->exec();
-		upsertDescriptionEmbeddingStmt_->reset();
+		SQLite::Statement stmt(*db_, "INSERT OR REPLACE INTO vec_meme_desc (meme_id, embedding) VALUES (?, ?)");
+		stmt.bind(1, memeId);
+		stmt.bind(2, embedding.data(), embedding.size() * sizeof(float));
+		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("upsertDescriptionEmbedding failed: ") + e.what());
 		throw ApiException(ERR_INTERNAL, "Description embedding upsert failed");
@@ -1152,10 +1075,10 @@ void Database::upsertDescriptionEmbedding(int64_t memeId, const std::vector<floa
 }
 void Database::upsertOcrEmbedding(int64_t memeId, const std::vector<float> &embedding) {
 	try {
-		upsertOcrEmbeddingStmt_->bind(1, memeId);
-		upsertOcrEmbeddingStmt_->bind(2, embedding.data(), embedding.size() * sizeof(float));
-		upsertOcrEmbeddingStmt_->exec();
-		upsertOcrEmbeddingStmt_->reset();
+		SQLite::Statement stmt(*db_, "INSERT OR REPLACE INTO vec_meme_ocr (meme_id, embedding) VALUES (?, ?)");
+		stmt.bind(1, memeId);
+		stmt.bind(2, embedding.data(), embedding.size() * sizeof(float));
+		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("upsertOcrEmbedding failed: ") + e.what());
 		throw ApiException(ERR_INTERNAL, "OCR embedding upsert failed");
@@ -1164,9 +1087,9 @@ void Database::upsertOcrEmbedding(int64_t memeId, const std::vector<float> &embe
 
 void Database::deleteDescriptionEmbedding(int64_t memeId) {
 	try {
-		deleteDescStmt_->bind(1, memeId);
-		deleteDescStmt_->exec();
-		deleteDescStmt_->reset();
+		SQLite::Statement stmt(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
+		stmt.bind(1, memeId);
+		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("deleteDescriptionEmbedding failed: ") + e.what());
 		throw ApiException(ERR_INTERNAL, "Description embedding delete failed");
@@ -1175,9 +1098,9 @@ void Database::deleteDescriptionEmbedding(int64_t memeId) {
 
 void Database::deleteOcrEmbedding(int64_t memeId) {
 	try {
-		deleteOcrStmt_->bind(1, memeId);
-		deleteOcrStmt_->exec();
-		deleteOcrStmt_->reset();
+		SQLite::Statement stmt(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
+		stmt.bind(1, memeId);
+		stmt.exec();
 	} catch (const SQLite::Exception &e) {
 		LOG_ERROR("persist", std::string("deleteOcrEmbedding failed: ") + e.what());
 		throw ApiException(ERR_INTERNAL, "OCR embedding delete failed");
@@ -1223,29 +1146,32 @@ void Database::rebuildEmbeddingTables(int newDimension) {
 }
 
 BatchResult Database::deleteMemesBatch(const std::vector<int64_t> &ids) {
-	BatchResult      result;
+	BatchResult result;
 	try {
 		SQLite::Transaction txn(*db_);
+		SQLite::Statement   trashStmt(*db_, "DELETE FROM memes WHERE id = ? AND deleted_at > 0");
+		SQLite::Statement   descStmt(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
+		SQLite::Statement   ocrStmt(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
 
 		for (int64_t id : ids) {
 			try {
-				deleteMemeFromTrashStmt_->bind(1, id);
-				int rows = deleteMemeFromTrashStmt_->exec();
+				trashStmt.bind(1, id);
+				int rows = trashStmt.exec();
 				if (rows > 0) {
-					deleteDescStmt_->bind(1, id);
-					deleteDescStmt_->exec();
-					deleteDescStmt_->reset();
+					descStmt.bind(1, id);
+					descStmt.exec();
+					descStmt.reset();
 
-					deleteOcrStmt_->bind(1, id);
-					deleteOcrStmt_->exec();
-					deleteOcrStmt_->reset();
+					ocrStmt.bind(1, id);
+					ocrStmt.exec();
+					ocrStmt.reset();
 
 					result.succeeded++;
 				} else {
 					result.failed++;
 					result.errors.push_back("Meme ID " + std::to_string(id) + " not found");
 				}
-				deleteMemeFromTrashStmt_->reset();
+				trashStmt.reset();
 			} catch (const std::exception &e) {
 				result.failed++;
 				result.errors.push_back("Error deleting ID " + std::to_string(id) + ": " + e.what());
@@ -1259,24 +1185,25 @@ BatchResult Database::deleteMemesBatch(const std::vector<int64_t> &ids) {
 }
 
 BatchResult Database::softDeleteMemesBatch(const std::vector<int64_t> &ids) {
-	BatchResult      result;
+	BatchResult result;
 	try {
 		SQLite::Transaction txn(*db_);
 		auto                nowMs =
 		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
 		        .count();
+		SQLite::Statement stmt(*db_, "UPDATE memes SET deleted_at = ? WHERE id = ? AND deleted_at = 0");
 
 		for (int64_t id : ids) {
 			try {
-				softDeleteMemeStmt_->bind(1, static_cast<int64_t>(nowMs));
-				softDeleteMemeStmt_->bind(2, id);
-				if (softDeleteMemeStmt_->exec() > 0) {
+				stmt.bind(1, static_cast<int64_t>(nowMs));
+				stmt.bind(2, id);
+				if (stmt.exec() > 0) {
 					result.succeeded++;
 				} else {
 					result.failed++;
 					result.errors.push_back("Meme ID " + std::to_string(id) + " not found or already deleted");
 				}
-				softDeleteMemeStmt_->reset();
+				stmt.reset();
 			} catch (const std::exception &e) {
 				result.failed++;
 				result.errors.push_back("Error soft deleting ID " + std::to_string(id) + ": " + e.what());
@@ -1290,20 +1217,21 @@ BatchResult Database::softDeleteMemesBatch(const std::vector<int64_t> &ids) {
 }
 
 BatchResult Database::addMemeTagBatch(const std::vector<int64_t> &memeIds, int64_t tagId) {
-	BatchResult      result;
+	BatchResult result;
 	try {
 		SQLite::Transaction txn(*db_);
+		SQLite::Statement   stmt(*db_, "INSERT OR IGNORE INTO meme_tags (meme_id, tag_id) VALUES (?, ?)");
 
 		for (int64_t memeId : memeIds) {
 			try {
-				addMemeTagStmt_->bind(1, memeId);
-				addMemeTagStmt_->bind(2, tagId);
-				if (addMemeTagStmt_->exec() >= 0) {
+				stmt.bind(1, memeId);
+				stmt.bind(2, tagId);
+				if (stmt.exec() >= 0) {
 					result.succeeded++;
 				} else {
 					result.failed++;
 				}
-				addMemeTagStmt_->reset();
+				stmt.reset();
 			} catch (const std::exception &e) {
 				result.failed++;
 				result.errors.push_back("Error adding tag to ID " + std::to_string(memeId) + ": " + e.what());
@@ -1317,25 +1245,26 @@ BatchResult Database::addMemeTagBatch(const std::vector<int64_t> &memeIds, int64
 }
 
 BatchResult Database::updateMemeCategoryBatch(const std::vector<int64_t> &memeIds, int64_t categoryId) {
-	BatchResult      result;
+	BatchResult result;
 	try {
 		SQLite::Transaction txn(*db_);
 		auto                nowMs =
 		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
 		        .count();
+		SQLite::Statement stmt(*db_, "UPDATE memes SET category_id = ?, updated_at = ? WHERE id = ?");
 
 		for (int64_t memeId : memeIds) {
 			try {
-				updateMemeCategoryStmt_->bind(1, categoryId);
-				updateMemeCategoryStmt_->bind(2, static_cast<int64_t>(nowMs));
-				updateMemeCategoryStmt_->bind(3, memeId);
-				if (updateMemeCategoryStmt_->exec() > 0) {
+				stmt.bind(1, categoryId);
+				stmt.bind(2, static_cast<int64_t>(nowMs));
+				stmt.bind(3, memeId);
+				if (stmt.exec() > 0) {
 					result.succeeded++;
 				} else {
 					result.failed++;
 					result.errors.push_back("Meme ID " + std::to_string(memeId) + " not found");
 				}
-				updateMemeCategoryStmt_->reset();
+				stmt.reset();
 			} catch (const std::exception &e) {
 				result.failed++;
 				result.errors.push_back("Error updating category for ID " + std::to_string(memeId) + ": " + e.what());
