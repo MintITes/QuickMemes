@@ -12,13 +12,14 @@
 
 #include <SQLiteCpp/SQLiteCpp.h>
 #include <algorithm>
+#include <boost/url.hpp>
+#include <charconv>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <map>
 #include <nlohmann/json.hpp>
-#include <regex>
 #include <string>
 #include <vector>
 
@@ -92,6 +93,14 @@ void submitThumbnailTaskBestEffort(int64_t memeId, const char *logContext) {
 	try {
 		TaskQueue::get().submitThumbnailTask(memeId);
 	} catch (const std::exception &e) { LOG_WARN("handlers", std::string(logContext) + ": " + e.what()); }
+}
+
+int64_t parseIdFromSegment(boost::core::string_view sv) {
+	int64_t id = 0;
+	if (auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), id); ec != std::errc()) {
+		throw std::invalid_argument("ID not found or invalid in path");
+	}
+	return id;
 }
 } // namespace
 
@@ -252,12 +261,9 @@ void handlePutMeme(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(^/api/memes?/(\d+)/use/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
-			throw std::invalid_argument("ID not found in path");
-		}
-		int64_t id = std::stoll(match[1].str());
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 3) { throw std::invalid_argument("ID not found in path"); }
+		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		bool ok = Database::get().updateMemeLastUsed(id);
 		if (ok) {
@@ -287,12 +293,9 @@ void handlePostMemeUse(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeOcr(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(^/api/memes?/(\d+)/ocr/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
-			throw std::invalid_argument("ID not found in path");
-		}
-		int64_t id = std::stoll(match[1].str());
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 3) { throw std::invalid_argument("ID not found in path"); }
+		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		if (!VisionModule::get().isOcrAvailable()) {
 			res.status = 503;
@@ -317,12 +320,9 @@ void handlePostMemeOcr(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(^/api/memes?/(\d+)/file/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
-			throw std::invalid_argument("ID not found in path");
-		}
-		int64_t id = std::stoll(match[1].str());
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 3) { throw std::invalid_argument("ID not found in path"); }
+		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		auto meme = Database::get().getMeme(id);
 		if (meme.filePath.find("..") != std::string::npos) {
@@ -355,12 +355,9 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(^/api/memes?/(\d+)/thumbnail/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
-			throw std::invalid_argument("ID not found in path");
-		}
-		int64_t id = std::stoll(match[1].str());
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 3) { throw std::invalid_argument("ID not found in path"); }
+		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		auto meme = Database::get().getMeme(id);
 		if (meme.filePath.find("..") != std::string::npos) {
@@ -465,12 +462,9 @@ void handleDeleteTag(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(/(\d+)/tags/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
-			throw std::invalid_argument("Invalid path format for importing tags");
-		}
-		int64_t id = std::stoll(match[1].str());
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 3) { throw std::invalid_argument("Invalid path format for tags"); }
+		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		auto    j     = nlohmann::json::parse(req.body);
 		int64_t tagId = j.value("tagId", 0LL);
@@ -491,16 +485,16 @@ void handlePostMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handleDeleteMemeTags(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(/(\d+)/tags/(\d+)/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 3) {
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 5) {
 			res.status = 400;
 			res.body   = makeErrorResponse(ERR_INVALID_PARAMS, "Invalid path format for tag deletion");
 			return;
 		}
 
-		int64_t id    = std::stoll(match[1].str());
-		int64_t tagId = std::stoll(match[2].str());
+		auto    it    = segments.begin();
+		int64_t id    = parseIdFromSegment(*std::next(it, 2));
+		int64_t tagId = parseIdFromSegment(*std::next(it, 4));
 
 		bool ok = Database::get().removeMemeTag(id, tagId);
 		if (ok) {
@@ -629,12 +623,9 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 
 void handlePostMemeRestore(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		std::regex  re(R"(^/api/memes?/(\d+)/restore/?$)");
-		std::smatch match;
-		if (!std::regex_search(req.path, match, re) || match.size() < 2) {
-			throw std::invalid_argument("ID not found in path");
-		}
-		int64_t id = std::stoll(match[1].str());
+		auto    segments = boost::urls::url_view(req.path).segments();
+		if (segments.size() < 3) { throw std::invalid_argument("ID not found in path"); }
+		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		bool ok = Database::get().restoreMeme(id);
 		if (ok) {
@@ -904,17 +895,7 @@ void handlePostMemesBatchTags(const HttpRequestProxy &req, HttpResponseProxy &re
 
 void handleGetMemesTrash(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
-		auto parseQuery = [](const std::string &q) {
-			std::map<std::string, std::string> params;
-			std::regex                         re("([^?=&]+)=([^&]*)");
-			std::smatch                        m;
-			auto                               it = q.cbegin();
-			while (std::regex_search(it, q.cend(), m, re)) {
-				params[m[1].str()] = m[2].str();
-				it                 = m[0].second;
-			}
-			return params;
-		};
+		// Using simple string matching for limit/offset query parameters
 
 		// Better parsing using string splitting if regex is overkill or buggy
 		auto getParam = [](const std::string &q, const std::string &key, int defaultVal) {
