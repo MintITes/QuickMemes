@@ -651,11 +651,19 @@ void handleDeleteTrashPurge(const HttpRequestProxy &req, HttpResponseProxy &res)
 
 		// Allow manual override via query param: ?olderThanDays=0
 		if (!req.query.empty()) {
-			auto pos = req.query.find("olderThanDays=");
-			if (pos != std::string::npos) {
-				try {
-					retentionDays = std::stoi(req.query.substr(pos + 14));
-				} catch (...) {}
+			std::string_view q   = req.query;
+			std::string_view key = "olderThanDays";
+			size_t           pos = q.find(key);
+			while (pos != std::string_view::npos) {
+				if ((pos == 0 || q[pos - 1] == '&' || q[pos - 1] == '?') && pos + key.size() < q.size() &&
+				    q[pos + key.size()] == '=') {
+					size_t start = pos + key.size() + 1;
+					size_t end   = q.find('&', start);
+					if (end == std::string_view::npos) end = q.size();
+					auto [ptr, ec] = std::from_chars(q.data() + start, q.data() + end, retentionDays);
+					if (ec == std::errc()) break;
+				}
+				pos = q.find(key, pos + 1);
 			}
 		}
 
@@ -888,16 +896,24 @@ void handleGetMemesTrash(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		// Using simple string matching for limit/offset query parameters
 
-		// Better parsing using string splitting if regex is overkill or buggy
-		auto getParam = [](const std::string &q, const std::string &key, int defaultVal) {
-			std::string search = key + "=";
-			size_t      pos    = q.find(search);
-			if (pos == std::string::npos) return defaultVal;
-			size_t start = pos + search.length();
-			size_t end   = q.find('&', start);
-			try {
-				return std::stoi(q.substr(start, end - start));
-			} catch (...) { return defaultVal; }
+		// 使用 string_view 实现完全零拷贝的参数提取
+		auto getParam = [](std::string_view q, std::string_view key, int defaultVal) -> int {
+			size_t pos = q.find(key);
+			while (pos != std::string_view::npos) {
+				// 确保匹配独立 key
+				if ((pos == 0 || q[pos - 1] == '&' || q[pos - 1] == '?') && pos + key.size() < q.size() &&
+				    q[pos + key.size()] == '=') {
+					size_t start = pos + key.size() + 1;
+					size_t end   = q.find('&', start);
+					if (end == std::string_view::npos) end = q.size();
+
+					int  val    = defaultVal;
+					auto [ptr, ec] = std::from_chars(q.data() + start, q.data() + end, val);
+					if (ec == std::errc()) return val;
+				}
+				pos = q.find(key, pos + 1);
+			}
+			return defaultVal;
 		};
 
 		int limit  = getParam(req.query, "limit", 50);
