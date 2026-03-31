@@ -126,11 +126,11 @@ void handlePostImport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		std::string taskId = TaskQueue::get().submitImportTask(importReq);
 		auto        now    = std::chrono::system_clock::now();
 		auto        task   = ImportTask{};
-		task.taskId        = taskId;
-		task.source        = importReq.source;
-		task.inputs        = importReq.inputs;
-		task.status        = TaskStatus::PENDING;
 		task.total         = static_cast<int32_t>(importReq.inputs.size());
+		task.taskId        = std::move(taskId);
+		task.source        = std::move(importReq.source);
+		task.inputs        = std::move(importReq.inputs);
+		task.status        = TaskStatus::PENDING;
 		task.processed     = 0;
 		task.succeeded     = 0;
 		task.failed        = 0;
@@ -181,11 +181,12 @@ void handlePostMemesSearch(const HttpRequestProxy &req, HttpResponseProxy &res) 
 		int32_t total          = dbResults.totalCount;
 
 		SearchResult data;
-		for (const auto &meme : keywordResults) {
+		data.items.reserve(keywordResults.size());
+		for (auto &meme : keywordResults) {
 			SearchResultItem item;
-			item.meme = meme; // Use full meme and let json handle it (it won't include tags unless specified)
+			item.meme = std::move(meme); // Use full meme and let json handle it
 			item.similarityScore = -1.0f;
-			data.items.push_back(item);
+			data.items.push_back(std::move(item));
 		}
 		data.total = total;
 		res.status = 200;
