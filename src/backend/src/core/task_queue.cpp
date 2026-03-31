@@ -707,7 +707,7 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	bool        isTempDownloaded = false;
 
 	// Check if it's a URL
-	if (pipeline.inputPath.find("http://") == 0 || pipeline.inputPath.find("https://") == 0) {
+	if (pipeline.inputPath.starts_with("http://") || pipeline.inputPath.starts_with("https://")) {
 		LOG_INFO("queue", "Downloading image from URL: " + pipeline.inputPath);
 		auto downloadRes = downloadImageToTemp(pipeline.inputPath);
 		if (downloadRes) {

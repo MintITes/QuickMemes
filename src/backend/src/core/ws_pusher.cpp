@@ -13,6 +13,7 @@
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <ranges>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -22,14 +23,14 @@ namespace quickmemes {
 
 class WsPusherImpl {
 public:
-	std::mutex                                                              mtx;
-	std::unordered_map<uint64_t, WsSendCallback>                            session_map;
-	std::atomic<std::shared_ptr<const std::vector<WsSendCallback>>>          sessions_rcu;
-	std::atomic<std::shared_ptr<const std::function<void(const WsEvent &)>>> test_listener_rcu;
-	uint64_t                                                                nextSessionId = 1;
+	std::mutex                                                                       mtx;
+	std::unordered_map<uint64_t, std::shared_ptr<WsSendCallback>>                    session_map;
+	std::atomic<std::shared_ptr<const std::vector<std::shared_ptr<WsSendCallback>>>> sessions_rcu;
+	std::atomic<std::shared_ptr<const std::function<void(const WsEvent &)>>>         test_listener_rcu;
+	uint64_t                                                                         nextSessionId = 1;
 
 	WsPusherImpl()
-	    : sessions_rcu(std::make_shared<const std::vector<WsSendCallback>>()) {}
+	    : sessions_rcu(std::make_shared<const std::vector<std::shared_ptr<WsSendCallback>>>()) {}
 };
 
 WsPusher::WsPusher()
@@ -39,8 +40,9 @@ WsPusher::~WsPusher() {
 }
 
 WsPusher &WsPusher::get() {
-	static WsPusher instance;
-	return instance;
+	// 故意泄漏单例，避免程序退出阶段由于静态变量销毁顺序导致的 Use-After-Free
+	static WsPusher *instance = new WsPusher();
+	return *instance;
 }
 
 void WsPusher::broadcast(const WsEvent &event) {
@@ -61,8 +63,8 @@ void WsPusher::broadcast(const WsEvent &event) {
 
 	if (current_sessions) {
 		// RCU: 在快照上安全遍历，无需加锁，性能最优且 CPU 缓存友好
-		for (const auto &callback : *current_sessions) {
-			if (callback) { callback(msg); }
+		for (const auto &callback_ptr : *current_sessions) {
+			if (callback_ptr && *callback_ptr) { (*callback_ptr)(msg); }
 		}
 	}
 }
@@ -85,14 +87,13 @@ WsPusher::Registration WsPusher::addSession(WsSendCallback callback) {
 	{
 		std::lock_guard<std::mutex> lock(impl->mtx);
 		sessionId = impl->nextSessionId++;
-		impl->session_map.emplace(sessionId, std::move(callback));
+		impl->session_map.emplace(sessionId, std::make_shared<WsSendCallback>(std::move(callback)));
 		current_size = impl->session_map.size();
 
-		auto new_vec = std::make_shared<std::vector<WsSendCallback>>();
-		new_vec->reserve(current_size);
-		for (const auto &[id, cb] : impl->session_map) {
-			new_vec->push_back(cb);
-		}
+		// C++23 ranges: 一次性完成遍历与构建，避免手写循环，避免 std::function 拷贝分配
+		auto new_vec = std::make_shared<std::vector<std::shared_ptr<WsSendCallback>>>(
+		    impl->session_map | std::views::values | std::ranges::to<std::vector>()
+		);
 		impl->sessions_rcu.store(new_vec, std::memory_order_release);
 	} // 锁已释放，安全地进行 I/O 与字符串拼接
 
@@ -109,11 +110,10 @@ void WsPusher::removeSession(uint64_t sessionId) {
 		impl->session_map.erase(sessionId);
 		current_size = impl->session_map.size();
 
-		auto new_vec = std::make_shared<std::vector<WsSendCallback>>();
-		new_vec->reserve(current_size);
-		for (const auto &[id, cb] : impl->session_map) {
-			new_vec->push_back(cb);
-		}
+		// C++23 ranges: 一次性完成遍历与构建
+		auto new_vec = std::make_shared<std::vector<std::shared_ptr<WsSendCallback>>>(
+		    impl->session_map | std::views::values | std::ranges::to<std::vector>()
+		);
 		impl->sessions_rcu.store(new_vec, std::memory_order_release);
 	} // 锁释放，避免 I/O 阻塞核心全局锁
 
@@ -129,7 +129,7 @@ void WsPusher::clearSessions() {
 		cleared_count = impl->session_map.size();
 		impl->session_map.clear();
 		// 原子更新为空列表快照
-		impl->sessions_rcu.store(std::make_shared<const std::vector<WsSendCallback>>(), std::memory_order_release);
+		impl->sessions_rcu.store(std::make_shared<const std::vector<std::shared_ptr<WsSendCallback>>>(), std::memory_order_release);
 	}
 
 	LOG_INFO("ws", "All sessions removed from WsPusher. Count: " + std::to_string(cleared_count));

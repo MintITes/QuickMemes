@@ -11,8 +11,9 @@ namespace quickmemes {
 
 class RouterImpl {
 public:
-	std::unordered_map<std::string, RouteHandler>                                  exactRoutes;
-	std::vector<std::pair<std::function<bool(std::string_view)>, RouteHandler>> dynamicRoutes;
+	using RouteMatcher = bool (*)(std::string_view);
+	std::unordered_map<std::string, RouteHandler>      exactRoutes;
+	std::vector<std::pair<RouteMatcher, RouteHandler>> dynamicRoutes;
 };
 
 Router::Router()
