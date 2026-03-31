@@ -18,6 +18,41 @@
 #include <utility>
 #include <vector>
 
+// ---------------------------------------------------------------------------
+// AtomicSharedPtr<T>: 跨编译器的原子 shared_ptr 包装
+//
+//  • 非 Apple 平台（GCC / MSVC）：直接使用 C++20 std::atomic<shared_ptr<T>> 特化，
+//    标准库已提供正确的无锁或内部锁实现。
+//  • Apple Clang / libc++：其通用 atomic<T> 实现路径要求 T trivially copyable，
+//    shared_ptr 不满足（编译报错）；改用 C++11 std::atomic_load/store_explicit
+//    自由函数，语义完全等价且所有版本均支持。
+// ---------------------------------------------------------------------------
+#if defined(__APPLE__)
+template <typename T>
+class AtomicSharedPtr {
+public:
+    AtomicSharedPtr() = default;
+    explicit AtomicSharedPtr(std::shared_ptr<T> p) : ptr_(std::move(p)) {}
+
+    AtomicSharedPtr(const AtomicSharedPtr &) = delete;
+    AtomicSharedPtr &operator=(const AtomicSharedPtr &) = delete;
+
+    std::shared_ptr<T> load(std::memory_order order = std::memory_order_seq_cst) const {
+        return std::atomic_load_explicit(&ptr_, order);
+    }
+    void store(std::shared_ptr<T> desired, std::memory_order order = std::memory_order_seq_cst) {
+        std::atomic_store_explicit(&ptr_, std::move(desired), order);
+    }
+
+private:
+    std::shared_ptr<T> ptr_;
+};
+#else
+// GCC / MSVC: 直接复用标准 C++20 特化，接口完全一致
+template <typename T>
+using AtomicSharedPtr = std::atomic<std::shared_ptr<T>>;
+#endif
+
 // Callback interface passed from Websocket session to decouple the specific Beast types
 namespace quickmemes {
 
@@ -25,8 +60,8 @@ class WsPusherImpl {
 public:
 	std::mutex                                                                       mtx;
 	std::unordered_map<uint64_t, std::shared_ptr<WsSendCallback>>                    session_map;
-	std::atomic<std::shared_ptr<const std::vector<std::shared_ptr<WsSendCallback>>>> sessions_rcu;
-	std::atomic<std::shared_ptr<const std::function<void(const WsEvent &)>>>         test_listener_rcu;
+	AtomicSharedPtr<const std::vector<std::shared_ptr<WsSendCallback>>>              sessions_rcu;
+	AtomicSharedPtr<const std::function<void(const WsEvent &)>>                      test_listener_rcu;
 	uint64_t                                                                         nextSessionId = 1;
 
 	WsPusherImpl()
@@ -55,7 +90,7 @@ void WsPusher::broadcast(const WsEvent &event) {
 
 	auto msg = std::make_shared<std::string>(payload.dump());
 
-	// O(1) 无锁原子加载当前会话列表和监听器引用 (C++20 std::atomic<shared_ptr>)
+	// O(1) 无锁原子加载当前会话列表和监听器引用
 	auto current_sessions = impl->sessions_rcu.load(std::memory_order_acquire);
 	auto test_listener    = impl->test_listener_rcu.load(std::memory_order_acquire);
 
@@ -131,7 +166,10 @@ void WsPusher::clearSessions() {
 		cleared_count = impl->session_map.size();
 		impl->session_map.clear();
 		// 原子更新为空列表快照
-		impl->sessions_rcu.store(std::make_shared<const std::vector<std::shared_ptr<WsSendCallback>>>(), std::memory_order_release);
+		impl->sessions_rcu.store(
+		    std::make_shared<const std::vector<std::shared_ptr<WsSendCallback>>>(),
+		    std::memory_order_release
+		);
 	}
 
 	LOG_INFO("ws", "All sessions removed from WsPusher. Count: " + std::to_string(cleared_count));
