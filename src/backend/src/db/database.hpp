@@ -14,24 +14,16 @@
 
 #include <cstdint>
 #include <memory>
-#include <mutex>
-#include <shared_mutex>
 #include <string>
+#include <vector>
 
 // 前向声明 SQLiteCpp 类型
 namespace SQLite {
 class Database;
+class Statement;
 }
 
 namespace quickmemes {
-
-#if defined(__MINGW32__) || defined(__MINGW64__)
-using DatabaseMutex = std::mutex;
-using DatabaseReadLock = std::unique_lock<DatabaseMutex>;
-#else
-using DatabaseMutex = std::shared_mutex;
-using DatabaseReadLock = std::shared_lock<DatabaseMutex>;
-#endif
 
 /**
  * @brief 数据库查询构建内部结构
@@ -398,11 +390,31 @@ private:
 
 	int       getVecTableDimension(const std::string &tableName) const;
 	void      ensureEmbeddingTableSchema();
+	void      prepareStatements();
 
-	std::unique_ptr<SQLite::Database> db_;                   ///< SQLiteCpp 数据库实例
-	std::string                       dbPath_;               ///< 数据库文件路径
-	int                               embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
-	mutable DatabaseMutex             dbMutex_;              ///< MinGW 下退回互斥锁，其它平台使用共享锁
+	std::unique_ptr<SQLite::Database>  db_; ///< SQLiteCpp 数据库实例
+	std::string                        dbPath_;               ///< 数据库文件路径
+	int                                embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
+
+	// ── Pre-compiled Statements ──
+	std::unique_ptr<SQLite::Statement> insertMemeStmt_;
+	std::unique_ptr<SQLite::Statement> getMemeStmt_;
+	std::unique_ptr<SQLite::Statement> getMemeTagIdsStmt_;
+	std::unique_ptr<SQLite::Statement> updateMemeLastUsedStmt_;
+	std::unique_ptr<SQLite::Statement> softDeleteMemeStmt_;
+	std::unique_ptr<SQLite::Statement> restoreMemeStmt_;
+	std::unique_ptr<SQLite::Statement> getMemeTagsStmt_;
+	std::unique_ptr<SQLite::Statement> addMemeTagStmt_;
+	std::unique_ptr<SQLite::Statement> removeMemeTagStmt_;
+	std::unique_ptr<SQLite::Statement> updateMemeCategoryStmt_;
+	std::unique_ptr<SQLite::Statement> upsertDescriptionEmbeddingStmt_;
+	std::unique_ptr<SQLite::Statement> upsertOcrEmbeddingStmt_;
+	std::unique_ptr<SQLite::Statement> updateMemeProcessingStmt_;
+	std::unique_ptr<SQLite::Statement> deleteMemeStmt_;
+	std::unique_ptr<SQLite::Statement> deleteDescStmt_;
+	std::unique_ptr<SQLite::Statement> deleteOcrStmt_;
+	std::unique_ptr<SQLite::Statement> deleteMemeFromTrashStmt_;
+	std::unique_ptr<SQLite::Statement> vectorSearchStmt_;
 };
 
 } // namespace quickmemes
