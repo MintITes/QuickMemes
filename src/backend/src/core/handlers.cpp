@@ -29,22 +29,23 @@ namespace quickmemes {
 
 namespace {
 template <typename T> std::string makeSuccessResponse(const T &data) {
-	ApiResponse<T> resp;
-	resp.success     = true;
-	resp.data        = data;
-	resp.error       = "";
-	resp.code        = 0;
-	nlohmann::json j = resp;
+	// 绕过 ApiResponse 结构体，直接构建 json DOM，消除数据深拷贝
+	nlohmann::json j = {
+	    {"success", true},
+	    {"data",    data},
+	    {"error",   ""  },
+	    {"code",    0   }
+    };
 	return j.dump();
 }
 
 std::string makeErrorResponse(int code, const std::string &error) {
-	ApiResponse<std::nullptr_t> resp;
-	resp.success     = false;
-	resp.data        = nullptr;
-	resp.error       = error;
-	resp.code        = code;
-	nlohmann::json j = resp;
+	nlohmann::json j = {
+	    {"success", false },
+	    {"data",    nullptr},
+	    {"error",   error  },
+	    {"code",    code   }
+    };
 	return j.dump();
 }
 
