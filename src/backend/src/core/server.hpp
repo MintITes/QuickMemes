@@ -53,7 +53,7 @@ public:
 	/**
 	 * @brief 获取当前全局配置（只读）
 	 */
-	const ServerConfig &getConfig() const;
+	ServerConfig getConfig() const;
 
 	/**
 	 * @brief 更新全局配置（仅限内存）

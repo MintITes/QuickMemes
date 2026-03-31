@@ -17,9 +17,10 @@
 #include <boost/beast/websocket.hpp>
 #include <atomic>
 #include <filesystem>
-#include <mutex>
+#include <shared_mutex>
 #include <thread>
-#include <vector>
+#include <variant>
+#include <deque>
 
 namespace quickmemes {
 
@@ -65,8 +66,7 @@ class WsSession : public std::enable_shared_from_this<WsSession> {
 	beast::websocket::stream<beast::tcp_stream> ws_;
 	beast::flat_buffer                          buffer_;
 	WsPusher::Registration                      subscription_;
-	std::mutex                                  mtx_;
-	std::vector<std::shared_ptr<std::string>>   sendQueue_;
+	std::deque<std::shared_ptr<std::string>>    sendQueue_;
 	bool                                        isWriting_ = false;
 	std::atomic<bool>                           closed_{false};
 
@@ -105,44 +105,39 @@ public:
 
 	void onRead(beast::error_code ec, std::size_t bytes_transferred) {
 		boost::ignore_unused(bytes_transferred);
-		if (ec == beast::websocket::error::closed) {
-			closeSession();
-			return;
-		}
-		if (ec) {
+		if (ec == beast::websocket::error::closed || ec) {
 			closeSession();
 			return;
 		}
 
-		auto msg = beast::buffers_to_string(buffer_.data());
+		// 严禁无意义堆分配：直接根据接收大小消耗掉 buffer 即可
 		buffer_.consume(buffer_.size());
 		doRead();
 	}
 
 	void enqueueMsg(std::shared_ptr<std::string> msg) {
-		bool shouldStartWrite = false;
-		{
-			std::lock_guard<std::mutex> lock(mtx_);
-			sendQueue_.push_back(msg);
-			if (!isWriting_) {
-				isWriting_       = true;
+		// 配合之前 Critical 处的 strand dispatch：
+		net::dispatch(ws_.get_executor(), [self = shared_from_this(), msg = std::move(msg)]() mutable {
+			bool shouldStartWrite = false;
+			// 使用 std::move 完美转移生命周期，严禁不必要的原子 +1 操作
+			self->sendQueue_.push_back(std::move(msg));
+			if (!self->isWriting_) {
+				self->isWriting_ = true;
 				shouldStartWrite = true;
 			}
-		}
-		if (shouldStartWrite) { doWrite(); }
+			if (shouldStartWrite) { self->doWrite(); }
+		});
 	}
 
 	void doWrite() {
 		std::shared_ptr<std::string> msg;
-		{
-			std::lock_guard<std::mutex> lock(mtx_);
-			if (sendQueue_.empty()) {
-				isWriting_ = false;
-				return;
-			}
-			msg = sendQueue_.front();
-			sendQueue_.erase(sendQueue_.begin());
+		if (sendQueue_.empty()) {
+			isWriting_ = false;
+			return;
 		}
+		// 无锁获取队列头部
+		msg = std::move(sendQueue_.front());
+		sendQueue_.pop_front();
 
 		ws_.text(true);
 		ws_.async_write(net::buffer(*msg), beast::bind_front_handler(&WsSession::onWrite, shared_from_this()));
@@ -181,6 +176,11 @@ private:
 	http::request<http::string_body> req_;
 	std::shared_ptr<Router>          router_;
 
+	std::variant<std::monostate,
+	             http::response<http::string_body>,
+	             http::response<http::file_body>>
+	    res_storage_;
+
 	void doRead() {
 		req_ = {};
 
@@ -210,16 +210,16 @@ private:
 
 	void handleRequest() {
 		if (req_.method() == http::verb::options) {
-			auto res = std::make_shared<http::response<http::string_body>>(http::status::no_content, req_.version());
-			res->set(http::field::server, "QuickMemes/1.0");
-			res->set(http::field::content_type, "application/json");
-			applyCorsHeaders(*res);
-			res->keep_alive(req_.keep_alive());
-			res->prepare_payload();
+			auto &res = res_storage_.emplace<http::response<http::string_body>>(http::status::no_content, req_.version());
+			res.set(http::field::server, "QuickMemes/1.0");
+			res.set(http::field::content_type, "application/json");
+			applyCorsHeaders(res);
+			res.keep_alive(req_.keep_alive());
+			res.prepare_payload();
 
 			auto self = shared_from_this();
-			http::async_write(stream_, *res, [self, res](beast::error_code ec, std::size_t /*b*/) {
-				if (res->need_eof()) {
+			http::async_write(stream_, res, [self](beast::error_code ec, std::size_t /*b*/) {
+				if (ec || std::get<http::response<http::string_body>>(self->res_storage_).need_eof()) {
 					self->doClose();
 					return;
 				}
@@ -229,22 +229,22 @@ private:
 		}
 
 		if (beast::websocket::is_upgrade(req_)) {
-			auto              path          = std::string(req_.target());
-			const bool        isWsPath      = path.rfind("/ws", 0) == 0; // strict path prefix check
+			std::string_view  path          = req_.target();
+			const bool        isWsPath      = path.starts_with("/ws"); // strict path prefix check
 			bool              authOk        = false;
-			const std::string expectedToken = router_->getAuthToken();
+			const std::string& expectedToken = router_->getAuthToken();
 
 			if (isWsPath) {
 				if (expectedToken.empty()) {
 					authOk = true; // WS auth disabled
 				} else {
 					size_t pos = path.find("?token=");
-					if (pos == std::string::npos) { pos = path.find("&token="); }
+					if (pos == std::string_view::npos) { pos = path.find("&token="); }
 
-					if (pos != std::string::npos) {
-						std::string t         = path.substr(pos + 7);
-						auto        ampersand = t.find('&');
-						if (ampersand != std::string::npos) t.resize(ampersand);
+					if (pos != std::string_view::npos) {
+						std::string_view t         = path.substr(pos + 7);
+						auto             ampersand = t.find('&');
+						if (ampersand != std::string_view::npos) t = t.substr(0, ampersand);
 						if (Router::verifyAuthToken(t, expectedToken)) { authOk = true; }
 					}
 				}
@@ -261,17 +261,16 @@ private:
 				resProxy.body   = isWsPath
 				                    ? R"({"success": false, "data": null, "error": "Unauthorized WS", "code": 1001})"
 				                    : R"({"success": false, "data": null, "error": "Not Found", "code": 1002})";
-				auto res =
-				    std::make_shared<http::response<http::string_body>>(static_cast<http::status>(resProxy.status),
-				                                                        req_.version());
-				res->set(http::field::server, "QuickMemes/1.0");
-				res->set(http::field::content_type, "application/json");
-				applyCorsHeaders(*res);
-				res->keep_alive(req_.keep_alive());
-				res->body() = std::move(resProxy.body);
-				res->prepare_payload();
+				auto &res = res_storage_.emplace<http::response<http::string_body>>(
+				    static_cast<http::status>(resProxy.status), req_.version());
+				res.set(http::field::server, "QuickMemes/1.0");
+				res.set(http::field::content_type, "application/json");
+				applyCorsHeaders(res);
+				res.keep_alive(req_.keep_alive());
+				res.body() = std::move(resProxy.body);
+				res.prepare_payload();
 				auto self = shared_from_this();
-				http::async_write(stream_, *res, [self, res](beast::error_code ec, std::size_t /*b*/) {
+				http::async_write(stream_, res, [self](beast::error_code ec, std::size_t /*b*/) {
 					self->doClose();
 				});
 				return;
@@ -302,45 +301,46 @@ private:
 
 			if (ev) {
 				// File open failed, return 404
-				auto res = std::make_shared<http::response<http::string_body>>(http::status::not_found, req_.version());
-				res->set(http::field::server, "QuickMemes/1.0");
-				res->set(http::field::content_type, "application/json");
-				applyCorsHeaders(*res);
-				res->keep_alive(req_.keep_alive());
-				res->body() = R"({"success": false, "data": null, "error": "File not found", "code": 1004})";
-				res->prepare_payload();
+				auto &res =
+				    res_storage_.emplace<http::response<http::string_body>>(http::status::not_found, req_.version());
+				res.set(http::field::server, "QuickMemes/1.0");
+				res.set(http::field::content_type, "application/json");
+				applyCorsHeaders(res);
+				res.keep_alive(req_.keep_alive());
+				res.body() = R"({"success": false, "data": null, "error": "File not found", "code": 1004})";
+				res.prepare_payload();
 
 				auto self = shared_from_this();
-				http::async_write(stream_, *res, [self, res](beast::error_code ec, std::size_t bytes_transferred) {
+				http::async_write(stream_, res, [self](beast::error_code ec, std::size_t bytes_transferred) {
 					boost::ignore_unused(bytes_transferred);
 					if (ec) {
 						LOG_ERROR("session", "Write error (404 for file): " + ec.message());
 						return;
 					}
-					if (res->need_eof()) {
+					if (std::get<http::response<http::string_body>>(self->res_storage_).need_eof()) {
 						self->doClose();
 						return;
 					}
 					self->doRead();
 				});
 			} else {
-				auto res = std::make_shared<http::response<http::file_body>>(static_cast<http::status>(resProxy.status),
-				                                                             req_.version());
-				res->set(http::field::server, "QuickMemes/1.0");
-				res->set(http::field::content_type, resProxy.contentType);
-				applyCorsHeaders(*res);
-				res->keep_alive(req_.keep_alive());
-				res->body() = std::move(file);
-				res->prepare_payload();
+				auto &res = res_storage_.emplace<http::response<http::file_body>>(
+				    static_cast<http::status>(resProxy.status), req_.version());
+				res.set(http::field::server, "QuickMemes/1.0");
+				res.set(http::field::content_type, resProxy.contentType);
+				applyCorsHeaders(res);
+				res.keep_alive(req_.keep_alive());
+				res.body() = std::move(file);
+				res.prepare_payload();
 
 				auto self = shared_from_this();
-				http::async_write(stream_, *res, [self, res](beast::error_code ec, std::size_t bytes_transferred) {
+				http::async_write(stream_, res, [self](beast::error_code ec, std::size_t bytes_transferred) {
 					boost::ignore_unused(bytes_transferred);
 					if (ec) {
 						LOG_ERROR("session", "Write error (file): " + ec.message());
 						return;
 					}
-					if (res->need_eof()) {
+					if (std::get<http::response<http::file_body>>(self->res_storage_).need_eof()) {
 						self->doClose();
 						return;
 					}
@@ -348,23 +348,23 @@ private:
 				});
 			}
 		} else {
-			auto res = std::make_shared<http::response<http::string_body>>(static_cast<http::status>(resProxy.status),
-			                                                               req_.version());
-			res->set(http::field::server, "QuickMemes/1.0");
-			res->set(http::field::content_type, resProxy.contentType);
-			applyCorsHeaders(*res);
-			res->keep_alive(req_.keep_alive());
-			res->body() = std::move(resProxy.body);
-			res->prepare_payload();
+			auto &res = res_storage_.emplace<http::response<http::string_body>>(
+			    static_cast<http::status>(resProxy.status), req_.version());
+			res.set(http::field::server, "QuickMemes/1.0");
+			res.set(http::field::content_type, resProxy.contentType);
+			applyCorsHeaders(res);
+			res.keep_alive(req_.keep_alive());
+			res.body() = std::move(resProxy.body);
+			res.prepare_payload();
 
 			auto self = shared_from_this();
-			http::async_write(stream_, *res, [self, res](beast::error_code ec, std::size_t bytes_transferred) {
+			http::async_write(stream_, res, [self](beast::error_code ec, std::size_t bytes_transferred) {
 				boost::ignore_unused(bytes_transferred);
 				if (ec) {
 					LOG_ERROR("session", "Write error: " + ec.message());
 					return;
 				}
-				if (res->need_eof()) {
+				if (std::get<http::response<http::string_body>>(self->res_storage_).need_eof()) {
 					self->doClose();
 					return;
 				}
@@ -382,6 +382,7 @@ private:
 class ServerImpl {
 public:
 	ServerConfig                       config;
+	mutable std::shared_mutex           configMtx;
 	net::io_context                    ioc;
 	std::unique_ptr<tcp::acceptor>     acceptor;
 	std::vector<std::thread>           ioThreads;
@@ -416,19 +417,25 @@ public:
 	}
 
 	void performMaintenanceInternal() {
-		if (config.logRetentionEnabled) { Logger::get().cleanOldLogs(config.logRetentionDays); }
+		ServerConfig cfg;
+		{
+			std::shared_lock<std::shared_mutex> lock(configMtx);
+			cfg = config;
+		}
 
-		Database::get().purgeDeletedMemes(config.recycleBinRetentionDays);
+		if (cfg.logRetentionEnabled) { Logger::get().cleanOldLogs(cfg.logRetentionDays); }
 
-		if (config.backupEnabled) {
+		Database::get().purgeDeletedMemes(cfg.recycleBinRetentionDays);
+
+		if (cfg.backupEnabled) {
 			try {
 				auto now = std::filesystem::file_time_type::clock::now();
 				for (const auto &entry :
-				     std::filesystem::directory_iterator(std::filesystem::path(config.dbPath).parent_path())) {
+				     std::filesystem::directory_iterator(std::filesystem::path(cfg.dbPath).parent_path())) {
 					if (entry.is_regular_file() && entry.path().string().find(".bak.") != std::string::npos) {
 						auto ftime = std::filesystem::last_write_time(entry);
 						if (std::chrono::duration_cast<std::chrono::hours>(now - ftime).count() >
-						    24 * config.backupRetentionDays) {
+						    24 * cfg.backupRetentionDays) {
 							std::filesystem::remove(entry.path());
 						}
 					}
@@ -473,7 +480,10 @@ Server::Server()
 Server::~Server() = default;
 
 bool Server::start(const ServerConfig &config) {
-	impl_->config = config;
+	{
+		std::unique_lock<std::shared_mutex> lock(impl_->configMtx);
+		impl_->config = config;
+	}
 	impl_->router = std::make_shared<Router>();
 	impl_->router->setAuthToken(config.authToken);
 	impl_->stopped.store(false);
@@ -486,7 +496,10 @@ bool Server::start(const ServerConfig &config) {
 	LOG_INFO("server", "Starting Server initialization...");
 	EmbeddingModule::get().initialize(config.embeddingConfig);
 	embeddingInitialized = true;
-	impl_->config.embeddingConfig = EmbeddingModule::get().getConfig();
+	{
+		std::unique_lock<std::shared_mutex> lock(impl_->configMtx);
+		impl_->config.embeddingConfig = EmbeddingModule::get().getConfig();
+	}
 
 	try {
 		if (!Database::get().initialize(config.dbPath, EmbeddingModule::get().getDimensions())) {
@@ -605,11 +618,13 @@ void Server::waitForStop() {
 	}
 }
 
-const ServerConfig &Server::getConfig() const {
+ServerConfig Server::getConfig() const {
+	std::shared_lock<std::shared_mutex> lock(impl_->configMtx);
 	return impl_->config;
 }
 
 void Server::updateConfig(const ServerConfig &config) {
+	std::unique_lock<std::shared_mutex> lock(impl_->configMtx);
 	impl_->config = config;
 }
 
