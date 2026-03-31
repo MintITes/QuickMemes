@@ -297,18 +297,18 @@ std::string TaskQueue::submitImportTask(const ImportRequest &request) {
 			pipeline.memeEntry.sourceName = request.options.sourceName;
 			pipeline.memeEntry.sourceUrl  = request.options.sourceUrl;
 
-			boost::asio::post(*impl_->ioPool, [this, pipeline, state]() {
+			boost::asio::post(*impl_->ioPool, [this, p = std::move(pipeline), state]() mutable {
 				if (state->cancelled) {
-					markItemDone(state, pipeline.taskId, false, "Cancelled");
+					markItemDone(state, p.taskId, false, "Cancelled");
 					return;
 				}
 
 				try {
-					runProcessingPipeline(pipeline, state);
+					runProcessingPipeline(std::move(p), state);
 				} catch (const std::exception &e) {
 					LOG_ERROR("queue", "Pipeline IO error: " + std::string(e.what()));
-					markItemDone(state, pipeline.taskId, false, "Pipeline IO error: " + std::string(e.what()));
-				} catch (...) { markItemDone(state, pipeline.taskId, false, "Unknown pipeline error"); }
+					markItemDone(state, p.taskId, false, "Pipeline IO error: " + std::string(e.what()));
+				} catch (...) { markItemDone(state, p.taskId, false, "Unknown pipeline error"); }
 			});
 			++postedCount;
 		}
@@ -498,7 +498,7 @@ std::string TaskQueue::submitRebuildTask() {
 	int postedCount = 0;
 	try {
 		for (const auto &item : rebuildItems) {
-			boost::asio::post(*impl_->aiPool, [this, item, taskId, state]() {
+			boost::asio::post(*impl_->aiPool, [this, it = std::move(item), taskId, state]() mutable {
 				if (state->cancelled) {
 					markItemDone(state, taskId, false, "Cancelled");
 					return;
@@ -510,36 +510,36 @@ std::string TaskQueue::submitRebuildTask() {
 					progEvent.payload = {
 					    {"taskId", taskId},
 					    {"status", "processing"},
-					    {"memeId", item.memeId}
+					    {"memeId", it.memeId}
                     };
 					WsPusher::get().broadcast(progEvent);
 
-					if (!item.desc.empty()) {
-						auto descEmbedding = EmbeddingModule::get().generateEmbedding(item.desc);
+					if (!it.desc.empty()) {
+						auto descEmbedding = EmbeddingModule::get().generateEmbedding(it.desc);
 						if (!descEmbedding.empty()) {
-							Database::get().upsertDescriptionEmbedding(item.memeId, descEmbedding);
+							Database::get().upsertDescriptionEmbedding(it.memeId, descEmbedding);
 						} else {
-							Database::get().deleteDescriptionEmbedding(item.memeId);
+							Database::get().deleteDescriptionEmbedding(it.memeId);
 						}
 					} else {
-						Database::get().deleteDescriptionEmbedding(item.memeId);
+						Database::get().deleteDescriptionEmbedding(it.memeId);
 					}
 
-					if (!item.ocrText.empty()) {
-						auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(item.ocrText);
+					if (!it.ocrText.empty()) {
+						auto ocrEmbedding = EmbeddingModule::get().generateEmbedding(it.ocrText);
 						if (!ocrEmbedding.empty()) {
-							Database::get().upsertOcrEmbedding(item.memeId, ocrEmbedding);
+							Database::get().upsertOcrEmbedding(it.memeId, ocrEmbedding);
 						} else {
-							Database::get().deleteOcrEmbedding(item.memeId);
+							Database::get().deleteOcrEmbedding(it.memeId);
 						}
 					} else {
-						Database::get().deleteOcrEmbedding(item.memeId);
+						Database::get().deleteOcrEmbedding(it.memeId);
 					}
 
 					markItemDone(state, taskId, true, "");
 				} catch (const std::exception &e) {
-					if (!item.desc.empty()) { Database::get().deleteDescriptionEmbedding(item.memeId); }
-					if (!item.ocrText.empty()) { Database::get().deleteOcrEmbedding(item.memeId); }
+					if (!it.desc.empty()) { Database::get().deleteDescriptionEmbedding(it.memeId); }
+					if (!it.ocrText.empty()) { Database::get().deleteOcrEmbedding(it.memeId); }
 					markItemDone(state, taskId, false, "Rebuild error: " + std::string(e.what()));
 				} catch (...) { markItemDone(state, taskId, false, "Unknown rebuild error"); }
 			});
