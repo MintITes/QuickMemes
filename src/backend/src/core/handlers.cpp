@@ -327,7 +327,7 @@ void handleGetMemeFile(const HttpRequestProxy &req, HttpResponseProxy &res) {
 		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		auto meme = Database::get().getMeme(id);
-		if (meme.filePath.find("..") != std::string::npos) {
+		if (meme.filePath.contains("..")) {
 			throw ApiException(ERR_INVALID_PARAMS, "Invalid file path in database");
 		}
 
@@ -362,7 +362,7 @@ void handleGetMemeThumbnail(const HttpRequestProxy &req, HttpResponseProxy &res)
 		int64_t id = parseIdFromSegment(*std::next(segments.begin(), 2));
 
 		auto meme = Database::get().getMeme(id);
-		if (meme.filePath.find("..") != std::string::npos) {
+		if (meme.filePath.contains("..")) {
 			throw ApiException(ERR_INVALID_PARAMS, "Invalid file path in database");
 		}
 
@@ -587,12 +587,12 @@ void handlePostExport(const HttpRequestProxy &req, HttpResponseProxy &res) {
 				if (exportReq.keepNames && !meme.name.empty()) {
 					destFileName = meme.name;
 					// Sanitize name: remove any path separators or ".."
-					destFileName.erase(std::remove(destFileName.begin(), destFileName.end(), '/'), destFileName.end());
-					destFileName.erase(std::remove(destFileName.begin(), destFileName.end(), '\\'), destFileName.end());
+					std::erase(destFileName, '/');
+					std::erase(destFileName, '\\');
 					if (destFileName == ".." || destFileName == ".") destFileName = "meme_" + std::to_string(id);
 
 					auto posExt = srcPath.find_last_of('.');
-					if (posExt != std::string::npos && destFileName.find('.') == std::string::npos) {
+					if (posExt != std::string::npos && !destFileName.contains('.')) {
 						destFileName += srcPath.substr(posExt);
 					}
 				} else {
