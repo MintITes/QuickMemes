@@ -90,9 +90,10 @@ WsPusher::Registration WsPusher::addSession(WsSendCallback callback) {
 		impl->session_map.emplace(sessionId, std::make_shared<WsSendCallback>(std::move(callback)));
 		current_size = impl->session_map.size();
 
-		// C++23 ranges: 一次性完成遍历与构建，避免手写循环，避免 std::function 拷贝分配
+		// C++20 ranges: 一次性完成遍历与构建，避免手写循环，避免 std::function 拷贝分配
+		auto values_view = impl->session_map | std::views::values;
 		auto new_vec = std::make_shared<std::vector<std::shared_ptr<WsSendCallback>>>(
-		    impl->session_map | std::views::values | std::ranges::to<std::vector>()
+		    values_view.begin(), values_view.end()
 		);
 		impl->sessions_rcu.store(new_vec, std::memory_order_release);
 	} // 锁已释放，安全地进行 I/O 与字符串拼接
@@ -110,9 +111,10 @@ void WsPusher::removeSession(uint64_t sessionId) {
 		impl->session_map.erase(sessionId);
 		current_size = impl->session_map.size();
 
-		// C++23 ranges: 一次性完成遍历与构建
+		// C++20 ranges: 一次性完成遍历与构建
+		auto values_view = impl->session_map | std::views::values;
 		auto new_vec = std::make_shared<std::vector<std::shared_ptr<WsSendCallback>>>(
-		    impl->session_map | std::views::values | std::ranges::to<std::vector>()
+		    values_view.begin(), values_view.end()
 		);
 		impl->sessions_rcu.store(new_vec, std::memory_order_release);
 	} // 锁释放，避免 I/O 阻塞核心全局锁
