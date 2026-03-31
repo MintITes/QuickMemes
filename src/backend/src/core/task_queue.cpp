@@ -33,15 +33,19 @@
 #include <thread>
 #include <unordered_map>
 #include <boost/url.hpp>
+#include <expected>
+#include <boost/beast/http/file_body.hpp>
 
 extern std::unique_ptr<quickmemes::Server> g_server;
 
 namespace quickmemes {
 
 namespace {
-bool downloadImageToTemp(const std::string &url, std::string &outPath) {
+std::string generateUUIDv4();
+
+std::expected<std::string, std::string> downloadImageToTemp(const std::string &url) {
 	auto r = boost::urls::parse_uri(url);
-	if (!r) return false;
+	if (!r) return std::unexpected("Failed to parse URL");
 	auto const &uv = *r;
 
 	std::string protocol(uv.scheme());
@@ -76,12 +80,12 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 					auto bytes = addr.to_v4().to_bytes();
 					if (bytes[0] == 127 || bytes[0] == 10 || (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
 					    (bytes[0] == 192 && bytes[1] == 168) || (bytes[0] == 169 && bytes[1] == 254) || bytes[0] == 0) {
-						return false; // SSRF Protection
+						return std::unexpected("SSRF Protection"); // SSRF Protection
 					}
 				} else if (addr.is_v6()) {
 					if (addr.to_v6().is_loopback() || addr.to_v6().is_link_local() || addr.to_v6().is_site_local() ||
 					    addr.to_v6().is_multicast() || addr.to_v6().is_unspecified()) {
-						return false;
+						return std::unexpected("SSRF Protection");
 					}
 				}
 			}
@@ -90,17 +94,23 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 			req.set(boost::beast::http::field::host, host);
 			req.set(boost::beast::http::field::user_agent, randomUA);
 
-			// 修复内存耗尽风险：为 string_body 添加响应体大小限制（10MB）
-			constexpr size_t                                                     kMaxBody = 10 * 1024 * 1024; // 10 MB
-			boost::beast::http::response_parser<boost::beast::http::string_body> parser;
-			parser.body_limit(kMaxBody);
+			// 彻底消除内存爆炸风险：直接落盘
+			std::string tempPath = (std::filesystem::temp_directory_path() / ("qmdl_" + generateUUIDv4())).string();
+
+			boost::beast::http::response_parser<boost::beast::http::file_body> parser;
+			parser.body_limit(10 * 1024 * 1024); // 10 MB limit
+
+			boost::beast::error_code file_ec;
+			parser.get().body().open(tempPath.c_str(), boost::beast::file_mode::write, file_ec);
+			if (file_ec) return std::unexpected("Failed to open temp file: " + file_ec.message());
 
 			if (protocol == "https") {
 				boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_client);
 				ctx.set_default_verify_paths();
 				ctx.set_verify_mode(boost::asio::ssl::verify_peer);
 				boost::beast::ssl_stream<boost::beast::tcp_stream> stream(ioc, ctx);
-				if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str())) return false;
+				if (!SSL_set_tlsext_host_name(stream.native_handle(), host.c_str()))
+					return std::unexpected("SSL SNI failed");
 
 				boost::beast::get_lowest_layer(stream).connect(results);
 				boost::beast::get_lowest_layer(stream).expires_after(std::chrono::seconds(30));
@@ -124,35 +134,30 @@ bool downloadImageToTemp(const std::string &url, std::string &outPath) {
 			auto &res = parser.get();
 
 			if (res.result() != boost::beast::http::status::ok) {
+				std::filesystem::remove(tempPath);
 				if (attempt < maxRetries - 1) {
 					std::this_thread::sleep_for(std::chrono::seconds(1));
 					continue;
 				}
-				return false;
+				return std::unexpected("HTTP status " + std::to_string(static_cast<int>(res.result())));
 			}
 
-			std::string       tempTemplate = (std::filesystem::temp_directory_path() / "qmdl_XXXXXX").string();
-			std::vector<char> tempTpl(tempTemplate.begin(), tempTemplate.end());
-			tempTpl.push_back('\0');
-
-			int fd = mkstemp(tempTpl.data());
-			if (fd == -1) return false;
-			close(fd);
-
-			std::ofstream ofs(tempTpl.data(), std::ios::binary);
-			ofs << res.body();
-			ofs.close();
-
-			outPath = tempTpl.data();
-			return true;
+			return tempPath;
+		} catch (const std::exception &e) {
+			if (attempt < maxRetries - 1) {
+				std::this_thread::sleep_for(std::chrono::seconds(1));
+				continue;
+			}
+			return std::unexpected(e.what());
 		} catch (...) {
 			if (attempt < maxRetries - 1) {
 				std::this_thread::sleep_for(std::chrono::seconds(1));
 				continue;
 			}
+			return std::unexpected("Unknown error");
 		}
 	}
-	return false;
+	return std::unexpected("Max retries reached");
 }
 
 std::string generateUUIDv4() {
@@ -705,13 +710,13 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	// Check if it's a URL
 	if (pipeline.inputPath.find("http://") == 0 || pipeline.inputPath.find("https://") == 0) {
 		LOG_INFO("queue", "Downloading image from URL: " + pipeline.inputPath);
-		std::string tempPath;
-		if (downloadImageToTemp(pipeline.inputPath, tempPath)) {
-			actualPath       = tempPath;
+		auto downloadRes = downloadImageToTemp(pipeline.inputPath);
+		if (downloadRes) {
+			actualPath       = *downloadRes;
 			isTempDownloaded = true;
 		} else {
-			LOG_ERROR("queue", "Failed to download image from URL");
-			markItemDone(state, pipeline.taskId, false, "Failed to download image from URL");
+			LOG_ERROR("queue", "Failed to download image from URL: " + downloadRes.error());
+			markItemDone(state, pipeline.taskId, false, "Failed to download image from URL: " + downloadRes.error());
 			return;
 		}
 	}
