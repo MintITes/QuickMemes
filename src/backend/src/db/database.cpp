@@ -1184,6 +1184,140 @@ void Database::rebuildEmbeddingTables(int newDimension) {
 	}
 }
 
+BatchResult Database::deleteMemesBatch(const std::vector<int64_t> &ids) {
+	std::unique_lock lock(dbMutex_);
+	BatchResult      result;
+	try {
+		SQLite::Transaction txn(*db_);
+		SQLite::Statement   delMeme(*db_, "DELETE FROM memes WHERE id = ? AND deleted_at > 0");
+		SQLite::Statement   delDesc(*db_, "DELETE FROM vec_meme_desc WHERE meme_id = ?");
+		SQLite::Statement   delOcr(*db_, "DELETE FROM vec_meme_ocr WHERE meme_id = ?");
+
+		for (int64_t id : ids) {
+			try {
+				delMeme.bind(1, id);
+				int rows = delMeme.exec();
+				if (rows > 0) {
+					delDesc.bind(1, id);
+					delDesc.exec();
+					delOcr.bind(1, id);
+					delOcr.exec();
+					result.succeeded++;
+				} else {
+					result.failed++;
+					result.errors.push_back("Meme ID " + std::to_string(id) + " not found");
+				}
+				delMeme.reset();
+				delDesc.reset();
+				delOcr.reset();
+			} catch (const std::exception &e) {
+				result.failed++;
+				result.errors.push_back("Error deleting ID " + std::to_string(id) + ": " + e.what());
+			}
+		}
+		txn.commit();
+	} catch (const std::exception &e) {
+		LOG_ERROR("persist", std::string("deleteMemesBatch failed: ") + e.what());
+	}
+	return result;
+}
+
+BatchResult Database::softDeleteMemesBatch(const std::vector<int64_t> &ids) {
+	std::unique_lock lock(dbMutex_);
+	BatchResult      result;
+	try {
+		SQLite::Transaction txn(*db_);
+		auto                nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		SQLite::Statement stmt(*db_, "UPDATE memes SET deleted_at = ? WHERE id = ? AND deleted_at = 0");
+
+		for (int64_t id : ids) {
+			try {
+				stmt.bind(1, static_cast<int64_t>(nowMs));
+				stmt.bind(2, id);
+				if (stmt.exec() > 0) {
+					result.succeeded++;
+				} else {
+					result.failed++;
+					result.errors.push_back("Meme ID " + std::to_string(id) + " not found or already deleted");
+				}
+				stmt.reset();
+			} catch (const std::exception &e) {
+				result.failed++;
+				result.errors.push_back("Error soft deleting ID " + std::to_string(id) + ": " + e.what());
+			}
+		}
+		txn.commit();
+	} catch (const std::exception &e) {
+		LOG_ERROR("persist", std::string("softDeleteMemesBatch failed: ") + e.what());
+	}
+	return result;
+}
+
+BatchResult Database::addMemeTagBatch(const std::vector<int64_t> &memeIds, int64_t tagId) {
+	std::unique_lock lock(dbMutex_);
+	BatchResult      result;
+	try {
+		SQLite::Transaction txn(*db_);
+		SQLite::Statement   stmt(*db_, "INSERT OR IGNORE INTO meme_tags (meme_id, tag_id) VALUES (?, ?)");
+
+		for (int64_t memeId : memeIds) {
+			try {
+				stmt.bind(1, memeId);
+				stmt.bind(2, tagId);
+				if (stmt.exec() >= 0) {
+					result.succeeded++;
+				} else {
+					result.failed++;
+				}
+				stmt.reset();
+			} catch (const std::exception &e) {
+				result.failed++;
+				result.errors.push_back("Error adding tag to ID " + std::to_string(memeId) + ": " + e.what());
+			}
+		}
+		txn.commit();
+	} catch (const std::exception &e) {
+		LOG_ERROR("persist", std::string("addMemeTagBatch failed: ") + e.what());
+	}
+	return result;
+}
+
+BatchResult Database::updateMemeCategoryBatch(const std::vector<int64_t> &memeIds, int64_t categoryId) {
+	std::unique_lock lock(dbMutex_);
+	BatchResult      result;
+	try {
+		SQLite::Transaction txn(*db_);
+		auto                nowMs =
+		    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+		        .count();
+		SQLite::Statement stmt(*db_, "UPDATE memes SET category_id = ?, updated_at = ? WHERE id = ?");
+
+		for (int64_t memeId : memeIds) {
+			try {
+				stmt.bind(1, categoryId);
+				stmt.bind(2, static_cast<int64_t>(nowMs));
+				stmt.bind(3, memeId);
+				if (stmt.exec() > 0) {
+					result.succeeded++;
+				} else {
+					result.failed++;
+					result.errors.push_back("Meme ID " + std::to_string(memeId) + " not found");
+				}
+				stmt.reset();
+			} catch (const std::exception &e) {
+				result.failed++;
+				result.errors.push_back("Error updating category for ID " + std::to_string(memeId) + ": " + e.what());
+			}
+		}
+		txn.commit();
+	} catch (const std::exception &e) {
+		LOG_ERROR("persist", std::string("updateMemeCategoryBatch failed: ") + e.what());
+	}
+	return result;
+}
+
 std::string Database::backupDatabase() {
 	std::unique_lock lock(dbMutex_);
 	try {

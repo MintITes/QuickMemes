@@ -675,23 +675,17 @@ void handleDeleteTrashBatch(const HttpRequestProxy &req, HttpResponseProxy &res)
 	try {
 		auto j = nlohmann::json::parse(req.body);
 		if (!j.contains("ids") || !j["ids"].is_array()) { throw std::invalid_argument("ids array missing"); }
-		BatchResult data;
+
+		std::vector<int64_t> ids;
 		for (const auto &id_json : j["ids"]) {
-			int64_t id = id_json.get<int64_t>();
-			// Only permanently delete memes that are already soft-deleted (in trash)
-			try {
-				auto meme = Database::get().getMeme(id);
-				if (meme.deletedAt > 0) {
-					if (Database::get().deleteMeme(id)) {
-						data.succeeded++;
-					} else {
-						data.failed++;
-					}
-				} else {
-					data.failed++;
-				}
-			} catch (...) { data.failed++; }
+			ids.push_back(id_json.get<int64_t>());
 		}
+
+		// Permanent delete only for already soft-deleted memes.
+		// We'll rely on the DB batch method which we'll update to handle this if needed,
+		// or we can filter here, but filtered in DB is better.
+		BatchResult data = Database::get().deleteMemesBatch(ids);
+
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
 	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
@@ -845,15 +839,19 @@ void handleDeleteMemesBatch(const HttpRequestProxy &req, HttpResponseProxy &res)
 	try {
 		auto j = nlohmann::json::parse(req.body);
 		if (!j.contains("ids") || !j["ids"].is_array()) { throw std::invalid_argument("ids array missing"); }
-		BatchResult data;
+
+		std::vector<int64_t> ids;
 		for (const auto &id_json : j["ids"]) {
-			int64_t id = id_json.get<int64_t>();
-			if (Database::get().softDeleteMeme(id)) {
-				data.succeeded++;
-			} else {
-				data.failed++;
-			}
+			ids.push_back(id_json.get<int64_t>());
 		}
+
+		BatchResult data = Database::get().softDeleteMemesBatch(ids);
+
+		// Broadcast deletions
+		for (const auto &id : ids) {
+			WsPusher::get().broadcast({"meme:deleted", {{"id", id}}});
+		}
+
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
 	} catch (const std::bad_alloc &) { throw; } catch (const std::exception &e) {
@@ -870,21 +868,12 @@ void handlePostMemesBatchTags(const HttpRequestProxy &req, HttpResponseProxy &re
 		}
 		int64_t tagId = j.value("tagId", 0LL);
 
-		BatchResult data;
-		Database   &db    = Database::get();
-		auto        rawDb = db.getRawDatabase();
-		if (!rawDb) throw std::runtime_error("DB not available");
-		SQLite::Transaction txn(*rawDb);
-
+		std::vector<int64_t> memeIds;
 		for (const auto &id_json : j["memeIds"]) {
-			int64_t memeId = id_json.get<int64_t>();
-			if (db.addMemeTag(memeId, tagId)) {
-				data.succeeded++;
-			} else {
-				data.failed++;
-			}
+			memeIds.push_back(id_json.get<int64_t>());
 		}
-		txn.commit();
+
+		BatchResult data = Database::get().addMemeTagBatch(memeIds, tagId);
 
 		res.status = 200;
 		res.body   = makeSuccessResponse(data);
@@ -1022,17 +1011,14 @@ void handleDeleteCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 void handlePostMemesBatchCategory(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	try {
 		auto        batchReq = nlohmann::json::parse(req.body).get<BatchCategoryRequest>();
-		BatchResult result;
+		BatchResult result   = Database::get().updateMemeCategoryBatch(batchReq.memeIds, batchReq.categoryId);
 
+		// Broadcast updates
 		for (int64_t memeId : batchReq.memeIds) {
-			if (Database::get().updateMemeCategory(memeId, batchReq.categoryId)) {
-				result.succeeded++;
+			try {
 				auto meme = Database::get().getMeme(memeId);
 				WsPusher::get().broadcast({"meme:updated", meme});
-			} else {
-				result.failed++;
-				result.errors.push_back("Failed to update meme " + std::to_string(memeId));
-			}
+			} catch (...) {}
 		}
 
 		res.status = 200;

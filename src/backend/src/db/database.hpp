@@ -302,9 +302,41 @@ public:
 	 *
 	 * 当 Embedding 模型切换导致维度变化时调用。
 	 *
-	 * @param newDimension int 新的向量维度
+	 * @param newDimension int 新提向量维度
 	 */
 	void rebuildEmbeddingTables(int newDimension);
+
+	// ── 批量操作 ──
+
+	/**
+	 * @brief 批量永久删除 Meme（用于清空回收站）
+	 * @param ids std::vector<int64_t> Meme ID 列表
+	 * @return BatchResult 批量结果
+	 */
+	BatchResult deleteMemesBatch(const std::vector<int64_t> &ids);
+
+	/**
+	 * @brief 批量软删除 Meme
+	 * @param ids std::vector<int64_t> Meme ID 列表
+	 * @return BatchResult 批量结果
+	 */
+	BatchResult softDeleteMemesBatch(const std::vector<int64_t> &ids);
+
+	/**
+	 * @brief 批量为 Meme 添加标签
+	 * @param memeIds std::vector<int64_t> Meme ID 列表
+	 * @param tagId int64_t 标签 ID
+	 * @return BatchResult 批量结果
+	 */
+	BatchResult addMemeTagBatch(const std::vector<int64_t> &memeIds, int64_t tagId);
+
+	/**
+	 * @brief 批量更新 Meme 分类
+	 * @param memeIds std::vector<int64_t> Meme ID 列表
+	 * @param categoryId int64_t 分类 ID
+	 * @return BatchResult 批量结果
+	 */
+	BatchResult updateMemeCategoryBatch(const std::vector<int64_t> &memeIds, int64_t categoryId);
 
 	// ── 备份与完整性 ──
 
