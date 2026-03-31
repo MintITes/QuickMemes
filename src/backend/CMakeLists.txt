@@ -26,7 +26,7 @@ FetchContent_Declare(
     URL https://github.com/boostorg/boost/releases/download/boost-1.90.0/boost-1.90.0-cmake.tar.gz
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
-set(BOOST_INCLUDE_LIBRARIES beast asio uuid)
+set(BOOST_INCLUDE_LIBRARIES beast asio uuid url)
 set(BUILD_SHARED_LIBS OFF)
 FetchContent_MakeAvailable(Boost)
 
@@ -216,6 +216,7 @@ target_link_libraries(quickmemes_core PUBLIC
     Boost::beast
     Boost::asio
     Boost::uuid
+    Boost::url
     nlohmann_json::nlohmann_json
     quickmemes_db
     quickmemes_embedding

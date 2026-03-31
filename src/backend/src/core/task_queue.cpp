@@ -30,10 +30,9 @@
 #include <iomanip>
 #include <mutex>
 #include <random>
-#include <regex>
-#include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <boost/url.hpp>
 
 extern std::unique_ptr<quickmemes::Server> g_server;
 
@@ -41,14 +40,15 @@ namespace quickmemes {
 
 namespace {
 bool downloadImageToTemp(const std::string &url, std::string &outPath) {
-	std::regex  urlRegex(R"(^(https?)://([^/:]+)(?::(\d+))?(/.*)?$)");
-	std::smatch match;
-	if (!std::regex_match(url, match, urlRegex)) return false;
+	auto r = boost::urls::parse_uri(url);
+	if (!r) return false;
+	auto const &uv = *r;
 
-	std::string protocol = match[1];
-	std::string host     = match[2];
-	std::string port     = match[3].str().empty() ? (protocol == "https" ? "443" : "80") : match[3].str();
-	std::string target   = match[4].str().empty() ? "/" : match[4].str();
+	std::string protocol(uv.scheme());
+	std::string host(uv.host());
+	std::string port   = uv.has_port() ? std::string(uv.port()) : (protocol == "https" ? "443" : "80");
+	std::string target = std::string(uv.encoded_target());
+	if (target.empty()) target = "/";
 
 	std::vector<std::string> userAgents = {
 	    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 "
@@ -790,27 +790,31 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 	meme.filePath                           = (relDir / pureHashName).generic_string();
 
 	Database &db = Database::get();
+
+	// 1. 先进行文件复制 (或移动以提升性能)
+	const bool copied = copyFile(actualPath, finalPath.string());
+	if (isTempDownloaded) std::filesystem::remove(actualPath);
+
+	if (!copied) {
+		LOG_ERROR("queue", "Failed to copy image to storage");
+		markItemDone(state, pipeline.taskId, false, "Failed to copy image to storage");
+		return;
+	}
+
+	// 2. 文件就绪后，再写入 DB
 	try {
 		meme.id = db.insertMeme(meme);
 	} catch (const ApiException &e) {
 		if (e.code() == ERR_DUPLICATE) {
 			LOG_INFO("queue", "Meme already exists: " + hash);
-			if (isTempDownloaded) std::filesystem::remove(actualPath);
 			markItemDone(state, pipeline.taskId, false, "Meme already exists: " + hash, ERR_DUPLICATE);
 			return;
 		}
+		// DB 写入失败，回滚物理文件
+		std::error_code ec;
+		std::filesystem::remove(finalPath, ec);
 		LOG_ERROR("queue", "Failed to initially save DB record: " + std::string(e.what()));
-		if (isTempDownloaded) std::filesystem::remove(actualPath);
 		markItemDone(state, pipeline.taskId, false, "Failed to base DB record: " + std::string(e.what()));
-		return;
-	}
-
-	const bool copied = copyFile(actualPath, finalPath.string());
-	if (isTempDownloaded) std::filesystem::remove(actualPath);
-	if (!copied) {
-		db.deleteMeme(meme.id);
-		LOG_ERROR("queue", "Failed to copy image to final storage");
-		markItemDone(state, pipeline.taskId, false, "Failed to copy image to storage");
 		return;
 	}
 
@@ -921,6 +925,8 @@ void TaskQueue::runProcessingPipeline(ImportPipeline pipeline, std::shared_ptr<T
 		});
 	} catch (const std::exception &e) {
 		db.deleteMeme(meme.id);
+		std::error_code ec;
+		std::filesystem::remove(finalPath, ec);
 		LOG_ERROR("queue", "Failed to enqueue AI pipeline: " + std::string(e.what()));
 		markItemDone(state, pipeline.taskId, false, "Failed to enqueue AI pipeline");
 	}
