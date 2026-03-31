@@ -9,6 +9,8 @@
 #include "utils/logger.hpp"
 #include "vision/vision.hpp"
 
+#include <array>
+#include <string_view>
 #include <atomic>
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -54,18 +56,15 @@ std::expected<std::string, std::string> downloadImageToTemp(const std::string &u
 	std::string target = std::string(uv.encoded_target());
 	if (target.empty()) target = "/";
 
-	std::vector<std::string> userAgents = {
-	    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 "
-	    "Safari/537.36",
-	    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 "
-	    "Safari/605.1.15",
+	static constexpr std::array<std::string_view, 4> userAgents = {
+	    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
 	    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-	    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 "
-	    "Mobile/15E148 Safari/604.1"};
+	    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1"};
 
 	thread_local std::mt19937             generator(std::random_device{}());
 	std::uniform_int_distribution<size_t> distribution(0, userAgents.size() - 1);
-	std::string                           randomUA = userAgents[distribution(generator)];
+	std::string_view                      randomUA = userAgents[distribution(generator)];
 
 	int maxRetries = 3;
 	for (int attempt = 0; attempt < maxRetries; attempt++) {
