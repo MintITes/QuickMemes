@@ -3,8 +3,8 @@
 #include "core/handlers.hpp"
 #include "utils/logger.hpp"
 
-#include <iostream>
 #include <regex>
+#include <string_view>
 #include <unordered_map>
 
 namespace quickmemes {
@@ -12,7 +12,7 @@ namespace quickmemes {
 class RouterImpl {
 public:
 	std::unordered_map<std::string, RouteHandler>                                  exactRoutes;
-	std::vector<std::pair<std::function<bool(const std::string &)>, RouteHandler>> dynamicRoutes;
+	std::vector<std::pair<std::function<bool(std::string_view)>, RouteHandler>> dynamicRoutes;
 };
 
 Router::Router()
@@ -37,122 +37,123 @@ Router::Router()
 	impl->exactRoutes["POST /api/admin/rebuild-embeddings"] = handlePostAdminRebuildEmbeddings;
 	impl->exactRoutes["PATCH /api/config"]                  = handlePatchConfig;
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "GET /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find('/');
-		                               return pos != std::string::npos && rest.substr(pos) == "/file";
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "GET /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find('/');
+		                               return pos != std::string_view::npos && rest.substr(pos) == "/file";
 	                               },
 	                               handleGetMemeFile});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "GET /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find('/');
-		                               return pos != std::string::npos && rest.substr(pos) == "/thumbnail";
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "GET /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find('/');
+		                               return pos != std::string_view::npos && rest.substr(pos) == "/thumbnail";
 	                               },
 	                               handleGetMemeThumbnail});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "GET /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto rest = key.substr(p.size());
-		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "GET /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               return rest.find_first_not_of("0123456789") == std::string_view::npos &&
 		                                      !rest.empty();
 	                               },
 	                               handleGetMeme});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "PUT /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto rest = key.substr(p.size());
-		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "PUT /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               return rest.find_first_not_of("0123456789") == std::string_view::npos &&
 		                                      !rest.empty();
 	                               },
 	                               handlePutMeme});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "DELETE /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto rest = key.substr(p.size());
-		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "DELETE /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               return rest.find_first_not_of("0123456789") == std::string_view::npos &&
 		                                      !rest.empty();
 	                               },
 	                               handleDeleteMeme});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find('/');
-		                               return pos != std::string::npos && rest.substr(pos) == "/tags";
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "POST /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find('/');
+		                               return pos != std::string_view::npos && rest.substr(pos) == "/tags";
 	                               },
 	                               handlePostMemeTags});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "DELETE /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find("/tags/");
-		                               return pos != std::string::npos &&
-		                                      rest.find_first_not_of("0123456789", pos + 6) == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "DELETE /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find("/tags/");
+		                               return pos != std::string_view::npos &&
+		                                      rest.find_first_not_of("0123456789", pos + 6) ==
+		                                          std::string_view::npos &&
 		                                      rest.size() > pos + 6;
 	                               },
 	                               handleDeleteMemeTags});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find('/');
-		                               return pos != std::string::npos && rest.substr(pos) == "/restore";
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "POST /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find('/');
+		                               return pos != std::string_view::npos && rest.substr(pos) == "/restore";
 	                               },
 	                               handlePostMemeRestore});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find('/');
-		                               return pos != std::string::npos && rest.substr(pos) == "/use";
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "POST /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find('/');
+		                               return pos != std::string_view::npos && rest.substr(pos) == "/use";
 	                               },
 	                               handlePostMemeUse});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "POST /api/meme/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto   rest = key.substr(p.size());
-		                               size_t pos  = rest.find('/');
-		                               return pos != std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "POST /api/meme/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               size_t           pos  = rest.find('/');
+		                               return pos != std::string_view::npos &&
 		                                      (rest.substr(pos) == "/ocr" || rest.substr(pos) == "/ocr/");
 	                               },
 	                               handlePostMemeOcr});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "DELETE /api/tags/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto rest = key.substr(p.size());
-		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "DELETE /api/tags/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               return rest.find_first_not_of("0123456789") == std::string_view::npos &&
 		                                      !rest.empty();
 	                               },
 	                               handleDeleteTag});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "PUT /api/categories/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto rest = key.substr(p.size());
-		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "PUT /api/categories/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               return rest.find_first_not_of("0123456789") == std::string_view::npos &&
 		                                      !rest.empty();
 	                               },
 	                               handlePutCategory});
 
-	impl->dynamicRoutes.push_back({[](const std::string &key) {
-		                               const std::string p = "DELETE /api/categories/";
-		                               if (key.compare(0, p.size(), p) != 0) return false;
-		                               auto rest = key.substr(p.size());
-		                               return rest.find_first_not_of("0123456789") == std::string::npos &&
+	impl->dynamicRoutes.push_back({[](std::string_view key) {
+		                               constexpr std::string_view p = "DELETE /api/categories/";
+		                               if (!key.starts_with(p)) return false;
+		                               std::string_view rest = key.substr(p.size());
+		                               return rest.find_first_not_of("0123456789") == std::string_view::npos &&
 		                                      !rest.empty();
 	                               },
 	                               handleDeleteCategory});
@@ -174,15 +175,16 @@ void Router::dispatch(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	auto impl = impl_.get();
 
 	if (req.path != "/api/health" && !authToken_.empty()) {
-		std::string expectedPrefix = "Bearer ";
-		if (req.header_auth.size() <= expectedPrefix.size() ||
-		    req.header_auth.substr(0, expectedPrefix.size()) != expectedPrefix) {
+		constexpr std::string_view expectedPrefix = "Bearer ";
+		std::string_view           authHeader     = req.header_auth;
+
+		if (!authHeader.starts_with(expectedPrefix)) {
 			res.status = 401;
 			res.body   = R"({"success": false, "data": null, "error": "Unauthorized", "code": 401})";
 			return;
 		}
 
-		if (!verifyAuthToken(req.header_auth.substr(expectedPrefix.size()), authToken_)) {
+		if (!verifyAuthToken(authHeader.substr(expectedPrefix.size()), authToken_)) {
 			res.status = 403;
 			res.body   = R"({"success": false, "data": null, "error": "Forbidden", "code": 403})";
 			return;
@@ -216,7 +218,7 @@ void Router::dispatch(const HttpRequestProxy &req, HttpResponseProxy &res) {
 	res.body   = R"({"success": false, "data": null, "error": "Not Found", "code": 1002})";
 }
 
-bool Router::verifyAuthToken(const std::string &token, const std::string &expected) {
+bool Router::verifyAuthToken(std::string_view token, std::string_view expected) {
 	return token == expected;
 }
 

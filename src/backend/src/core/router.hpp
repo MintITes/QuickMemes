@@ -2,6 +2,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace quickmemes {
 
@@ -38,7 +39,7 @@ public:
 
 	void dispatch(const HttpRequestProxy &req, HttpResponseProxy &res);
 
-	static bool verifyAuthToken(const std::string &token, const std::string &expected);
+	static bool verifyAuthToken(std::string_view token, std::string_view expected);
 
 private:
 	std::unique_ptr<RouterImpl> impl_;
