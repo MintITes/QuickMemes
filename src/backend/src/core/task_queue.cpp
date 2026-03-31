@@ -459,8 +459,8 @@ std::string TaskQueue::submitRebuildTask() {
 			break;
 		}
 
-		for (const auto &meme : batchMemes) {
-			rebuildItems.push_back({meme.id, meme.ocrText, meme.description});
+		for (auto &meme : batchMemes) {
+			rebuildItems.push_back({meme.id, std::move(meme.ocrText), std::move(meme.description)});
 			if (static_cast<int>(rebuildItems.size()) > impl_->maxQueueSize - impl_->currentPending.load()) {
 				throw ApiException(ERR_QUOTA_EXCEEDED, "Task queue is full");
 			}
