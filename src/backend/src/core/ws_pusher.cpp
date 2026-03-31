@@ -79,56 +79,59 @@ void WsPusher::setTestListener(std::function<void(const WsEvent &)> cb) {
 WsPusher::Registration WsPusher::addSession(WsSendCallback callback) {
 	auto     impl = static_cast<WsPusherImpl *>(impl_);
 	uint64_t sessionId;
-	size_t   total_sessions;
+	size_t   current_size = 0;
 
 	{
 		std::lock_guard<std::mutex> lock(impl->mtx);
 		sessionId = impl->nextSessionId++;
 		impl->session_map.emplace(sessionId, std::move(callback));
-		total_sessions = impl->session_map.size();
+		current_size = impl->session_map.size();
 
-		// RCU 写路径: Copy-on-Write 构建新的连续 vector 并原子更新
 		auto new_vec = std::make_shared<std::vector<WsSendCallback>>();
-		new_vec->reserve(total_sessions);
+		new_vec->reserve(current_size);
 		for (const auto &[id, cb] : impl->session_map) {
 			new_vec->push_back(cb);
 		}
 		impl->sessions_rcu.store(new_vec, std::memory_order_release);
-	}
+	} // 锁已释放，安全地进行 I/O 与字符串拼接
 
-	LOG_INFO("ws", "Session added to WsPusher. Total: " + std::to_string(total_sessions));
+	LOG_INFO("ws", "Session added to WsPusher. Total: " + std::to_string(current_size));
 	return Registration(new WsSessionRegistration(this, sessionId));
 }
 
 void WsPusher::removeSession(uint64_t sessionId) {
 	auto   impl = static_cast<WsPusherImpl *>(impl_);
-	size_t total_sessions;
+	size_t current_size = 0;
 
 	{
 		std::lock_guard<std::mutex> lock(impl->mtx);
 		impl->session_map.erase(sessionId);
-		total_sessions = impl->session_map.size();
+		current_size = impl->session_map.size();
 
-		// RCU 写路径: Copy-on-Write 更新会话快照
 		auto new_vec = std::make_shared<std::vector<WsSendCallback>>();
-		new_vec->reserve(total_sessions);
+		new_vec->reserve(current_size);
 		for (const auto &[id, cb] : impl->session_map) {
 			new_vec->push_back(cb);
 		}
 		impl->sessions_rcu.store(new_vec, std::memory_order_release);
-	}
+	} // 锁释放，避免 I/O 阻塞核心全局锁
 
-	LOG_INFO("ws", "Session removed from WsPusher. Total: " + std::to_string(total_sessions));
+	LOG_INFO("ws", "Session removed from WsPusher. Total: " + std::to_string(current_size));
 }
 
 void WsPusher::clearSessions() {
-	auto impl = static_cast<WsPusherImpl *>(impl_);
+	auto   impl = static_cast<WsPusherImpl *>(impl_);
+	size_t cleared_count = 0;
+
 	{
 		std::lock_guard<std::mutex> lock(impl->mtx);
+		cleared_count = impl->session_map.size();
 		impl->session_map.clear();
+		// 原子更新为空列表快照
 		impl->sessions_rcu.store(std::make_shared<const std::vector<WsSendCallback>>(), std::memory_order_release);
 	}
-	LOG_INFO("ws", "All sessions removed from WsPusher.");
+
+	LOG_INFO("ws", "All sessions removed from WsPusher. Count: " + std::to_string(cleared_count));
 }
 
 WsSessionRegistration::WsSessionRegistration(WsPusher *owner, uint64_t sessionId)
