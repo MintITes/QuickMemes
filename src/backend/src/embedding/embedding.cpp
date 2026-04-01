@@ -285,7 +285,8 @@ EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const
 
 EmbeddingError EmbeddingModule::parseApiError(const std::exception &e) const {
 	std::string message = e.what();
-	std::regex  statusRegex(R"(returned\s+(\d+)\.\s+Body:\s+(.*)$)");
+	// 静态生命周期，消除动态编译开销
+	static const std::regex statusRegex(R"(returned\s+(\d+)\.\s+Body:\s+(.*)$)");
 	std::smatch match;
 	if (std::regex_search(message, match, statusRegex) && match.size() >= 3) {
 		return parseApiError(std::stoi(match[1].str()), match[2].str());
