@@ -27,10 +27,6 @@ std::string trimCopy(std::string value) {
 	return value;
 }
 
-bool isBlankText(const std::string &value) {
-	return std::all_of(value.begin(), value.end(), [](unsigned char ch) { return std::isspace(ch); });
-}
-
 EmbeddingError makeError(int statusCode, std::string providerCode, std::string message, bool retryable) {
 	return {statusCode, std::move(providerCode), std::move(message), retryable};
 }
@@ -202,9 +198,14 @@ EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const
 	std::vector<std::string> filteredTexts;
 	filteredTexts.reserve(texts.size());
 	for (const auto &text : texts) {
-		auto trimmed = trimCopy(text);
-		if (trimmed.empty() || isBlankText(trimmed)) { continue; }
-		filteredTexts.push_back(trimmed);
+		std::string_view sv = text;
+		sv.remove_prefix(std::min(sv.find_first_not_of(" \t\r\n\v\f"), sv.size()));
+		if (!sv.empty()) {
+			sv.remove_suffix(sv.size() - sv.find_last_not_of(" \t\r\n\v\f") - 1);
+		}
+
+		if (sv.empty()) { continue; }
+		filteredTexts.emplace_back(sv);
 	}
 
 	if (filteredTexts.empty()) { return {}; }
