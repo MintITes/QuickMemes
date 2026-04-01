@@ -455,9 +455,7 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
             SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
                    m.source_name, m.source_url, m.name, m.description, m.ocr_text,
                    m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
-                   m.category_id,
-                   (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
-                    FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json
+                   m.category_id
         )";
 		sql += buildSearchFromClause(query);
 		appendSearchWhereClause(searchSql, sql);
@@ -466,6 +464,8 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
 
 		SQLite::Statement stmt(*db_, sql);
 		bindSearchParams(stmt, query, searchSql);
+
+		std::vector<int64_t> memeIds;
 
 		while (stmt.executeStep()) {
 			MemeEntry meme;
@@ -491,21 +491,44 @@ PagedMemeResults Database::searchMemes(const SearchQuery &query) {
 			meme.deletedAt  = stmt.getColumn(17).getInt64();
 			meme.categoryId = stmt.getColumn(18).getInt64();
 
-			if (!stmt.getColumn(19).isNull()) {
-				std::string tagsJson = stmt.getColumn(19).getString();
-				auto        jTags    = nlohmann::json::parse(tagsJson);
-				for (const auto &jt : jTags) {
-					Tag t;
-					t.id        = jt["id"];
-					t.name      = jt["name"];
-					t.color     = jt["color"];
-					t.createdAt = jt["createdAt"];
-					meme.tags.push_back(t);
-					meme.tagIds.push_back(t.id);
-				}
+			memeIds.push_back(meme.id);
+			results.items.push_back(std::move(meme));
+		}
+
+		if (!memeIds.empty()) {
+			std::string tagSql = R"(
+                SELECT mt.meme_id, t.id, t.name, t.color, t.created_at 
+                FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id 
+                WHERE mt.meme_id IN ()";
+			for (size_t i = 0; i < memeIds.size(); ++i) {
+				tagSql += (i == 0 ? "?" : ", ?");
+			}
+			tagSql += ")";
+
+			SQLite::Statement tagStmt(*db_, tagSql);
+			for (size_t i = 0; i < memeIds.size(); ++i) {
+				tagStmt.bind(static_cast<int>(i + 1), memeIds[i]);
 			}
 
-			results.items.push_back(meme);
+			std::unordered_map<int64_t, std::vector<Tag>> tagMap;
+			while (tagStmt.executeStep()) {
+				int64_t mId = tagStmt.getColumn(0).getInt64();
+				tagMap[mId].emplace_back(Tag{
+				    tagStmt.getColumn(1).getInt64(),
+				    tagStmt.getColumn(2).getString(),
+				    tagStmt.getColumn(3).getString(),
+				    tagStmt.getColumn(4).getInt64()
+				});
+			}
+
+			for (auto &meme : results.items) {
+				if (auto it = tagMap.find(meme.id); it != tagMap.end()) {
+					meme.tags = std::move(it->second);
+					for (const auto &t : meme.tags) {
+						meme.tagIds.push_back(t.id);
+					}
+				}
+			}
 		}
 
 		return results;
@@ -538,9 +561,7 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
             SELECT m.id, m.file_hash, m.file_path, m.mime_type, m.file_size, m.width, m.height,
                    m.source_name, m.source_url, m.name, m.description, m.ocr_text,
                    m.ocr_status, m.ai_status, m.created_at, m.updated_at, m.last_used_at, m.deleted_at,
-                   m.category_id,
-                   (SELECT json_group_array(json_object('id', t.id, 'name', t.name, 'color', t.color, 'createdAt', t.created_at))
-                    FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id WHERE mt.meme_id = m.id) as tags_json
+                   m.category_id
             FROM vec_meme_desc v
             JOIN memes m ON v.meme_id = m.id
             WHERE v.embedding MATCH ?
@@ -548,8 +569,10 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
               AND m.deleted_at = 0
             ORDER BY v.distance
         )");
-		stmt.bind(1, embedding.data(), embedding.size() * sizeof(float));
+		stmt.bind(1, embedding.data(), static_cast<int>(embedding.size() * sizeof(float)));
 		stmt.bind(2, searchLimit);
+
+		std::vector<int64_t> memeIds;
 
 		while (stmt.executeStep()) {
 			if (results.size() >= static_cast<size_t>(limit)) { break; }
@@ -577,21 +600,44 @@ std::vector<MemeEntry> Database::vectorSearch(const std::vector<float> &embeddin
 			meme.deletedAt  = stmt.getColumn(17).getInt64();
 			meme.categoryId = stmt.getColumn(18).getInt64();
 
-			if (!stmt.getColumn(19).isNull()) {
-				std::string tagsJson = stmt.getColumn(19).getString();
-				auto        jTags    = nlohmann::json::parse(tagsJson);
-				for (const auto &jt : jTags) {
-					Tag t;
-					t.id        = jt["id"];
-					t.name      = jt["name"];
-					t.color     = jt["color"];
-					t.createdAt = jt["createdAt"];
-					meme.tags.push_back(t);
-					meme.tagIds.push_back(t.id);
-				}
+			memeIds.push_back(meme.id);
+			results.push_back(std::move(meme));
+		}
+
+		if (!memeIds.empty()) {
+			std::string tagSql = R"(
+                SELECT mt.meme_id, t.id, t.name, t.color, t.created_at 
+                FROM tags t JOIN meme_tags mt ON t.id = mt.tag_id 
+                WHERE mt.meme_id IN ()";
+			for (size_t i = 0; i < memeIds.size(); ++i) {
+				tagSql += (i == 0 ? "?" : ", ?");
+			}
+			tagSql += ")";
+
+			SQLite::Statement tagStmt(*db_, tagSql);
+			for (size_t i = 0; i < memeIds.size(); ++i) {
+				tagStmt.bind(static_cast<int>(i + 1), memeIds[i]);
 			}
 
-			results.push_back(meme);
+			std::unordered_map<int64_t, std::vector<Tag>> tagMap;
+			while (tagStmt.executeStep()) {
+				int64_t mId = tagStmt.getColumn(0).getInt64();
+				tagMap[mId].emplace_back(Tag{
+				    tagStmt.getColumn(1).getInt64(),
+				    tagStmt.getColumn(2).getString(),
+				    tagStmt.getColumn(3).getString(),
+				    tagStmt.getColumn(4).getInt64()
+				});
+			}
+
+			for (auto &meme : results) {
+				if (auto it = tagMap.find(meme.id); it != tagMap.end()) {
+					meme.tags = std::move(it->second);
+					for (const auto &t : meme.tags) {
+						meme.tagIds.push_back(t.id);
+					}
+				}
+			}
 		}
 
 		return results;
