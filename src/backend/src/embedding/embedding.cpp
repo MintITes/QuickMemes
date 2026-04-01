@@ -252,10 +252,7 @@ EmbeddingModule::generateEmbeddings(const std::vector<std::string> &texts, const
 				}
 
 				auto &vector = results[index];
-				vector.reserve(item["embedding"].size());
-				for (const auto &value : item["embedding"]) {
-					vector.push_back(value.get<float>());
-				}
+				item["embedding"].get_to(vector);
 			}
 
 			for (const auto &vector : results) {
