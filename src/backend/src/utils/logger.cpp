@@ -15,25 +15,6 @@
 
 namespace quickmemes {
 
-std::string logLevelToString(LogLevel level) {
-	switch (level) {
-	case LogLevel::LL_DEBUG: return "DEBUG";
-	case LogLevel::LL_INFO: return "INFO ";
-	case LogLevel::LL_WARN: return "WARN ";
-	case LogLevel::LL_ERROR: return "ERROR";
-	case LogLevel::LL_FATAL: return "FATAL";
-	}
-	return "?????";
-}
-
-LogLevel logLevelFromString(const std::string &str) {
-	if (str == "DEBUG") return LogLevel::LL_DEBUG;
-	if (str == "WARN") return LogLevel::LL_WARN;
-	if (str == "ERROR") return LogLevel::LL_ERROR;
-	if (str == "FATAL") return LogLevel::LL_FATAL;
-	return LogLevel::LL_INFO;
-}
-
 Logger &Logger::get() {
 	static Logger instance;
 	return instance;
@@ -64,7 +45,7 @@ void Logger::initialize(const std::string &logDir, LogLevel minLevel, bool reten
 	}
 }
 
-void Logger::log(LogLevel level, const std::string &module, const std::string &message) {
+void Logger::log(LogLevel level, std::string_view module, std::string_view message) {
 	if (level < minLevel_.load(std::memory_order_relaxed)) return;
 
 	// 格式化时间戳
@@ -82,7 +63,7 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 	timestamp << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << '.' << std::setfill('0') << std::setw(3) << ms.count();
 
 	// 格式化模块名（固定宽度 8 字符）
-	std::string paddedModule = module;
+	std::string paddedModule(module);
 	if (paddedModule.size() < 8) { paddedModule.resize(8, ' '); }
 
 	// 格式化日志行
@@ -112,9 +93,10 @@ void Logger::log(LogLevel level, const std::string &module, const std::string &m
 
 			auto it = fileStreams_.find(module);
 			if (it == fileStreams_.end()) {
-				std::string filename = logDir_ + "/" + module + "-" + date + ".log";
+				std::string moduleStr(module);
+				std::string filename = logDir_ + "/" + moduleStr + "-" + date + ".log";
 				auto        ofs      = std::make_unique<std::ofstream>(filename, std::ios::app);
-				if (ofs->is_open()) { it = fileStreams_.emplace(module, std::move(ofs)).first; }
+				if (ofs->is_open()) { it = fileStreams_.emplace(std::move(moduleStr), std::move(ofs)).first; }
 			}
 
 			if (it != fileStreams_.end() && it->second->is_open()) {

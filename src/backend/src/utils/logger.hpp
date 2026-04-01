@@ -13,7 +13,10 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <unordered_map>
+#include <string_view>
+#include <map>
+#include <functional>
+#include <utility>
 
 namespace quickmemes {
 
@@ -34,16 +37,31 @@ enum class LogLevel : int {
 /**
  * @brief 将 LogLevel 枚举转换为固定宽度 5 字符的字符串
  * @param level LogLevel 枚举值
- * @return std::string 如 "INFO " / "ERROR"
+ * @return std::string_view 如 "INFO " / "ERROR"
  */
-[[nodiscard]] std::string logLevelToString(LogLevel level);
+constexpr std::string_view logLevelToString(LogLevel level) noexcept {
+	switch (level) {
+	case LogLevel::LL_DEBUG: return "DEBUG";
+	case LogLevel::LL_INFO:  return "INFO ";
+	case LogLevel::LL_WARN:  return "WARN ";
+	case LogLevel::LL_ERROR: return "ERROR";
+	case LogLevel::LL_FATAL: return "FATAL";
+	}
+	std::unreachable(); // C++23：向编译器承诺枚举已完备，完全消除默认分支的开销
+}
 
 /**
  * @brief 将字符串解析为 LogLevel 枚举
- * @param str std::string 如 "DEBUG" / "INFO" / "WARN" / "ERROR" / "FATAL"
+ * @param str std::string_view 如 "DEBUG" / "INFO" / "WARN" / "ERROR" / "FATAL"
  * @return LogLevel 对应枚举值，未识别时返回 LogLevel::INFO
  */
-[[nodiscard]] LogLevel logLevelFromString(const std::string &str);
+constexpr LogLevel logLevelFromString(std::string_view str) noexcept {
+	if (str == "DEBUG") return LogLevel::LL_DEBUG;
+	if (str == "WARN" || str == "WARN ") return LogLevel::LL_WARN;
+	if (str == "ERROR") return LogLevel::LL_ERROR;
+	if (str == "FATAL") return LogLevel::LL_FATAL;
+	return LogLevel::LL_INFO;
+}
 
 /**
  * @brief 全局 Logger 单例
@@ -81,7 +99,7 @@ public:
 	 * @param module std::string 模块名称（不超过 8 字符，如 "cpp_core"）
 	 * @param message std::string 日志内容
 	 */
-	void log(LogLevel level, const std::string &module, const std::string &message);
+	void log(LogLevel level, std::string_view module, std::string_view message);
 
 	/**
 	 * @brief 刷新当前已打开的日志文件流
@@ -119,7 +137,7 @@ private:
 	int                                                             retentionDays_    = 30;        ///< 日志保留天数
 	bool                                                            initialized_      = false;     ///< 是否已初始化
 	std::mutex                                                      mutex_;          ///< 保护并发写入的互斥锁
-	std::unordered_map<std::string, std::unique_ptr<std::ofstream>> fileStreams_;    ///< 模块对应的文件流
+	std::map<std::string, std::unique_ptr<std::ofstream>, std::less<>> fileStreams_;    ///< 模块对应的文件流
 	std::string                                                     currentLogDate_; ///< 当前记录的日期，用于日志轮转
 
 	/**
