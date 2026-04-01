@@ -19,6 +19,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+#include <format>
+#include <string_view>
 
 extern "C" int sqlite3_vec_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
 extern "C" int sqlite3_simple_init(sqlite3 *db, char **pzErrMsg, const sqlite3_api_routines *pApi);
@@ -72,7 +74,7 @@ static void regexp_func(sqlite3_context *context, int argc, sqlite3_value **argv
 	} catch (...) { sqlite3_result_error(context, "Invalid regex", -1); }
 }
 
-static bool isAsciiKeyword(const std::string &keyword) {
+static bool isAsciiKeyword(std::string_view keyword) {
 	if (keyword.empty()) return false;
 	for (unsigned char ch : keyword) {
 		if (ch > 0x7F) return false;
@@ -133,19 +135,19 @@ static void appendKeywordWhereClause(const quickmemes::SearchQuery &query, quick
 
 	if (isAsciiKeyword(query.keyword)) {
 		clauses.push_back("lower(m.name) LIKE lower(?)");
-		res.params.push_back("%" + query.keyword + "%");
+		res.params.push_back(std::format("%{}%", query.keyword));
 	}
 
 	clauses.push_back(
 	    "EXISTS (SELECT 1 FROM meme_tags mt_keyword "
 	    "JOIN tags t_keyword ON t_keyword.id = mt_keyword.tag_id "
 	    "WHERE mt_keyword.meme_id = m.id AND lower(t_keyword.name) LIKE lower(?))");
-	res.params.push_back("%" + query.keyword + "%");
+	res.params.push_back(std::format("%{}%", query.keyword));
 
 	clauses.push_back(
 	    "EXISTS (SELECT 1 FROM categories c_keyword "
 	    "WHERE c_keyword.id = m.category_id AND lower(c_keyword.name) LIKE lower(?))");
-	res.params.push_back("%" + query.keyword + "%");
+	res.params.push_back(std::format("%{}%", query.keyword));
 
 	std::string keywordClause = "(";
 	for (size_t i = 0; i < clauses.size(); ++i) {
