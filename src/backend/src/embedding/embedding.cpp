@@ -11,29 +11,20 @@
 #include <cctype>
 #include <nlohmann/json.hpp>
 #include <mutex>
+#include <ranges>
 #include <regex>
 #include <sstream>
+#include <string_view>
 
 namespace quickmemes {
 
 namespace {
-
-std::string toLowerCopy(std::string value) {
-	std::transform(value.begin(), value.end(), value.begin(), [](unsigned char c) {
-		return static_cast<char>(std::tolower(c));
-	});
-	return value;
-}
 
 std::string trimCopy(std::string value) {
 	auto notSpace = [](unsigned char ch) { return !std::isspace(ch); };
 	value.erase(value.begin(), std::find_if(value.begin(), value.end(), notSpace));
 	value.erase(std::find_if(value.rbegin(), value.rend(), notSpace).base(), value.end());
 	return value;
-}
-
-std::string normalizeProvider(const std::string &provider) {
-	return toLowerCopy(trimCopy(provider));
 }
 
 bool isBlankText(const std::string &value) {
@@ -171,7 +162,15 @@ int EmbeddingModule::sanitizeDimensions(const std::string &provider, const std::
 }
 
 bool EmbeddingModule::isSupportedProviderModel(const std::string &provider, const std::string &model) {
-	return normalizeProvider(provider) == "jinaai" && model == "jina-embeddings-v5-text-small";
+	if (model != "jina-embeddings-v5-text-small") { return false; }
+
+	std::string_view p = provider;
+	p.remove_prefix(std::min(p.find_first_not_of(" \t\r\n\v\f"), p.size()));
+	if (!p.empty()) { p.remove_suffix(p.size() - p.find_last_not_of(" \t\r\n\v\f") - 1); }
+
+	return std::ranges::equal(p, std::string_view("jinaai"), [](char a, char b) {
+		return std::tolower(static_cast<unsigned char>(a)) == b;
+	});
 }
 
 std::vector<float> EmbeddingModule::generateEmbedding(const std::string &text, const std::string &task) {
