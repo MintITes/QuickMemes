@@ -214,7 +214,7 @@ static int32_t countSearchResults(SQLite::Database                  &db,
 	return stmt.getColumn(0).getInt();
 }
 
-static std::string quoteSqlLiteral(const std::string &value) {
+static std::string quoteSqlLiteral(std::string_view value) {
 	std::string escaped;
 	escaped.reserve(value.size() + 2);
 	escaped.push_back('\'');
