@@ -11,10 +11,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <iomanip>
-#include <openssl/evp.h>
 #include <memory>
-#include <sstream>
+#include <openssl/evp.h>
 #include <stb_image.h>
 #include <stb_image_resize2.h>
 #include <stb_image_write.h>
@@ -34,16 +32,22 @@ std::string computeHash(const std::string &filePath) {
 		throw ApiException(ERR_INTERNAL, "Failed to init SHA256 digest");
 	}
 
-	char buffer[8192];
-	while (file.read(buffer, sizeof(buffer))) {
-		if (EVP_DigestUpdate(ctx.get(), buffer, static_cast<size_t>(file.gcount())) != 1) {
-			throw ApiException(ERR_INTERNAL, "Failed to update SHA256 digest");
+	// 增加缓冲区至 64KB，减少 read 系统调用次数
+	constexpr size_t BUF_SIZE = 65536;
+	char             buffer[BUF_SIZE];
+
+	// 统一读取逻辑，消除冗余的 EOF 额外处理分支
+	while (file) {
+		file.read(buffer, BUF_SIZE);
+		std::streamsize bytesRead = file.gcount();
+		if (bytesRead > 0) {
+			if (EVP_DigestUpdate(ctx.get(), buffer, static_cast<size_t>(bytesRead)) != 1) {
+				throw ApiException(ERR_INTERNAL, "Failed to update SHA256 digest");
+			}
 		}
 	}
-	if (!file.eof()) { throw ApiException(ERR_IO, "Failed to read file for hashing: " + filePath); }
-	if (file.gcount() > 0 && EVP_DigestUpdate(ctx.get(), buffer, static_cast<size_t>(file.gcount())) != 1) {
-		throw ApiException(ERR_INTERNAL, "Failed to update SHA256 digest");
-	}
+
+	if (file.bad()) { throw ApiException(ERR_IO, "Failed to read file for hashing: " + filePath); }
 
 	unsigned char hash[EVP_MAX_MD_SIZE];
 	unsigned int  lengthOfHash = 0;
@@ -52,37 +56,41 @@ std::string computeHash(const std::string &filePath) {
 		throw ApiException(ERR_INTERNAL, "Failed to finalize SHA256 digest");
 	}
 
-	std::ostringstream oss;
-	for (unsigned int i = 0; i < lengthOfHash; i++) {
-		oss << std::hex << std::setfill('0') << std::setw(2) << static_cast<int>(hash[i]);
+	// 直接预分配固定长度字符串，避免动态扩容与虚函数开销
+	std::string    result(lengthOfHash * 2, '0');
+	constexpr char hexChars[] = "0123456789abcdef";
+	for (unsigned int i = 0; i < lengthOfHash; ++i) {
+		result[i * 2]     = hexChars[(hash[i] >> 4) & 0x0F];
+		result[i * 2 + 1] = hexChars[hash[i] & 0x0F];
 	}
-	return oss.str();
+	return result;
 }
 
 std::string detectMimeType(const std::string &filePath) {
 	std::ifstream file(filePath, std::ios::binary);
 	if (!file.is_open()) { return "application/octet-stream"; }
 
-	unsigned char header[16] = {};
+	unsigned char header[16]; // 移除多余的零初始化，紧接着由 read() 覆盖
 	file.read(reinterpret_cast<char *>(header), sizeof(header));
+	const std::streamsize bytesRead = file.gcount();
 
-	// PNG: 89 50 4E 47 0D 0A 1A 0A
-	if (header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47) { return "image/png"; }
+	// PNG: 89 50 4E 47
+	if (bytesRead >= 4 && std::memcmp(header, "\x89\x50\x4E\x47", 4) == 0) { return "image/png"; }
 
 	// JPEG: FF D8 FF
-	if (header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF) { return "image/jpeg"; }
+	if (bytesRead >= 3 && std::memcmp(header, "\xFF\xD8\xFF", 3) == 0) { return "image/jpeg"; }
 
-	// GIF: 47 49 46 38
-	if (header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38) { return "image/gif"; }
+	// GIF: 47 49 46 38 ("GIF8")
+	if (bytesRead >= 4 && std::memcmp(header, "GIF8", 4) == 0) { return "image/gif"; }
 
 	// WebP: RIFF....WEBP
-	if (header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 && header[8] == 0x57 &&
-	    header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50) {
+	if (bytesRead >= 12 && std::memcmp(header, "RIFF", 4) == 0 &&
+	    std::memcmp(header + 8, "WEBP", 4) == 0) {
 		return "image/webp";
 	}
 
-	// AVIF: ....ftypavif
-	if (header[4] == 0x66 && header[5] == 0x74 && header[6] == 0x79 && header[7] == 0x70) { return "image/avif"; }
+	// AVIF: ....ftyp（偏移 4 处）
+	if (bytesRead >= 8 && std::memcmp(header + 4, "ftyp", 4) == 0) { return "image/avif"; }
 
 	return "application/octet-stream";
 }
@@ -153,22 +161,25 @@ bool generateThumbnail(const std::string &srcPath, const std::string &destPath, 
 		return false;
 	}
 
-	// 处理透明度：由于 JPEG 不支持 Alpha，我们将 RGBA 转换为 RGB 并叠加在白色背景上
-	// 这样可以避免直接丢弃 Alpha 导致的黑边/全黑问题
-	std::vector<unsigned char> rgbData(newWidth * newHeight * 3);
-	for (int i = 0; i < newWidth * newHeight; ++i) {
-		float a            = resized[i * 4 + 3] / 255.0f;
-		rgbData[i * 3 + 0] = static_cast<unsigned char>(resized[i * 4 + 0] * a + 255 * (1.0f - a));
-		rgbData[i * 3 + 1] = static_cast<unsigned char>(resized[i * 4 + 1] * a + 255 * (1.0f - a));
-		rgbData[i * 3 + 2] = static_cast<unsigned char>(resized[i * 4 + 2] * a + 255 * (1.0f - a));
+	// 处理透明度：由于 JPEG 不支持 Alpha，我们将 RGBA 混合到白色背景并转换为 RGB (原地处理)
+	const int numPixels = newWidth * newHeight;
+	for (int i = 0; i < numPixels; ++i) {
+		const int          srcIdx = i * 4;
+		const int          dstIdx = i * 3;
+		const unsigned int a      = resized[srcIdx + 3];
+
+		// 纯整型运算混合到白色背景 (255)，避免 float 转换，利于自动向量化
+		resized[dstIdx + 0] = static_cast<unsigned char>((resized[srcIdx + 0] * a + 255 * (255 - a)) / 255);
+		resized[dstIdx + 1] = static_cast<unsigned char>((resized[srcIdx + 1] * a + 255 * (255 - a)) / 255);
+		resized[dstIdx + 2] = static_cast<unsigned char>((resized[srcIdx + 2] * a + 255 * (255 - a)) / 255);
 	}
 
 	// 创建目标目录
 	std::error_code ec;
 	std::filesystem::create_directories(std::filesystem::path(destPath).parent_path(), ec);
 
-	// 输出 JPEG (使用处理后的 RGB 数据)
-	int result = stbi_write_jpg(destPath.c_str(), newWidth, newHeight, 3, rgbData.data(), 85);
+	// 输出 JPEG (直接复用 resized 的前段内存作为 RGB 数据)
+	int result = stbi_write_jpg(destPath.c_str(), newWidth, newHeight, 3, resized.data(), 85);
 	if (!result) {
 		LOG_WARN("file_util", "Failed to write thumbnail: " + destPath);
 		return false;
