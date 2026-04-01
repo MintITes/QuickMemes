@@ -70,16 +70,10 @@ static std::string toLowerCopy(std::string value) {
 	return value;
 }
 
-static std::string trimCopy(std::string value) {
-	auto ltrim = [](std::string &s) {
-		s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); }));
-	};
-	auto rtrim = [](std::string &s) {
-		s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(), s.end());
-	};
-	ltrim(value);
-	rtrim(value);
-	return value;
+static std::string trimCopy(std::string_view s) {
+	auto first = std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); });
+	auto last  = std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base();
+	return (first < last) ? std::string(first, last) : "";
 }
 
 static bool isGifImage(const std::string &imagePath) {
@@ -129,19 +123,22 @@ static bool isOcrSpaceProvider(const std::string &provider) {
 }
 
 static std::string urlEncode(std::string_view value) {
-	std::ostringstream encoded;
-	encoded << std::uppercase << std::hex;
+	std::string encoded;
+	encoded.reserve(value.size() * 1.2); // 预估避免扩容
+	const char  hex_chars[] = "0123456789ABCDEF";
 	for (unsigned char c : value) {
 		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_' ||
 		    c == '.' || c == '~') {
-			encoded << static_cast<char>(c);
+			encoded.push_back(static_cast<char>(c));
 		} else if (c == ' ') {
-			encoded << '+';
+			encoded.push_back('+');
 		} else {
-			encoded << '%' << std::setw(2) << std::setfill('0') << static_cast<int>(c);
+			encoded.push_back('%');
+			encoded.push_back(hex_chars[c >> 4]);
+			encoded.push_back(hex_chars[c & 0x0F]);
 		}
 	}
-	return encoded.str();
+	return encoded;
 }
 
 static std::string normalizePaddleOcrUrl(const std::string &ocrApiUrl) {
@@ -181,14 +178,14 @@ static std::string jsonValueToString(const nlohmann::json &value) {
 }
 
 static std::string buildOcrSpaceRequestBody(const std::string &base64Image) {
-	std::ostringstream body;
-	body << "base64Image=" << urlEncode("data:image/jpeg;base64," + base64Image) << '&';
-	body << "language=" << urlEncode("chs") << '&';
-	body << "isOverlayRequired=" << urlEncode("false") << '&';
-	body << "detectOrientation=" << urlEncode("true") << '&';
-	body << "scale=" << urlEncode("true") << '&';
-	body << "OCREngine=" << urlEncode("2");
-	return body.str();
+	std::string body;
+	// 提前计算总容量，消除运行期所有扩容
+	body.reserve(100 + base64Image.size() * 1.1);
+	body += "base64Image=";
+	body += urlEncode("data:image/jpeg;base64,");
+	body += urlEncode(base64Image); // 避免大字符串拼接直接传参
+	body += "&language=chs&isOverlayRequired=false&detectOrientation=true&scale=true&OCREngine=2";
+	return body;
 }
 
 static std::string buildOcrSpaceHeaders(const std::string &apiKey) {
@@ -511,7 +508,9 @@ OcrResult VisionModule::recognize(const std::string &imagePath) {
 				res.error   = e.what();
 				return res;
 			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(500 * (1 << attempt)));
+			auto backoffMs = 500ULL * (1ULL << attempt);
+			backoffMs = std::min(backoffMs, 30000ULL);
+			std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
 		}
 	}
 
@@ -628,12 +627,13 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 	std::string url     = stateSnapshot.config.apiBaseUrl + "/chat/completions";
 	std::string headers = "Authorization: Bearer " + stateSnapshot.config.apiKey + "\r\n";
 
+	std::string requestPayload = requestBody.dump();
 	std::string responseBody;
 	int         retries = stateSnapshot.config.maxRetries;
 	for (int attempt = 0; attempt <= retries; ++attempt) {
 		try {
 			responseBody =
-			    stateSnapshot.httpClient->post(url, headers, requestBody.dump(), stateSnapshot.config.timeoutSeconds);
+			    stateSnapshot.httpClient->post(url, headers, requestPayload, stateSnapshot.config.timeoutSeconds);
 			break;
 		} catch (const ApiException &e) {
 			if (attempt == retries || !shouldRetryVisionRequest(e)) {
@@ -642,7 +642,9 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 				res.error   = e.what();
 				return res;
 			}
-			std::this_thread::sleep_for(std::chrono::milliseconds(500 * (1 << attempt)));
+			auto backoffMs = 500ULL * (1ULL << attempt);
+			backoffMs = std::min(backoffMs, 30000ULL);
+			std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
 		}
 	}
 
@@ -663,31 +665,34 @@ AiAnalysisResult VisionModule::analyzeImage(const std::string &imagePath, const 
 			return res;
 		}
 
-		std::string content = message["content"].get<std::string>();
+		std::string      content = message["content"].get<std::string>();
+		std::string_view view    = content;
 
-		// 修复问题4：清洗LLM可能返回的Markdown代码块包装（```json ... ```）
-		// 去除首尾空白
-		auto ltrim = [](std::string &s) {
-			s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); }));
+		auto ltrim_v = [](std::string_view &s) {
+			auto pos = std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isspace(c); });
+			s.remove_prefix(std::distance(s.begin(), pos));
 		};
-		auto rtrim = [](std::string &s) {
-			s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); }).base(),
-			        s.end());
+		auto rtrim_v = [](std::string_view &s) {
+			auto pos = std::find_if(s.rbegin(), s.rend(), [](unsigned char c) { return !std::isspace(c); });
+			s.remove_suffix(std::distance(s.rbegin(), pos));
 		};
-		ltrim(content);
-		rtrim(content);
-		// 去除 ```json 或 ``` 开头
-		if (content.size() >= 7 && content.substr(0, 7) == "```json") {
-			content = content.substr(7);
-		} else if (content.size() >= 3 && content.substr(0, 3) == "```") {
-			content = content.substr(3);
+
+		ltrim_v(view);
+		rtrim_v(view);
+
+		// 使用 C++ 20/23 特性 starts_with, ends_with 无拷贝判断
+		if (view.starts_with("```json")) {
+			view.remove_prefix(7);
+		} else if (view.starts_with("```")) {
+			view.remove_prefix(3);
 		}
-		// 去除结尾的 ```
-		if (content.size() >= 3 && content.substr(content.size() - 3) == "```") { content.resize(content.size() - 3); }
-		ltrim(content);
-		rtrim(content);
+		if (view.ends_with("```")) { view.remove_suffix(3); }
 
-		auto analysisJson = nlohmann::json::parse(content);
+		ltrim_v(view);
+		rtrim_v(view);
+
+		// nlohmann::json 原生支持解析 string_view，无需生成新 string
+		auto analysisJson = nlohmann::json::parse(view);
 
 		if (analysisJson.contains("tags") && analysisJson["tags"].is_array()) {
 			for (const auto &tag : analysisJson["tags"]) {
