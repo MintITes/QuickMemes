@@ -34,14 +34,17 @@ static std::string generateUuidV4() {
 	std::uniform_int_distribution<int> hexDist(0, 15);
 	std::uniform_int_distribution<int> variantDist(8, 11);
 
-	std::string uuid = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
-	for (char &ch : uuid) {
-		if (ch == 'x') {
-			ch = "0123456789abcdef"[hexDist(gen)];
-		} else if (ch == 'y') {
-			ch = "89ab"[variantDist(gen) - 8];
-		}
+	const char *hexChars = "0123456789abcdef";
+	std::string uuid     = "00000000-0000-4000-8000-000000000000"; // 预分配模版
+
+	// 无分支（Branchless）按固定索引直接写入
+	static constexpr int x_indices[] = {0,  1,  2,  3,  4,  5,  6,  7,  9,  10, 11, 12, 15, 16, 17,
+	                                    20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35};
+	for (int idx : x_indices) {
+		uuid[idx] = hexChars[hexDist(gen)];
 	}
+	uuid[19] = "89ab"[variantDist(gen) - 8];
+
 	return uuid;
 }
 
