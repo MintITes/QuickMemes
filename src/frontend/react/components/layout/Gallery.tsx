@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useMemeStore } from '../../stores/MemeStore';
 
 import {
@@ -70,12 +70,43 @@ export function Gallery() {
     const mainRef = useRef<HTMLElement>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const zoomAnimationTimerRef = useRef<number | null>(null);
+    const viewSwitchTimerRef = useRef<number | null>(null);
     const [isZoomResizing, setIsZoomResizing] = useState(false);
     const [containerWidth, setContainerWidth] = useState(0);
+    // 视图切换时先 fade out，重排完成后再 fade in
+    const [isSwitchingView, setIsSwitchingView] = useState(false);
+    const [displayedViewMode, setDisplayedViewMode] = useState(viewMode);
+
+    const handleSetViewMode = useCallback((mode: 'grid' | 'masonry') => {
+        if (mode === viewMode) return;
+        if (viewSwitchTimerRef.current) {
+            window.clearTimeout(viewSwitchTimerRef.current);
+        }
+        setIsSwitchingView(true);
+        viewSwitchTimerRef.current = window.setTimeout(() => {
+            setDisplayedViewMode(mode);
+            setViewMode(mode);
+            // 等待一帧让 DOM 完成重排再 fade in
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setIsSwitchingView(false);
+                    viewSwitchTimerRef.current = null;
+                });
+            });
+        }, 150);
+    }, [viewMode, setViewMode]);
+
+    // 保持 displayedViewMode 与外部 viewMode 同步（外部直接修改时）
+    useEffect(() => {
+        if (!isSwitchingView && displayedViewMode !== viewMode) {
+            setDisplayedViewMode(viewMode);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewMode]);
 
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el || viewMode !== 'masonry') {
+        if (!el || displayedViewMode !== 'masonry') {
             return;
         }
 
@@ -86,7 +117,7 @@ export function Gallery() {
         });
         observer.observe(el);
         return () => observer.disconnect();
-    }, [viewMode]);
+    }, [displayedViewMode]);
 
     useEffect(() => {
         const el = mainRef.current;
@@ -124,6 +155,15 @@ export function Gallery() {
             el.removeEventListener('wheel', handleWheel);
             if (zoomAnimationTimerRef.current) {
                 window.clearTimeout(zoomAnimationTimerRef.current);
+            }
+        };
+    }, []);
+
+    // 组件卸载时清理 viewSwitch 定时器
+    useEffect(() => {
+        return () => {
+            if (viewSwitchTimerRef.current) {
+                window.clearTimeout(viewSwitchTimerRef.current);
             }
         };
     }, []);
@@ -196,10 +236,10 @@ export function Gallery() {
                 key={meme.id}
                 meme={meme}
                 isSelected={isSelected}
-                viewMode={viewMode}
+                viewMode={displayedViewMode}
                 imageFit={imageFit}
                 showTags={showTags}
-                disableLayoutAnimation={isZoomResizing}
+                disableLayoutAnimation={isZoomResizing || isSwitchingView}
             />
         );
     };
@@ -261,7 +301,7 @@ export function Gallery() {
                             size="sm"
                             variant="ghost"
                             active={viewMode === 'grid'}
-                            onClick={() => setViewMode('grid')}
+                            onClick={() => handleSetViewMode('grid')}
                             className="rounded-lg"
                             title={t('gallery.controls.grid_view')}
                         />
@@ -270,7 +310,7 @@ export function Gallery() {
                             size="sm"
                             variant="ghost"
                             active={viewMode === 'masonry'}
-                            onClick={() => setViewMode('masonry')}
+                            onClick={() => handleSetViewMode('masonry')}
                             className="rounded-lg"
                             title={t('gallery.controls.masonry_view')}
                         />
@@ -292,19 +332,23 @@ export function Gallery() {
                         <div
                             className={clsx(
                                 'w-full pb-8',
-                                viewMode === 'masonry' 
+                                displayedViewMode === 'masonry' 
                                     ? 'mx-auto' 
                                     : 'grid gap-[var(--gallery-gap)] justify-start content-start grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
                             )}
-                            style={viewMode === 'masonry' ? {
-                                width: typeof masonryWidth === 'number' ? `${masonryWidth}px` : masonryWidth,
-                                columnWidth: `${itemSize}px`,
-                                columnGap: `${gap}px`,
-                                visibility: containerWidth > 0 ? 'visible' : 'hidden'
-                            } : undefined}
+                            style={{
+                                ...(displayedViewMode === 'masonry' ? {
+                                    width: typeof masonryWidth === 'number' ? `${masonryWidth}px` : masonryWidth,
+                                    columnWidth: `${itemSize}px`,
+                                    columnGap: `${gap}px`,
+                                    visibility: containerWidth > 0 ? 'visible' : 'hidden'
+                                } : undefined),
+                                opacity: isSwitchingView ? 0 : 1,
+                                transition: isSwitchingView ? 'opacity 0.15s ease-out' : 'opacity 0.2s ease-in',
+                            }}
                         >
                             {memes.map((meme) => (
-                                <div key={meme.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : undefined}>
+                                <div key={meme.id} className={displayedViewMode === 'masonry' ? 'break-inside-avoid' : undefined}>
                                     {renderMemeCard(meme)}
                                 </div>
                             ))}
