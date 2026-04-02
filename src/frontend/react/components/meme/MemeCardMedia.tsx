@@ -102,6 +102,7 @@ export function MemeCardMedia({
                             src={src}
                             alt={meme.name}
                             draggable={false}
+                            loading="lazy"
                             initial={{ opacity: 0, scale: 1.05 }}
                             animate={{ opacity: isLoading ? 0 : 1, scale: isLoading ? 1.05 : 1 }}
                             onLoad={onImageLoad}

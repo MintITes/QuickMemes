@@ -76,6 +76,9 @@ export function Gallery() {
     // 视图切换时先 fade out，重排完成后再 fade in
     const [isSwitchingView, setIsSwitchingView] = useState(false);
     const [displayedViewMode, setDisplayedViewMode] = useState(viewMode);
+    const hasMore = useMemeStore((state) => state.hasMore);
+    const hasMoreRef = useRef(hasMore);
+    useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
 
     const handleSetViewMode = useCallback((mode: 'grid' | 'masonry') => {
         if (mode === viewMode) return;
@@ -166,6 +169,23 @@ export function Gallery() {
                 window.clearTimeout(viewSwitchTimerRef.current);
             }
         };
+    }, []);
+
+    // 滚动预加载：距底部不足一屏高度时提前触发
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+
+        const handleScroll = () => {
+            if (!hasMoreRef.current) return;
+            const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+            if (remaining < el.clientHeight) {
+                (window as Window & { __loadMoreMemes?: () => void }).__loadMoreMemes?.();
+            }
+        };
+
+        el.addEventListener('scroll', handleScroll, { passive: true });
+        return () => el.removeEventListener('scroll', handleScroll);
     }, []);
 
     const renderEmptyState = () => {

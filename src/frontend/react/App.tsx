@@ -10,6 +10,8 @@ import { useCategoryStore } from './stores/CategoryStore';
 import { fetchCategories } from './services/categoryService';
 import { fetchTags } from './services/tagService';
 import { buildBackendSearchQuery, fetchTrashMemes, searchMemes } from './services/memeService';
+
+export const PAGE_SIZE = 50;
 import { connectWebSocket, disconnectWebSocket, onEvent } from './api/wsClient';
 import {
     isDuplicateImportErrorMessage,
@@ -59,13 +61,45 @@ function App() {
 
     const { addNotification, clearAll: clearNotifications } = useNotificationStore();
     const { setTask, clearTask } = useTaskStore();
-    const { setMemes, setLoading, upsertMeme, removeMemes } = useMemeStore();
+    const { setMemes, setLoading, upsertMeme, removeMemes, appendMemes, setLoadingMore } = useMemeStore();
     const { setTags, addTag, removeTag } = useTagStore();
     const { setCategories, addCategory, updateCategory, removeCategory } = useCategoryStore();
     const [backendReady, setBackendReady] = useState(false);
     const [fpsEnabled, setFpsEnabled] = useState(false);
     const fpsEnabledRef = useRef(false);
     const visibleMemesRefreshTimerRef = useRef<number | null>(null);
+    const loadMoreLockRef = useRef(false);
+
+    // 暴露给 Gallery 使用，避免 prop drilling
+    useEffect(() => {
+        (window as Window & { __loadMoreMemes?: () => void }).__loadMoreMemes = async () => {
+            const { isLoadingMore, hasMore, memes } = useMemeStore.getState();
+            const { activeNav, searchQuery } = useUiStore.getState();
+            // trash 还没有分页支持，跳过
+            if (activeNav === 'trash' || isLoadingMore || !hasMore || loadMoreLockRef.current) return;
+
+            loadMoreLockRef.current = true;
+            setLoadingMore(true);
+            try {
+                const result = await searchMemes(
+                    buildBackendSearchQuery(searchQuery, activeNav, {
+                        limit: PAGE_SIZE,
+                        offset: memes.length,
+                    })
+                );
+                appendMemes(result.items.map((item) => item.meme));
+            } catch {
+                // 静默失败，保持当前列表不变
+            } finally {
+                setLoadingMore(false);
+                loadMoreLockRef.current = false;
+            }
+        };
+
+        return () => {
+            delete (window as Window & { __loadMoreMemes?: () => void }).__loadMoreMemes;
+        };
+    }, [appendMemes, setLoadingMore]);
 
     useEffect(() => {
         fpsEnabledRef.current = fpsEnabled;
@@ -195,7 +229,10 @@ function App() {
                     return;
                 }
 
-                void searchMemes(buildBackendSearchQuery(latestSearchQuery, latestActiveNav))
+                // 刷新时拉取已加载数量，防止截断用户已滚动到的内容
+                const alreadyLoaded = useMemeStore.getState().memes.length;
+                const refreshLimit = Math.max(PAGE_SIZE, alreadyLoaded);
+                void searchMemes(buildBackendSearchQuery(latestSearchQuery, latestActiveNav, { limit: refreshLimit }))
                     .then((result) => {
                         startTransition(() => {
                             setMemes(result.items.map((item) => item.meme), result.total);
@@ -408,7 +445,7 @@ function App() {
                     return;
                 }
 
-                const result = await searchMemes(buildBackendSearchQuery(searchQuery, activeNav));
+                const result = await searchMemes(buildBackendSearchQuery(searchQuery, activeNav, { limit: PAGE_SIZE }));
                 if (!cancelled) {
                     startTransition(() => {
                         setMemes(result.items.map((item) => item.meme), result.total);

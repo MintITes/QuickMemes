@@ -4,13 +4,17 @@ import type { Meme } from '../types';
 export interface MemeState {
     memes: Meme[];
     isLoading: boolean;
+    isLoadingMore: boolean;
     totalCount: number;
+    hasMore: boolean;
 
     setMemes: (memes: Meme[], totalCount?: number) => void;
+    appendMemes: (memes: Meme[]) => void;
     upsertMeme: (meme: Meme) => void;
     updateMeme: (id: number, updates: Partial<Meme>) => void;
     removeMemes: (ids: number[]) => void;
     setLoading: (isLoading: boolean) => void;
+    setLoadingMore: (isLoadingMore: boolean) => void;
     setTotalCount: (count: number) => void;
     reset: () => void;
 }
@@ -18,11 +22,25 @@ export interface MemeState {
 export const useMemeStore = create<MemeState>((set) => ({
     memes: [],
     isLoading: false,
+    isLoadingMore: false,
     totalCount: 0,
+    hasMore: false,
 
     setMemes: (memes, totalCount) => set({
         memes,
         totalCount: totalCount ?? memes.length,
+        hasMore: memes.length < (totalCount ?? memes.length),
+    }),
+
+    appendMemes: (memes) => set((state) => {
+        // 去重，避免 WS 事件与分页数据重叠
+        const existingIds = new Set(state.memes.map((m) => m.id));
+        const newMemes = memes.filter((m) => !existingIds.has(m.id));
+        const next = [...state.memes, ...newMemes];
+        return {
+            memes: next,
+            hasMore: next.length < state.totalCount,
+        };
     }),
 
     upsertMeme: (meme) => set((state) => {
@@ -66,6 +84,7 @@ export const useMemeStore = create<MemeState>((set) => ({
     }),
 
     setLoading: (isLoading) => set({ isLoading }),
+    setLoadingMore: (isLoadingMore) => set({ isLoadingMore }),
     setTotalCount: (count) => set({ totalCount: count }),
-    reset: () => set({ memes: [], isLoading: false, totalCount: 0 }),
+    reset: () => set({ memes: [], isLoading: false, isLoadingMore: false, totalCount: 0, hasMore: false }),
 }));
