@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMemeStore } from '../../stores/MemeStore';
-import { VirtuosoGrid } from 'react-virtuoso';
+
 import {
     ArrowLeft,
     ArrowRight,
@@ -282,48 +282,35 @@ export function Gallery() {
                 ref={scrollRef}
                 className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide gpu-layer"
             >
-                {memes.length === 0 ? renderEmptyState() : (
-                    viewMode === 'masonry' ? (() => {
-                        const itemSize = galleryItemSize || 200;
-                        const gap = galleryGap || 16;
-                        const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemSize + gap)));
-                        const masonryWidth = containerWidth > 0 ? columns * itemSize + (columns - 1) * gap : '100%';
+                {memes.length === 0 ? renderEmptyState() : (() => {
+                    const itemSize = galleryItemSize || 200;
+                    const gap = galleryGap || 16;
+                    const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemSize + gap)));
+                    const masonryWidth = containerWidth > 0 ? columns * itemSize + (columns - 1) * gap : '100%';
 
-                        return (
-                            <div
-                                className="pb-8 mx-auto"
-                                style={{
-                                    width: typeof masonryWidth === 'number' ? `${masonryWidth}px` : masonryWidth,
-                                    columnWidth: `${itemSize}px`,
-                                    columnGap: `${gap}px`,
-                                    visibility: containerWidth > 0 ? 'visible' : 'hidden'
-                                }}
-                            >
-                                {memes.map((meme) => (
-                                    <div key={meme.id} className="break-inside-avoid">
-                                        {renderMemeCard(meme)}
-                                    </div>
-                                ))}
-                            </div>
-                        );
-                    })() : (
-                        <VirtuosoGrid
-                            totalCount={memes.length}
-                            listClassName={clsx(
-                                'grid gap-[var(--gallery-gap)] w-full pb-8 justify-start content-start',
-                                'grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
+                    return (
+                        <div
+                            className={clsx(
+                                'w-full pb-8',
+                                viewMode === 'masonry' 
+                                    ? 'mx-auto' 
+                                    : 'grid gap-[var(--gallery-gap)] justify-start content-start grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
                             )}
-                            itemContent={(index) => {
-                                const meme = memes[index];
-                                if (!meme) {
-                                    return null;
-                                }
-
-                                return renderMemeCard(meme);
-                            }}
-                        />
-                    )
-                )}
+                            style={viewMode === 'masonry' ? {
+                                width: typeof masonryWidth === 'number' ? `${masonryWidth}px` : masonryWidth,
+                                columnWidth: `${itemSize}px`,
+                                columnGap: `${gap}px`,
+                                visibility: containerWidth > 0 ? 'visible' : 'hidden'
+                            } : undefined}
+                        >
+                            {memes.map((meme) => (
+                                <div key={meme.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : undefined}>
+                                    {renderMemeCard(meme)}
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })()}
             </div>
         </main>
     );

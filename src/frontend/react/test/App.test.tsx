@@ -3,10 +3,7 @@ import App from '../App';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useUiStore } from '../stores/UiStore';
 
-// Mock virtuoso because it heavily manipulates observer APIs
-vi.mock('react-virtuoso', () => ({
-    VirtuosoGrid: () => <div data-testid="virtuoso-mock">VirtuosoList</div>
-}));
+
 
 describe('App', () => {
     beforeEach(() => {

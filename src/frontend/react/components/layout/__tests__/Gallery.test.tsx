@@ -5,11 +5,7 @@ import { useMemeStore } from '../../../stores/MemeStore';
 import { useUiStore } from '../../../stores/UiStore';
 import { useTagStore } from '../../../stores/TagStore';
 
-vi.mock('react-virtuoso', () => ({
-    VirtuosoGrid: ({ totalCount, itemContent }: { totalCount: number; itemContent: (index: number) => React.ReactNode }) => (
-        <div>{Array.from({ length: totalCount }).map((_, index) => <div key={index}>{itemContent(index)}</div>)}</div>
-    ),
-}));
+
 
 vi.mock('../../../services/assetService', () => ({
     getThumbnailUrl: vi.fn().mockResolvedValue('blob:test'),

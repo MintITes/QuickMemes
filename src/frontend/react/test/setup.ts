@@ -35,7 +35,7 @@ vi.stubGlobal('electronAPI', {
     saveFileDialog: vi.fn().mockResolvedValue(null),
     getBackendConfig: vi.fn().mockResolvedValue({ bindAddress: '127.0.0.1', port: 57321, token: 'mock-token', ready: true }),
     getBackendStatus: vi.fn().mockResolvedValue({ bindAddress: '127.0.0.1', port: 57321, token: 'mock-token', ready: true, starting: false, pid: 1, lastExitCode: null, lastError: null }),
-    onBackendStatusChange: vi.fn().mockImplementation(() => () => {}),
+    onBackendStatusChange: vi.fn().mockImplementation(() => () => { }),
     getConfig: vi.fn().mockResolvedValue({
         backendPort: 57321,
         bindAddress: '127.0.0.1',
@@ -88,9 +88,23 @@ class ResizeObserverMock {
         this.callback([], this as unknown as ResizeObserver);
     }
 
-    unobserve() {}
+    unobserve() { }
 
-    disconnect() {}
+    disconnect() { }
 }
 
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+
+class StorageMock {
+    private store: Record<string, string> = {};
+    length = 0;
+    clear() { this.store = {}; this.length = 0; }
+    getItem(key: string) { return this.store[key] || null; }
+    setItem(key: string, value: string) { this.store[key] = String(value); this.length = Object.keys(this.store).length; }
+    removeItem(key: string) { delete this.store[key]; this.length = Object.keys(this.store).length; }
+    key(index: number) { return Object.keys(this.store)[index] || null; }
+}
+
+vi.stubGlobal('Storage', StorageMock);
+vi.stubGlobal('localStorage', new StorageMock());
+vi.stubGlobal('sessionStorage', new StorageMock());
