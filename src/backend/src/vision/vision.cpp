@@ -357,10 +357,6 @@ VisionModule::RuntimeState VisionModule::buildState(const VisionConfig &config,
 		LOG_WARN("vision",
 		         "Unsupported OCR provider: " + nextState.config.ocrProvider +
 		             ". Only PaddleOCR / OcrSpace are enabled.");
-		if (!allowUnavailable &&
-		    !nextState.config.ocrProvider.empty()) {
-			throw std::invalid_argument("Unsupported OCR provider: " + nextState.config.ocrProvider);
-		}
 	}
 
 	return nextState;

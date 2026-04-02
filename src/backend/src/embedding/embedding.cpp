@@ -64,8 +64,11 @@ EmbeddingModule::RuntimeState EmbeddingModule::buildState(const EmbeddingConfig 
 
 	const bool available = !normalized.apiKey.empty() && !normalized.apiUrl.empty() &&
 	                       isSupportedProviderModel(normalized.provider, normalized.model);
-	if (!allowUnavailable && !available) {
-		throw std::invalid_argument("Embedding configuration is incomplete or unsupported");
+	if (!available) {
+		LOG_WARN("embedding",
+		         "Embedding unavailable. provider=" + normalized.provider + ", model=" + normalized.model +
+		             ", apiUrl configured=" + std::string(normalized.apiUrl.empty() ? "false" : "true") +
+		             ", apiKey configured=" + std::string(normalized.apiKey.empty() ? "false" : "true"));
 	}
 
 	return RuntimeState{std::move(normalized), std::move(client), available};

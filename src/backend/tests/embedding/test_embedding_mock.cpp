@@ -188,7 +188,7 @@ TEST_F(EmbeddingMockTest, SetHttpClient_NullptrRejected) {
 	EXPECT_THROW(module->setHttpClient(nullptr), std::invalid_argument);
 }
 
-TEST_F(EmbeddingMockTest, Reconfigure_InvalidConfig_RollsBackPreviousState) {
+TEST_F(EmbeddingMockTest, Reconfigure_InvalidConfig_AcceptsConfigAndDisablesEmbedding) {
 	auto config = makeConfig();
 	ASSERT_TRUE(module->initialize(config));
 
@@ -196,10 +196,10 @@ TEST_F(EmbeddingMockTest, Reconfigure_InvalidConfig_RollsBackPreviousState) {
 	invalid.provider        = "Other";
 	invalid.model           = "bad-model";
 
-	EXPECT_FALSE(module->reconfigure(invalid));
-	EXPECT_TRUE(module->isAvailable());
-	EXPECT_EQ(module->getConfig().provider, "JinaAI");
-	EXPECT_EQ(module->getConfig().model, "jina-embeddings-v5-text-small");
+	EXPECT_TRUE(module->reconfigure(invalid));
+	EXPECT_FALSE(module->isAvailable());
+	EXPECT_EQ(module->getConfig().provider, "Other");
+	EXPECT_EQ(module->getConfig().model, "bad-model");
 }
 
 TEST_F(EmbeddingMockTest, InvalidJsonResponse_IsNotRetried) {

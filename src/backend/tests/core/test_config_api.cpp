@@ -22,6 +22,9 @@ protected:
 		config.visionConfig.apiKey         = "old-key";
 		config.visionConfig.apiBaseUrl     = "https://vision.example.com";
 		config.visionConfig.visionModel    = "vision-model";
+		config.visionConfig.ocrProvider    = "PaddleOCR";
+		config.visionConfig.ocrApiKey      = "ocr-key";
+		config.visionConfig.ocrApiUrl      = "https://ocr.example.com";
 		config.embeddingConfig.provider    = "JinaAI";
 		config.embeddingConfig.model       = "jina-embeddings-v5-text-small";
 		config.embeddingConfig.apiUrl      = "https://embedding.example.com/v1/embeddings";
@@ -86,7 +89,7 @@ TEST_F(ConfigApiTest, PatchConfig_InvalidJson_ReturnsError) {
 	EXPECT_EQ(res.status, 400);
 }
 
-TEST_F(ConfigApiTest, PatchConfig_InvalidEmbeddingConfig_ReturnsErrorAndKeepsOldConfig) {
+TEST_F(ConfigApiTest, PatchConfig_InvalidEmbeddingConfig_ReturnsSuccessAndStoresValue) {
 	HttpRequestProxy req;
 	req.path   = "/api/config";
 	req.method = "PATCH";
@@ -95,9 +98,23 @@ TEST_F(ConfigApiTest, PatchConfig_InvalidEmbeddingConfig_ReturnsErrorAndKeepsOld
 
 	handlePatchConfig(req, res);
 
-	EXPECT_EQ(res.status, 400);
-	EXPECT_EQ(g_server->getConfig().embeddingConfig.provider, "JinaAI");
-	EXPECT_EQ(g_server->getConfig().embeddingConfig.model, "jina-embeddings-v5-text-small");
+	EXPECT_EQ(res.status, 200);
+	EXPECT_EQ(g_server->getConfig().embeddingConfig.provider, "UnsupportedProvider");
+	EXPECT_FALSE(EmbeddingModule::get().isAvailable());
+}
+
+TEST_F(ConfigApiTest, PatchConfig_ClearOcrProvider_ReturnsSuccessAndStoresValue) {
+	HttpRequestProxy req;
+	req.path   = "/api/config";
+	req.method = "PATCH";
+	req.body   = R"({"ocrProvider": ""})";
+	HttpResponseProxy res;
+
+	handlePatchConfig(req, res);
+
+	EXPECT_EQ(res.status, 200);
+	EXPECT_EQ(g_server->getConfig().visionConfig.ocrProvider, "");
+	EXPECT_FALSE(VisionModule::get().isOcrAvailable());
 }
 
 }} // namespace quickmemes::testing

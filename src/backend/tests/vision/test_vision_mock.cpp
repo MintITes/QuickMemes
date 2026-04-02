@@ -282,7 +282,7 @@ TEST_F(VisionMockTest, Recognize_PaddleOCR_ErrorResponse_ReturnsFailure) {
 	EXPECT_THAT(result.error, HasSubstr("Token 错误"));
 }
 
-TEST_F(VisionMockTest, Reconfigure_UnsupportedProvider_RollsBackPreviousState) {
+TEST_F(VisionMockTest, Reconfigure_UnsupportedProvider_AcceptsConfigAndDisablesOcr) {
 	VisionConfig config;
 	config.apiKey         = "test_key";
 	config.apiBaseUrl     = "https://api.test.com";
@@ -290,10 +290,10 @@ TEST_F(VisionMockTest, Reconfigure_UnsupportedProvider_RollsBackPreviousState) {
 	config.ocrProvider    = "legacy";
 	config.ocrApiKey      = "test-ocr-key";
 	config.ocrApiUrl      = "https://ocr.example.com";
-	EXPECT_FALSE(vision->reconfigure(config));
+	EXPECT_TRUE(vision->reconfigure(config));
 
 	EXPECT_CALL(*mockHttp, post(_, _, _, _)).Times(0);
-	EXPECT_TRUE(vision->isOcrAvailable());
+	EXPECT_FALSE(vision->isOcrAvailable());
 }
 
 TEST_F(VisionMockTest, AnalyzeImage_HttpTimeout_ThrowsException) {
