@@ -24,7 +24,7 @@ describe('NotificationPanel component', () => {
     it('shows empty state when no notifications', () => {
         useNotificationStore.setState({ notifications: [] });
         render(<NotificationPanel />);
-        expect(screen.getByText(/没有任何通知/i)).toBeInTheDocument();
+        expect(screen.getByText(/暂无通知/i)).toBeInTheDocument();
     });
 
     it('handles remove single notification', () => {
@@ -36,7 +36,7 @@ describe('NotificationPanel component', () => {
 
     it('handles clear all notifications', () => {
         render(<NotificationPanel />);
-        const clearBtn = screen.getByText(/清除全部/i);
+        const clearBtn = screen.getByText(/全部清除/i);
         fireEvent.click(clearBtn);
         expect(useNotificationStore.getState().clearAll).toHaveBeenCalled();
     });

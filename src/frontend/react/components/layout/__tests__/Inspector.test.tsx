@@ -104,7 +104,7 @@ describe('Inspector component', () => {
 
     it('renders empty state when no selection', () => {
         render(<Inspector />);
-        expect(screen.getByText(/未选中/i)).toBeInTheDocument();
+        expect(screen.getByText(/未选择/i)).toBeInTheDocument();
     });
 
     it('renders meme details for single selection', () => {

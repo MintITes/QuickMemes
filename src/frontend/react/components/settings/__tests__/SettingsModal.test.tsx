@@ -15,7 +15,7 @@ describe('SettingsModal component', () => {
 
     it('renders when open', () => {
         render(<SettingsModal />);
-        expect(screen.getByText(/设置中心/i)).toBeInTheDocument();
+        expect(screen.getByText(/^设置$/i)).toBeInTheDocument();
     });
 
     it('handles theme change', () => {

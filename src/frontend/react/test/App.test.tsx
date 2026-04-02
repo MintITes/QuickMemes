@@ -14,8 +14,8 @@ describe('App', () => {
 
     it('renders the Main Shell structural components including empty state', () => {
         render(<App />);
-        expect(screen.getByPlaceholderText(/搜索 Meme/i)).toBeInTheDocument();
-        expect(screen.getByText(/没有任何梗图/i)).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/搜索梗图/i)).toBeInTheDocument();
+        expect(screen.getByText(/还没有任何梗图/i)).toBeInTheDocument();
     });
 
     it('opens import modal when a file is dragged into the window', () => {
