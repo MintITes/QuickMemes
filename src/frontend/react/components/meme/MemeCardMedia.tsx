@@ -91,7 +91,14 @@ export function MemeCardMedia({
                                 exit={{ opacity: 0 }}
                                 className="absolute inset-0 z-0 gpu-transform-opacity"
                             >
-                                <SkeletonCard viewMode={viewMode} />
+                                <SkeletonCard
+                                    viewMode={viewMode}
+                                    aspectRatio={
+                                        viewMode === 'masonry' && meme.width && meme.height
+                                            ? `${meme.width} / ${meme.height}`
+                                            : undefined
+                                    }
+                                />
                             </motion.div>
                         )}
                     </AnimatePresence>

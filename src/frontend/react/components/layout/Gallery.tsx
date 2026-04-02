@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo, startTransition, useDeferredValue } from 'react';
 import { useMemeStore } from '../../stores/MemeStore';
 
 import {
@@ -19,7 +19,6 @@ import { IconButton } from '../common/IconButton';
 import { EmptyState } from '../common/EmptyState';
 import { GALLERY_ITEM_SIZE_MAX, GALLERY_ITEM_SIZE_MIN, useUiStore } from '../../stores/UiStore';
 import { useTranslation } from 'react-i18next';
-import clsx from 'clsx';
 import { useShallow } from 'zustand/react/shallow';
 import { MemeCard } from './MemeCard';
 
@@ -71,9 +70,20 @@ export function Gallery() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const zoomAnimationTimerRef = useRef<number | null>(null);
     const viewSwitchTimerRef = useRef<number | null>(null);
+    const pendingFadeInRef = useRef(false); // 初始 masonry 加载时（containerWidth=0）的保险机制
+    const firstMeasuredRef = useRef(false);  // 跳过首次测量（初始化阶段不属于用户 resize）
+    // 虚拟化：rAF 节流后的滚动位置，用于可见区域计算
+    const rafIdRef = useRef<number | null>(null);
+    const containerHeightRef = useRef(600);
+    const [virtualScrollTop, setVirtualScrollTop] = useState(0);
+    const virtualScrollTopRef = useRef(0);
+    const VIRTUAL_OVERSCAN_PX = 1200;
     const [isZoomResizing, setIsZoomResizing] = useState(false);
     const [containerWidth, setContainerWidth] = useState(0);
-    // 视图切换时先 fade out，重排完成后再 fade in
+    // useDeferredValue：侧栏动画期间 React 并发调度器会自动跳过中间帧的布局计算，
+    // 动画结束后立即处理最新宽度，无需手动 setTimeout 防抖，也不引入人为延迟
+    const deferredContainerWidth = useDeferredValue(containerWidth);
+    // isSwitchingView=true 时内容区 opacity:0（fade-out / 切换中）
     const [isSwitchingView, setIsSwitchingView] = useState(false);
     const [displayedViewMode, setDisplayedViewMode] = useState(viewMode);
     const hasMore = useMemeStore((state) => state.hasMore);
@@ -87,13 +97,17 @@ export function Gallery() {
         }
         setIsSwitchingView(true);
         viewSwitchTimerRef.current = window.setTimeout(() => {
-            setDisplayedViewMode(mode);
-            setViewMode(mode);
-            // 等待一帧让 DOM 完成重排再 fade in
-            requestAnimationFrame(() => {
+            // 用 startTransition 标记为低优先级，避免阻塞主线程
+            startTransition(() => {
+                setDisplayedViewMode(mode);
+                setViewMode(mode);
+                // 两个方向统一：不重置 containerWidth，直接 rAF 后 fade-in
+                // containerWidth 是同一容器的宽度，切换布局模式时值不变，无需重测
                 requestAnimationFrame(() => {
-                    setIsSwitchingView(false);
-                    viewSwitchTimerRef.current = null;
+                    requestAnimationFrame(() => {
+                        setIsSwitchingView(false);
+                        viewSwitchTimerRef.current = null;
+                    });
                 });
             });
         }, 150);
@@ -107,20 +121,42 @@ export function Gallery() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [viewMode]);
 
+    // 统一常驻 ResizeObserver
+    // 高度立即写入 ref（虚拟化用）；宽度用 startTransition + useDeferredValue 实现调度器级防抖：
+    // 侧栏动画期间每帧调用均为低优先级，React 并发模式下自动跳过中间状态，只提交最终宽度
     useEffect(() => {
         const el = scrollRef.current;
-        if (!el || displayedViewMode !== 'masonry') {
-            return;
-        }
+        if (!el) return;
 
         const observer = new ResizeObserver((entries) => {
             for (const entry of entries) {
-                setContainerWidth(entry.contentRect.width);
+                const w = entry.contentRect.width;
+                const h = entry.contentRect.height;
+                containerHeightRef.current = h;
+
+                if (!firstMeasuredRef.current) {
+                    // 首次测量（初始化）：立即提交，确保布局能立刻计算
+                    firstMeasuredRef.current = true;
+                    setContainerWidth(w);
+                } else {
+                    // 后续测量：低优先级，配合 useDeferredValue 跳过动画中间帧
+                    startTransition(() => setContainerWidth(w));
+                }
+
+                // 保险：应对初始 masonry containerWidth=0 的情况
+                if (w > 0 && pendingFadeInRef.current) {
+                    pendingFadeInRef.current = false;
+                    setContainerWidth(w);
+                    requestAnimationFrame(() => {
+                        setIsSwitchingView(false);
+                        viewSwitchTimerRef.current = null;
+                    });
+                }
             }
         });
         observer.observe(el);
         return () => observer.disconnect();
-    }, [displayedViewMode]);
+    }, []); // 常驻，不随布局模式重新挂载
 
     useEffect(() => {
         const el = mainRef.current;
@@ -171,22 +207,119 @@ export function Gallery() {
         };
     }, []);
 
-    // 滚动预加载：距底部不足一屏高度时提前触发
+    // 滚动处理：预加载触发 + 虚拟化 scrollTop 追踪（rAF 节流）
     useEffect(() => {
         const el = scrollRef.current;
         if (!el) return;
 
         const handleScroll = () => {
-            if (!hasMoreRef.current) return;
-            const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
-            if (remaining < el.clientHeight) {
-                (window as Window & { __loadMoreMemes?: () => void }).__loadMoreMemes?.();
+            // 预加载：距底部不足一屏时触发
+            if (hasMoreRef.current) {
+                const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+                if (remaining < el.clientHeight) {
+                    (window as Window & { __loadMoreMemes?: () => void }).__loadMoreMemes?.();
+                }
+            }
+            // 虚拟化：rAF 节流更新 scrollTop（每帧最多一次，变化 > 50px 再 setState）
+            if (rafIdRef.current === null) {
+                rafIdRef.current = requestAnimationFrame(() => {
+                    rafIdRef.current = null;
+                    const st = el.scrollTop;
+                    if (Math.abs(st - virtualScrollTopRef.current) > 50) {
+                        virtualScrollTopRef.current = st;
+                        setVirtualScrollTop(st);
+                    }
+                });
             }
         };
 
         el.addEventListener('scroll', handleScroll, { passive: true });
-        return () => el.removeEventListener('scroll', handleScroll);
+        return () => {
+            el.removeEventListener('scroll', handleScroll);
+            if (rafIdRef.current !== null) {
+                cancelAnimationFrame(rafIdRef.current);
+                rafIdRef.current = null;
+            }
+        };
     }, []);
+
+    // ─── JS 预计算瀑布流布局 ───────────────────────────────────────────────────
+    // 用绝对定位代替 CSS columns，追加新内容时旧卡位置完全不变，杜绝全量重排
+    const masonryLayout = useMemo(() => {
+        // 使用 deferredContainerWidth：侧栏动画期间 React 自动跳过中间帧的布局计算
+        if (displayedViewMode !== 'masonry' || deferredContainerWidth <= 0) return null;
+
+        const itemSize = galleryItemSize || 200;
+        const gap = galleryGap || 16;
+        const columns = Math.max(1, Math.floor((deferredContainerWidth + gap) / (itemSize + gap)));
+        const colHeights = new Array<number>(columns).fill(0);
+
+        const items = memes.map((meme) => {
+            // 找最短列
+            let shortest = 0;
+            for (let i = 1; i < columns; i++) {
+                if (colHeights[i] < colHeights[shortest]) shortest = i;
+            }
+            const left = shortest * (itemSize + gap);
+            const top = colHeights[shortest];
+
+            // 用宽高比计算卡片高度，无需 DOM 测量
+            const cardHeight =
+                meme.width && meme.height
+                    ? Math.round((itemSize / meme.width) * meme.height)
+                    : 150;
+            colHeights[shortest] += cardHeight + gap;
+
+            return { id: meme.id, meme, top, left, height: cardHeight };
+        });
+
+        const totalHeight = Math.max(0, Math.max(...colHeights) - gap);
+        const totalWidth = columns * itemSize + (columns - 1) * gap;
+        return { items, totalHeight, totalWidth };
+    }, [memes, deferredContainerWidth, galleryItemSize, galleryGap, displayedViewMode]);
+
+    // ─── 虚拟化：瀑布流可见区域过滤 ───────────────────────────────────────────
+    const visibleMasonryItems = useMemo(() => {
+        if (!masonryLayout) return [];
+        const viewH = containerHeightRef.current;
+        const vTop = virtualScrollTop - VIRTUAL_OVERSCAN_PX;
+        const vBottom = virtualScrollTop + viewH + VIRTUAL_OVERSCAN_PX;
+        return masonryLayout.items.filter(
+            (item) => item.top + item.height >= vTop && item.top <= vBottom
+        );
+    }, [masonryLayout, virtualScrollTop]);
+
+    // ─── 虚拟化：网格布局（绝对定位，与瀑布流统一方式）──────────────────────
+    const gridLayout = useMemo(() => {
+        // 使用 deferredContainerWidth：侧栏动画期间 React 自动跳过中间帧的布局计算
+        if (displayedViewMode !== 'grid' || deferredContainerWidth <= 0 || memes.length === 0) return null;
+
+        const itemSize = galleryItemSize || 200;
+        const gap = galleryGap || 16;
+        const columns = Math.max(1, Math.floor((deferredContainerWidth + gap) / (itemSize + gap)));
+        const rowHeight = itemSize + gap;
+        const totalRows = Math.ceil(memes.length / columns);
+        const totalHeight = totalRows * rowHeight - gap;
+        const totalWidth = columns * itemSize + (columns - 1) * gap;
+
+        const viewH = containerHeightRef.current;
+        const vTop = virtualScrollTop - VIRTUAL_OVERSCAN_PX;
+        const vBottom = virtualScrollTop + viewH + VIRTUAL_OVERSCAN_PX;
+        const firstRow = Math.max(0, Math.floor(vTop / rowHeight));
+        const lastRow = Math.min(totalRows - 1, Math.ceil(vBottom / rowHeight));
+
+        const firstIndex = firstRow * columns;
+        const lastIndex = Math.min((lastRow + 1) * columns, memes.length);
+
+        const visibleItems = memes.slice(firstIndex, lastIndex).map((meme, localIdx) => {
+            const globalIdx = firstIndex + localIdx;
+            const col = globalIdx % columns;
+            const row = Math.floor(globalIdx / columns);
+            return { meme, top: row * rowHeight, left: col * (itemSize + gap) };
+        });
+
+        return { visibleItems, totalHeight, totalWidth };
+    }, [memes, displayedViewMode, deferredContainerWidth, galleryItemSize, galleryGap, virtualScrollTop]);
 
     const renderEmptyState = () => {
         if (searchQuery.keyword) {
@@ -259,7 +392,6 @@ export function Gallery() {
                 viewMode={displayedViewMode}
                 imageFit={imageFit}
                 showTags={showTags}
-                disableLayoutAnimation={isZoomResizing || isSwitchingView}
             />
         );
     };
@@ -343,32 +475,99 @@ export function Gallery() {
                 className="flex-1 overflow-y-auto pt-7 pr-6 pb-6 pl-7 scrollbar-hide gpu-layer"
             >
                 {memes.length === 0 ? renderEmptyState() : (() => {
-                    const itemSize = galleryItemSize || 200;
-                    const gap = galleryGap || 16;
-                    const columns = Math.max(1, Math.floor((containerWidth + gap) / (itemSize + gap)));
-                    const masonryWidth = containerWidth > 0 ? columns * itemSize + (columns - 1) * gap : '100%';
+                    // 是否开启布局过渡动效（切换视图或缩放时禁用）
+                    const enableLayoutTransitions = !isSwitchingView && !isZoomResizing;
 
+                    // 卡片位置过渡：GPU-composited transform，零 reflow
+                    const itemTransition = enableLayoutTransitions
+                        ? 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                        : undefined;
+
+                    // 容器尺寸过渡（高度跟随内容变化）+ opacity 切换
+                    const containerTransition = [
+                        isSwitchingView ? 'opacity 0.15s ease-out' : 'opacity 0.2s ease-in',
+                        enableLayoutTransitions ? 'height 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : null,
+                    ].filter(Boolean).join(', ');
+
+                    // ── 瀑布流：绝对定位 + 虚拟化，只渲染视口内卡片 ──
+                    if (displayedViewMode === 'masonry') {
+                        const itemSize = galleryItemSize || 200;
+                        return (
+                            <div
+                                style={{
+                                    position: 'relative',
+                                    margin: '0 auto',
+                                    width: masonryLayout ? `${masonryLayout.totalWidth}px` : '100%',
+                                    height: masonryLayout ? `${masonryLayout.totalHeight + 32}px` : 'auto',
+                                    visibility: containerWidth > 0 ? 'visible' : 'hidden',
+                                    opacity: isSwitchingView ? 0 : 1,
+                                    transition: containerTransition,
+                                }}
+                            >
+                                {visibleMasonryItems.map(({ id, meme, top, left }) => (
+                                    <div
+                                        key={id}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: itemSize,
+                                            // transform 代替 top/left 定位：GPU 合成层，动画不触发 layout reflow
+                                            transform: `translate(${left}px, ${top}px)`,
+                                            transition: itemTransition,
+                                        }}
+                                    >
+                                        {renderMemeCard(meme)}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    }
+
+                    // ── 网格：绝对定位 + 虚拟化，只渲染视口内行 ──
+                    if (gridLayout) {
+                        const itemSize = galleryItemSize || 200;
+                        return (
+                            <div
+                                style={{
+                                    position: 'relative',
+                                    width: `${gridLayout.totalWidth}px`,
+                                    height: `${gridLayout.totalHeight + 32}px`,
+                                    opacity: isSwitchingView ? 0 : 1,
+                                    transition: containerTransition,
+                                }}
+                            >
+                                {gridLayout.visibleItems.map(({ meme, top, left }) => (
+                                    <div
+                                        key={meme.id}
+                                        style={{
+                                            position: 'absolute',
+                                            top: 0,
+                                            left: 0,
+                                            width: itemSize,
+                                            height: itemSize,
+                                            transform: `translate(${left}px, ${top}px)`,
+                                            transition: itemTransition,
+                                        }}
+                                    >
+                                        {renderMemeCard(meme)}
+                                    </div>
+                                ))}
+                            </div>
+                        );
+                    }
+
+                    // ── 降级方案：containerWidth 尚未测量时用 CSS grid 全量渲染 ──
                     return (
                         <div
-                            className={clsx(
-                                'w-full pb-8',
-                                displayedViewMode === 'masonry' 
-                                    ? 'mx-auto' 
-                                    : 'grid gap-[var(--gallery-gap)] justify-start content-start grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]'
-                            )}
+                            className="w-full pb-8 grid gap-[var(--gallery-gap)] justify-start content-start grid-cols-[repeat(auto-fill,var(--gallery-item-size,200px))]"
                             style={{
-                                ...(displayedViewMode === 'masonry' ? {
-                                    width: typeof masonryWidth === 'number' ? `${masonryWidth}px` : masonryWidth,
-                                    columnWidth: `${itemSize}px`,
-                                    columnGap: `${gap}px`,
-                                    visibility: containerWidth > 0 ? 'visible' : 'hidden'
-                                } : undefined),
                                 opacity: isSwitchingView ? 0 : 1,
                                 transition: isSwitchingView ? 'opacity 0.15s ease-out' : 'opacity 0.2s ease-in',
                             }}
                         >
                             {memes.map((meme) => (
-                                <div key={meme.id} className={displayedViewMode === 'masonry' ? 'break-inside-avoid' : undefined}>
+                                <div key={meme.id}>
                                     {renderMemeCard(meme)}
                                 </div>
                             ))}

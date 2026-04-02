@@ -4,6 +4,8 @@ import clsx from 'clsx';
 
 interface SkeletonCardProps {
     viewMode: 'grid' | 'masonry';
+    /** 瀑布流模式下传入真实宽高比，例如 "16 / 9" */
+    aspectRatio?: string;
     index?: number;
 }
 
@@ -15,7 +17,7 @@ const MORANDI_COLORS = [
     '#A9B2C3', // Steel Blue
 ];
 
-export function SkeletonCard({ viewMode, index = 0 }: SkeletonCardProps) {
+export function SkeletonCard({ viewMode, aspectRatio, index = 0 }: SkeletonCardProps) {
     const bgColor = useMemo(() => {
         return MORANDI_COLORS[index % MORANDI_COLORS.length];
     }, [index]);
@@ -24,9 +26,10 @@ export function SkeletonCard({ viewMode, index = 0 }: SkeletonCardProps) {
         <motion.div
             className={clsx(
                 'w-full rounded-xl border border-borderColor/10 relative overflow-hidden',
-                viewMode === 'grid' ? 'aspect-square' : 'min-h-[150px]'
+                // grid: 1:1 正方形；masonry 有比例用比例，无比例兜底 min-height
+                viewMode === 'grid' ? 'aspect-square' : (!aspectRatio ? 'min-h-[150px]' : '')
             )}
-            style={{ backgroundColor: bgColor }}
+            style={{ backgroundColor: bgColor, aspectRatio: viewMode === 'masonry' ? aspectRatio : undefined }}
             animate={{
                 opacity: [0.4, 0.6, 0.4],
             }}

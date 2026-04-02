@@ -17,10 +17,9 @@ interface MemeCardProps {
     viewMode: 'grid' | 'masonry';
     imageFit: 'contain' | 'cover';
     showTags: boolean;
-    disableLayoutAnimation?: boolean;
 }
 
-function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags, disableLayoutAnimation = false }: MemeCardProps) {
+function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags }: MemeCardProps) {
     const { t } = useTranslation();
     const { selectMeme, setContextMenu, setLightboxMemeId } = useUiStore(
         useShallow((state) => ({
@@ -107,11 +106,8 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags, disableL
 
     return (
         <motion.div
-            layout={disableLayoutAnimation ? false : 'position'}
-            className={clsx(
-                'flex flex-col cursor-pointer select-none group/card relative gpu-transform-opacity',
-                viewMode === 'masonry' && 'mb-4'
-            )}
+            layout={false}
+            className="flex flex-col cursor-pointer select-none group/card relative gpu-transform-opacity"
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             whileHover={{ y: -4 }}
@@ -120,7 +116,6 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags, disableL
             onDoubleClick={handleDoubleClick}
             onContextMenu={handleContextMenu}
             transition={{
-                layout: disableLayoutAnimation ? { duration: 0 } : { type: "spring", stiffness: 350, damping: 30, mass: 0.8 },
                 opacity: { duration: 0.25 },
                 y: { type: "spring", stiffness: 400, damping: 25 },
                 scale: { duration: 0.1 }
