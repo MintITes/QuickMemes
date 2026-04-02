@@ -303,36 +303,32 @@ export function Sidebar() {
                                 refreshCategoriesInBackground={refreshCategoriesInBackground}
                             />
 
-                            {sidebarExpanded && categories.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-textSecondary italic opacity-50">{t('common.categories')}</div>
-                            ) : (
-                                <div className="flex flex-col space-y-0.5">
-                                    <DndContext
-                                        sensors={sensors}
-                                        collisionDetection={closestCenter}
-                                        onDragEnd={handleDragEnd}
-                                        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-                                    >
-                                        <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
-                                            <AnimatePresence mode="popLayout">
-                                                {categories.map((cat, index) => (
-                                                    <SortableItem key={cat.id} id={cat.id}>
-                                                        {(sortableProps) => (
-                                                            <SidebarCategoryItem
-                                                                cat={cat}
-                                                                index={index}
-                                                                sortableProps={sortableProps}
-                                                                sidebarExpanded={sidebarExpanded}
-                                                                refreshCategoriesInBackground={refreshCategoriesInBackground}
-                                                            />
-                                                        )}
-                                                    </SortableItem>
-                                                ))}
-                                            </AnimatePresence>
-                                        </SortableContext>
-                                    </DndContext>
-                                </div>
-                            )}
+                            <div className="flex flex-col space-y-0.5">
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={handleDragEnd}
+                                    modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                                >
+                                    <SortableContext items={categories.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                        <AnimatePresence mode="popLayout">
+                                            {categories.map((cat, index) => (
+                                                <SortableItem key={cat.id} id={cat.id}>
+                                                    {(sortableProps) => (
+                                                        <SidebarCategoryItem
+                                                            cat={cat}
+                                                            index={index}
+                                                            sortableProps={sortableProps}
+                                                            sidebarExpanded={sidebarExpanded}
+                                                            refreshCategoriesInBackground={refreshCategoriesInBackground}
+                                                        />
+                                                    )}
+                                                </SortableItem>
+                                            ))}
+                                        </AnimatePresence>
+                                    </SortableContext>
+                                </DndContext>
+                            </div>
                         </div>
                     </div>
                 </div>

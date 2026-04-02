@@ -1,8 +1,7 @@
 {
     "common": {
-        "all_memes": "存储库",
+        "all_memes": "图库",
         "categories": "分类",
-        "search_placeholder": "搜索 Meme...",
         "add": "添加",
         "settings": "设置",
         "layout": "布局",
@@ -11,8 +10,8 @@
             "bucket": "暂存箱"
         },
         "theme": {
-            "light": "浅色模式",
-            "dark": "深色模式",
+            "light": "明亮",
+            "dark": "暗黑",
             "system": "跟随系统"
         },
         "confirm": "确定",
@@ -20,22 +19,22 @@
         "save_failed": "保存失败",
         "copy_failed": "复制失败",
         "export_failed": "导出失败",
-        "not_implemented": "该功能尚未实现"
+        "not_implemented": "功能暂未开放"
     },
     "layouts": {
-        "full": "左展+右展",
-        "left_only": "左展+右隐",
-        "right_only": "左折+右展",
-        "simple": "左折+右隐"
+        "full": "全展开",
+        "left_only": "侧边展开",
+        "right_only": "详情展开",
+        "simple": "沉浸模式"
     },
     "search": {
+        "placeholder": "搜索梗图...",
         "history": "搜索历史",
         "suggestions": "智能提示",
         "advanced": "高级搜索",
         "clear_history": "清空历史",
-        "placeholder": "搜索 Meme...",
-        "advanced_keywords": "搜索关键词：",
-        "advanced_mode": "匹配模式：",
+        "advanced_keywords": "关键词",
+        "advanced_mode": "匹配模式",
         "mode_fuzzy": "模糊匹配",
         "mode_word": "全词匹配",
         "mode_regex": "正则搜索",
@@ -52,33 +51,33 @@
         "date_week": "本周",
         "date_month": "本月",
         "date_year": "本年",
-        "no_suggestions": "暂无匹配建议",
-        "no_tags_available": "没有可用标签",
+        "no_suggestions": "暂无建议",
+        "no_tags_available": "暂无标签",
         "type_history": "历史",
         "type_tag": "标签",
         "type_category": "分类",
         "type_browsing": "最近浏览",
-        "reset_filters": "重置所有过滤器",
+        "reset_filters": "重置筛选",
         "clear_selected": "清除已选"
     },
     "notifications": {
         "title": "通知",
-        "empty": "没有任何通知",
-        "clear_all": "清除全部"
+        "empty": "暂无通知",
+        "clear_all": "全部清除"
     },
     "import": {
         "title": "快捷导入",
-        "drop_zone": "将文件拖到此处",
-        "drop_zone_active": "松开鼠标即可导入",
+        "drop_zone": "拖拽文件到此处",
+        "drop_zone_active": "松开即可导入",
         "select_file": "选择文件",
         "or": "或",
-        "formats_desc": "支持 PNG, JPG, GIF, WebP, BMP",
-        "invalid_format": "不支持的文件格式。请使用 PNG, JPG, GIF, WebP 或 BMP。",
-        "success": "导入成功！",
+        "formats_desc": "支持 PNG、JPG、GIF、WebP、BMP",
+        "invalid_format": "格式不支持，请使用 PNG / JPG / GIF / WebP / BMP",
+        "success": "导入成功",
         "failed": "导入失败",
-        "processing": "梗图正在存入库中...",
+        "processing": "正在导入...",
         "url_dialog_title": "从 URL 导入",
-        "url_placeholder": "在此处输入图片或gif链接...",
+        "url_placeholder": "粘贴图片或 GIF 链接...",
         "cancel": "取消",
         "confirm": "导入"
     },
@@ -86,14 +85,14 @@
         "quick": "快捷导入",
         "quick_desc": "弹出拖拽导入窗口",
         "clipboard": "从剪贴板导入",
-        "clipboard_desc": "直接读取图片",
+        "clipboard_desc": "直接读取剪贴板图片",
         "file": "从文件导入",
         "file_desc": "选择本地图片",
         "url": "从 URL 导入",
         "url_desc": "输入网络图片链接"
     },
     "sidebar": {
-        "repository_title": "主分类",
+        "repository_title": "图库",
         "all_memes_nav": "所有梗图",
         "untagged": "未分类",
         "trash": "回收站",
@@ -104,39 +103,39 @@
     },
     "gallery": {
         "empty": {
-            "no_memes": "没有任何梗图",
-            "no_memes_desc": "快把好玩的图拖拽进来，或者点击下方的按钮导入吧！",
+            "no_memes": "还没有任何梗图",
+            "no_memes_desc": "拖入图片，或点击下方按钮开始导入吧！",
             "import_first": "导入第一张梗图",
-            "search_no_results": "没有找到匹配的梗图",
-            "search_no_results_desc": "未发现与 \"{{keyword}}\" 相关的梗图...",
+            "search_no_results": "未找到相关梗图",
+            "search_no_results_desc": "没有与「{{keyword}}」匹配的结果。",
             "clear_search": "清除搜索",
-            "trash_empty": "回收站是空的",
-            "trash_empty_desc": "保持整洁是个好习惯！回收站目前没有任何内容。",
-            "untagged_empty": "所有梗图都已打上标签",
-            "untagged_empty_desc": "真棒！库里所有的梗图都有了分类标识。",
-            "category_empty": "此分类下没有任何梗图",
-            "category_empty_desc": "你可以拖拽梗图到此处，或者通过编辑梗图详细来将其归类。"
+            "trash_empty": "回收站为空",
+            "trash_empty_desc": "整洁的回收站，保持下去！",
+            "untagged_empty": "所有梗图均已打标签",
+            "untagged_empty_desc": "太棒了！库中每张梗图都有了分类标识。",
+            "category_empty": "此分类暂无梗图",
+            "category_empty_desc": "拖拽梗图到此处，或通过编辑详情将其归类。"
         },
         "controls": {
             "back": "后退",
             "forward": "前进",
-            "original_ratio": "原始比例",
+            "original_ratio": "原比例",
             "fill_crop": "填充裁剪",
             "hide_tags": "隐藏标签",
-            "show_tags": "显示主标签",
-            "grid_view": "网格视图",
-            "masonry_view": "瀑布流视图"
+            "show_tags": "显示标签",
+            "grid_view": "网格",
+            "masonry_view": "瀑布流"
         },
         "item": {
-            "copy_image": "复制图片",
-            "copy_success": "已成功复制到剪贴板",
-            "view_details": "查看详情",
+            "copy_image": "复制",
+            "copy_success": "已复制到剪贴板",
+            "view_details": "详情",
             "more": "更多"
         },
         "context_menu": {
-            "copy": "复制到剪贴板",
+            "copy": "复制图片",
             "export": "导出...",
-            "edit_tags": "编辑详情/标签",
+            "edit_tags": "编辑详情",
             "view_original": "查看原图",
             "move_to": "移动到",
             "move_to_trash": "移入回收站",
@@ -148,10 +147,10 @@
             "trash_success": "已移入回收站",
             "export_title": "选择导出目录",
             "export_success": "导出成功",
-            "export_result": "成功: {{success}}, 失败: {{failed}}",
+            "export_result": "成功 {{success}} · 失败 {{failed}}",
             "move_success": "移动成功",
             "move_failed": "移动失败",
-            "n_items": "{{count}} 个项目"
+            "n_items": "{{count}} 项"
         }
     },
     "inspector": {
@@ -162,35 +161,35 @@
         "add_tag": "添加标签",
         "ocr_text": "OCR 文本",
         "source": "来源",
-        "loading_asset": "正在加载资源",
-        "no_tags": "尚未添加标签",
+        "loading_asset": "加载中...",
+        "no_tags": "暂无标签",
         "ocr_placeholder": "描述这张梗图，或等待 OCR 识别...",
-        "ocr_trigger": "重新触发 OCR",
+        "ocr_trigger": "重跑 OCR",
         "ocr_started": "OCR 任务已启动",
         "source_placeholder": "粘贴来源链接...",
-        "no_selection": "未选中",
-        "no_selection_desc": "选择一个或多个梗图以查看详情和操作。",
+        "no_selection": "未选择",
+        "no_selection_desc": "选择一个或多个梗图以查看详情。",
         "labels": {
             "name": "名称",
             "format": "格式",
             "size": "大小",
             "resolution": "分辨率",
             "added": "添加时间",
-            "modified": "更新时间"
+            "modified": "修改时间"
         },
         "batch": {
             "editing": "批量编辑",
-            "selected_desc": "你已选中 {{count}} 个梗图",
+            "selected_desc": "已选中 {{count}} 张梗图",
             "tagging": "批量打标签",
-            "tag_input_tip": "输入标签名称并按回车以添加到所有选中项。",
+            "tag_input_tip": "输入标签名后按回车，批量添加到已选项。",
             "operations": "操作",
             "export": "批量导出",
-            "delete": "移动到回收站",
+            "delete": "移入回收站",
             "bulk_footer": "批量操作将应用到所有 {{count}} 个选中项。"
         }
     },
     "settings": {
-        "title": "设置中心",
+        "title": "设置",
         "tabs": {
             "general": "常规",
             "appearance": "外观",
@@ -201,107 +200,107 @@
             "about": "关于"
         },
         "general": {
-            "title": "常规设置",
+            "title": "常规",
             "theme": {
                 "label": "外观主题",
-                "desc": "夜间模式或白昼模式",
+                "desc": "选择浅色或深色外观",
                 "light": "明亮",
                 "dark": "暗黑",
                 "system": "跟随系统"
             },
             "platform": {
                 "label": "窗口控制样式",
-                "desc": "手动切换控制按钮的视觉风格",
+                "desc": "手动切换标题栏按钮的视觉风格",
                 "auto": "自动",
                 "macos": "macOS",
-                "win_linux": "Windows/Linux"
+                "win_linux": "Windows / Linux"
             },
             "auto_start": {
                 "label": "开机自启",
-                "desc": "随系统启动并在后台静默运行"
+                "desc": "随系统启动，后台静默运行"
             },
             "language": {
                 "label": "界面语言",
-                "desc": "切换应用程序的显示语言",
+                "desc": "切换应用显示语言",
                 "zh_CN": "简体中文",
                 "en_US": "English",
                 "system": "跟随系统"
             }
         },
         "appearance": {
-            "title": "个性化外观",
+            "title": "外观",
             "glass": {
-                "label": "全局磨砂玻璃特效",
+                "label": "磨砂玻璃特效",
                 "experimental": "实验性",
-                "desc": "关闭以提升性能并解决部分渲染拖影问题"
+                "desc": "关闭可提升性能，解决部分渲染拖影问题"
             },
             "blur": {
-                "label": "磨砂玻璃模糊级别",
+                "label": "模糊级别",
                 "warning": "需要开启玻璃特效"
             },
-            "radius": "全局圆角半径",
-            "gap": "内容间距级别",
+            "radius": "圆角半径",
+            "gap": "内容间距",
             "accent": "强调色"
         },
         "storage": {
-            "title": "存储库管理",
+            "title": "存储",
             "path": {
-                "label": "主存储路径",
-                "desc": "当前所有梗图保存的根目录",
+                "label": "存储路径",
+                "desc": "所有梗图保存的根目录",
                 "change": "更改"
             },
             "thumbnail_size": {
-                "label": "缩略图尺寸限制",
-                "desc": "生成的缩略图最大宽高像素值 (px)"
+                "label": "缩略图尺寸上限",
+                "desc": "生成缩略图的最大宽高 (px)"
             }
         },
         "ocr": {
             "title": "OCR 文本识别",
             "auto_ocr": {
-                "label": "后台自动 OCR",
-                "desc": "导入图片后自动在后台提取文字索引"
+                "label": "自动 OCR",
+                "desc": "导入图片后在后台自动提取文字"
             },
             "apiUrl": {
-                "label": "OCR 接口地址",
-                "desc": "配置用于识别图片文本的自定义 API 端点"
+                "label": "接口地址",
+                "desc": "用于图片文字识别的自定义 API 端点"
             },
             "apiKey": {
-                "label": "OCR API 密钥",
+                "label": "API 密钥",
                 "desc": "访问 OCR 服务的认证密钥"
             },
             "provider": {
-                "label": "OCR 提供商",
-                "desc": "云端 OCR 提供商标识 (当前支持 PaddleOCR 与 OcrSpace)",
+                "label": "服务商",
+                "desc": "OCR 云端服务商（支持 PaddleOCR 与 OcrSpace）",
                 "none": "关闭"
             }
         },
         "ai": {
             "title": "AI 视觉分析",
             "provider": {
-                "label": "模型提供商",
-                "desc": "处理视觉及向量数据的服务商 (当前仅支持 JinaAI)",
+                "label": "AI 服务商",
+                "desc": "提供视觉分析与向量嵌入的服务商（当前仅支持 JinaAI）",
                 "none": "关闭"
             },
             "model": {
-                "label": "模型名称",
-                "desc": "选择用于生成特征向量或图像分析的具体模型",
+                "label": "模型",
+                "desc": "选择图像分析所用模型",
                 "none": "关闭"
             },
             "apiUrl": {
-                "label": "API 地址 (URL)",
-                "desc": "自定义服务接口的基础访问地址"
+                "label": "API 地址",
+                "desc": "AI 服务的自定义基础地址"
             },
             "apiKey": {
-                "label": "API 密钥 (Key)",
+                "label": "API 密钥",
                 "desc": "访问云端模型服务的认证口令"
             },
             "dimensions": {
                 "label": "向量维度",
-                "desc": "特征嵌入向量的固定尺寸"
+                "desc": "嵌入向量的固定维度大小"
             },
             "timeout": {
-                "label": "超时限制",
-                "desc": "单次网络请求的最长等待时间 (秒)"
+                "label": "超时限制 (秒)",
+                "desc": "单次网络请求的最长等待时间"
             },
             "retries": {
                 "label": "重试次数",
@@ -309,16 +308,16 @@
             }
         },
         "shortcuts": {
-            "title": "快捷键绑定",
+            "title": "快捷键",
             "global_call": "全局唤出",
             "quick_import": "快速截图导入",
-            "open_settings": "开启设置",
+            "open_settings": "打开设置",
             "not_set": "未设置"
         },
         "about": {
-            "desc": "一个跨平台的用于管理和存储 Memes 的工具，旨在帮助用户高效地组织、查找和分享 Memes。",
+            "desc": "跨平台 Meme 管理工具，高效整理、找图、分享。",
             "license": "基于 GPL-3.0 开源协议发布",
-            "license_desc": "你可以自由地使用、修改和分发本程序，但前提是任何衍生作品都必须公开源代码，并继续沿用相同的 GPLv3 协议。",
+            "license_desc": "你可以自由使用、修改和分发本程序，但衍生作品必须公开源代码并继续沿用 GPL-3.0 协议。",
             "source_code": "源代码",
             "official_website": "官方网站"
         }
