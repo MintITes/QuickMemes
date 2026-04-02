@@ -109,9 +109,13 @@ export function AdvancedSearchDialog() {
                     className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-hidden"
                 >
                     {/* Backdrop */}
-                    <div
-                        className="absolute inset-0 bg-white/8 dark:bg-black/32 backdrop-blur-md"
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-md"
                         onClick={() => toggleAdvancedSearch(false)}
+                        aria-hidden="true"
                     />
 
                     {/* Dialog Content */}
