@@ -76,4 +76,47 @@ TEST_F(ConcurrencyRaceTest, Import_vs_Rebuild_Race) {
 	EXPECT_EQ(completed, 3);
 }
 
+TEST_F(ConcurrencyRaceTest, ConcurrentInsertMeme_StaysStable) {
+	std::atomic<bool> start{false};
+	std::atomic<int>  failures{0};
+
+	auto worker = [&](int workerIndex) {
+		while (!start)
+			std::this_thread::yield();
+		for (int i = 0; i < 25; ++i) {
+			MemeEntry meme;
+			meme.fileHash = "worker_" + std::to_string(workerIndex) + "_hash_" + std::to_string(i);
+			meme.filePath = "worker_" + std::to_string(workerIndex) + "_path_" + std::to_string(i);
+			meme.mimeType = "image/jpeg";
+			try {
+				Database::get().insertMeme(meme);
+			} catch (...) {
+				failures++;
+			}
+		}
+	};
+
+	std::thread t1(worker, 1);
+	std::thread t2(worker, 2);
+	std::thread t3(worker, 3);
+	std::thread t4(worker, 4);
+	std::thread t5(worker, 5);
+	std::thread t6(worker, 6);
+	std::thread t7(worker, 7);
+	std::thread t8(worker, 8);
+
+	start = true;
+	t1.join();
+	t2.join();
+	t3.join();
+	t4.join();
+	t5.join();
+	t6.join();
+	t7.join();
+	t8.join();
+
+	EXPECT_EQ(failures.load(), 0);
+	EXPECT_EQ(Database::get().countMemes(SearchQuery()), 200);
+}
+
 } // namespace quickmemes

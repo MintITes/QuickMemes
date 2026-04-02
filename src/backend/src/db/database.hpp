@@ -14,6 +14,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -380,6 +382,10 @@ private:
 	 * 迁移前自动调用 backupDatabase()。
 	 */
 	void runMigrations();
+	bool initializeUnlocked(const std::string &dbPath, int embeddingDimensions);
+	void shutdownUnlocked();
+	bool deleteMemeUnlocked(int64_t id);
+	void rebuildEmbeddingTablesUnlocked(int newDimension);
 
 	/**
 	 * @brief 动态构建搜索 SQL
@@ -394,6 +400,7 @@ private:
 	std::unique_ptr<SQLite::Database> db_;                  ///< SQLiteCpp 数据库实例
 	std::string                       dbPath_;               ///< 数据库文件路径
 	int embeddingDimensions_ = EmbeddingModule::kDefaultDimensions;
+	mutable std::shared_mutex         dbMutex_;
 };
 
 } // namespace quickmemes
