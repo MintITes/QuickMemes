@@ -153,6 +153,22 @@
             "n_items": "{{count}} 项"
         }
     },
+    "fab": {
+        "selected": "已选",
+        "copy": "复制",
+        "copy_disabled_hint": "多选时不支持批量复制图片",
+        "export": "导出",
+        "bucket": "暂存",
+        "delete": "删除",
+        "restore": "恢复",
+        "delete_permanently": "彻底删除",
+        "cancel_selection": "取消选择",
+        "bucket_added": "已暂存 {{count}} 张",
+        "bucket_added_desc": "可前往收集桶统一操作",
+        "delete_failed": "删除失败",
+        "restore_success": "已成功恢复 {{count}} 项梗图",
+        "delete_permanently_success": "已永久删除 {{count}} 项梗图"
+    },
     "inspector": {
         "title": "梗图详情",
         "batch_title": "详情 ({{count}})",

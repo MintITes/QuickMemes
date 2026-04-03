@@ -153,6 +153,22 @@
             "n_items": "{{count}} items"
         }
     },
+    "fab": {
+        "selected": "selected",
+        "copy": "Copy",
+        "copy_disabled_hint": "Multi-select copy is not supported",
+        "export": "Export",
+        "bucket": "Bucket",
+        "delete": "Delete",
+        "restore": "Restore",
+        "delete_permanently": "Delete Permanently",
+        "cancel_selection": "Cancel Selection",
+        "bucket_added": "{{count}} saved to bucket",
+        "bucket_added_desc": "View the bucket to manage staged items",
+        "delete_failed": "Delete Failed",
+        "restore_success": "Restored {{count}} items",
+        "delete_permanently_success": "Permanently deleted {{count}} items"
+    },
     "inspector": {
         "title": "Meme Details",
         "batch_title": "Details ({{count}})",

@@ -21,6 +21,7 @@ import { GALLERY_ITEM_SIZE_MAX, GALLERY_ITEM_SIZE_MIN, useUiStore } from '../../
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { MemeCard } from './MemeCard';
+import { FloatActionBar } from './FloatActionBar';
 
 
 export function Gallery() {
@@ -575,6 +576,8 @@ export function Gallery() {
                     );
                 })()}
             </div>
+
+            <FloatActionBar />
         </main>
     );
 }
