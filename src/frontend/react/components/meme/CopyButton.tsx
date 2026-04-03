@@ -8,9 +8,10 @@ interface CopyButtonProps {
     memeId: number;
     memeName: string;
     isVisible: boolean;
+    onCopySuccess?: () => void;
 }
 
-export function CopyButton({ memeId, memeName, isVisible }: CopyButtonProps) {
+export function CopyButton({ memeId, memeName, isVisible, onCopySuccess }: CopyButtonProps) {
     const { t } = useTranslation();
     const addNotification = useNotificationStore(state => state.addNotification);
 
@@ -25,6 +26,7 @@ export function CopyButton({ memeId, memeName, isVisible }: CopyButtonProps) {
                 title: t('gallery.item.copy_success'),
                 description: memeName,
             });
+            onCopySuccess?.();
         } catch {
             addNotification({
                 type: 'error',

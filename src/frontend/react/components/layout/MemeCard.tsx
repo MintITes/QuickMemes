@@ -31,10 +31,12 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags }: MemeCa
 
     const [src, setSrc] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isCopyFlashing, setIsCopyFlashing] = useState(false);
 
     // Manage stable meme ID to prevent flickering on data updates
     const [lastMemeId, setLastMemeId] = useState<number>(meme.id);
     const clickTimeout = useRef<number | null>(null);
+    const flashTimeout = useRef<number | null>(null);
 
     if (meme.id !== lastMemeId) {
         setLastMemeId(meme.id);
@@ -60,6 +62,28 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags }: MemeCa
             revokeAssetUrl(`thumb:${meme.id}`);
         };
     }, [meme.id]);
+
+    const handleCopySuccess = () => {
+        // Clear any pending reset to allow re-trigger
+        if (flashTimeout.current) {
+            clearTimeout(flashTimeout.current);
+            setIsCopyFlashing(false);
+            // Let the class be removed first, then re-apply on the next tick
+            requestAnimationFrame(() => {
+                setIsCopyFlashing(true);
+                flashTimeout.current = window.setTimeout(() => {
+                    setIsCopyFlashing(false);
+                    flashTimeout.current = null;
+                }, 460);
+            });
+        } else {
+            setIsCopyFlashing(true);
+            flashTimeout.current = window.setTimeout(() => {
+                setIsCopyFlashing(false);
+                flashTimeout.current = null;
+            }, 460);
+        }
+    };
 
     const handleClick = (event: React.MouseEvent) => {
         // Prevent event bubbling to avoid conflicts with child elements
@@ -133,6 +157,13 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags }: MemeCa
                     onImageLoad={() => setIsLoading(false)}
                 />
 
+                {/* Shimmer sweep overlay on copy */}
+                {isCopyFlashing && (
+                    <div className="card-shimmer-wrapper">
+                        <div className="card-shimmer-beam" />
+                    </div>
+                )}
+
                 {/* Floating Action Buttons - Enhanced visibility on hover */}
                 <div className={clsx(
                     'absolute bottom-2 right-2 z-30 flex gap-2 transition-all duration-300 transform-gpu gpu-transform-opacity',
@@ -142,6 +173,7 @@ function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags }: MemeCa
                         memeId={meme.id}
                         memeName={meme.name}
                         isVisible={true} // Controlled by parent visibility classes
+                        onCopySuccess={handleCopySuccess}
                     />
                     <MoreButton
                         memeId={meme.id}

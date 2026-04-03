@@ -246,4 +246,39 @@
       opacity: 1;
     }
   }
+
+  /* Card copy shimmer: a gloss beam sweeps diagonally across the card */
+  @keyframes cardShimmerSlide {
+    0%   { transform: translateX(-180%) skewX(-18deg); opacity: 0; }
+    8%   { opacity: 1; }
+    92%  { opacity: 1; }
+    100% { transform: translateX(280%) skewX(-18deg); opacity: 0; }
+  }
+
+  .card-shimmer-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    border-radius: var(--corner-radius);
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  .card-shimmer-beam {
+    position: absolute;
+    top: -20%;
+    bottom: -20%;
+    left: 0;
+    width: 45%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(255, 255, 255, 0.55) 48%,
+      rgba(255, 255, 255, 0.08) 80%,
+      transparent 100%
+    );
+    animation: cardShimmerSlide 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    pointer-events: none;
+  }
 }
