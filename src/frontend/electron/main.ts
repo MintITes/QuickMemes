@@ -6,6 +6,7 @@ import {
     ipcMain,
     Menu,
     nativeImage,
+    session,
     shell,
     Tray,
 } from 'electron';
@@ -126,6 +127,7 @@ let backendSession: BackendSession = {
 };
 let backendLifecycleChain = Promise.resolve();
 let configPatchChain = Promise.resolve<SetConfigResult | null>(null);
+let backendAuthHeaderListenerInstalled = false;
 
 const RESTART_REQUIRED_KEYS = new Set([
     'backendPort',
@@ -344,6 +346,44 @@ function getBackendStatus(): BackendStatus {
     };
 }
 
+function installBackendAuthHeaderListener() {
+    if (backendAuthHeaderListenerInstalled) {
+        return;
+    }
+
+    backendAuthHeaderListenerInstalled = true;
+    session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+        const config = currentConfig ?? loadConfig();
+        const token = backendSession.token;
+        if (!backendSession.ready || !token) {
+            callback({ requestHeaders: details.requestHeaders });
+            return;
+        }
+
+        try {
+            const url = new URL(details.url);
+            const isBackendHost =
+                url.protocol === 'http:' &&
+                url.port === String(config.backendPort) &&
+                (url.hostname === config.bindAddress || url.hostname === '127.0.0.1' || url.hostname === 'localhost');
+
+            if (isBackendHost) {
+                callback({
+                    requestHeaders: {
+                        ...details.requestHeaders,
+                        Authorization: `Bearer ${token}`,
+                    },
+                });
+                return;
+            }
+        } catch {
+            // Ignore malformed URLs and let Chromium continue unchanged.
+        }
+
+        callback({ requestHeaders: details.requestHeaders });
+    });
+}
+
 function emitBackendStatus() {
     const payload = getBackendStatus();
     for (const win of BrowserWindow.getAllWindows()) {
@@ -490,6 +530,7 @@ async function startBackend() {
         lastExitCode: null,
         lastError: null,
     };
+    installBackendAuthHeaderListener();
     emitBackendStatus();
 
     proc.stdout.on('data', (chunk) => {

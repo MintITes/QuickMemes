@@ -1,36 +1,17 @@
-import { sendBlobRequest } from '../api/httpClient';
-
-const blobUrlCache = new Map<string, string>();
-
-async function getObjectUrl(key: string, path: string) {
-    const cached = blobUrlCache.get(key);
-    if (cached) {
-        return cached;
-    }
-
-    const blob = await sendBlobRequest(path);
-    const objectUrl = URL.createObjectURL(blob);
-    blobUrlCache.set(key, objectUrl);
-    return objectUrl;
+function buildAssetUrl(path: string) {
+    return window.electronAPI.getBackendConfig().then(({ bindAddress, port }) => {
+        return new URL(path, `http://${bindAddress}:${port}`).toString();
+    });
 }
 
 export async function getThumbnailUrl(memeId: number) {
-    try {
-        return await getObjectUrl(`thumb:${memeId}`, `/api/meme/${memeId}/thumbnail`);
-    } catch {
-        return getObjectUrl(`file:${memeId}`, `/api/meme/${memeId}/file`);
-    }
+    return buildAssetUrl(`/api/meme/${memeId}/thumbnail`);
 }
 
 export async function getFileUrl(memeId: number) {
-    return getObjectUrl(`file:${memeId}`, `/api/meme/${memeId}/file`);
+    return buildAssetUrl(`/api/meme/${memeId}/file`);
 }
 
-export function revokeAssetUrl(key: string) {
-    const current = blobUrlCache.get(key);
-    if (!current) {
-        return;
-    }
-    URL.revokeObjectURL(current);
-    blobUrlCache.delete(key);
+export function revokeAssetUrl(_key: string) {
+    // 直连 URL 不再使用 Blob/Object URL，保留空实现以兼容现有调用点。
 }
