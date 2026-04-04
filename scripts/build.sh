@@ -14,7 +14,8 @@ fi
 
 if [ "$1" == "--test" ]; then
     echo "Cleaning..."
-    rm -rf "$BUILD_DIR/tests" "$BUILD_DIR/Testing"
+    # rm -rf "$BUILD_DIR/tests"
+    rm -rf "$BUILD_DIR/Testing"
 fi
 
 echo "Building QuickMemes Backend (Incremental)..."

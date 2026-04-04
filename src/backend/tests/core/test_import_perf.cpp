@@ -125,11 +125,11 @@ TEST_F(ImportPerfTest, Import_SubmitPath_P95Under50Ms) {
 				EXPECT_TRUE(response["success"].get<bool>()) << cases[i].label;
 				EXPECT_EQ(response["data"]["status"].get<std::string>(), "PENDING") << cases[i].label;
 				EXPECT_EQ(response["data"]["total"].get<int>(), 1) << cases[i].label;
-				localStats.add(elapsedMs);
+				localStats.add(cases[i].label, elapsedMs);
 			}
 
 			std::lock_guard<std::mutex> lock(statsMutex);
-			stats.samplesMs.insert(stats.samplesMs.end(), localStats.samplesMs.begin(), localStats.samplesMs.end());
+			stats.merge(localStats);
 		});
 	}
 

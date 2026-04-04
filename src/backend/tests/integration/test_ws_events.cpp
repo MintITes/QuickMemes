@@ -80,4 +80,54 @@ TEST_F(WsEventTest, SessionRegistration_Reset_StopsFurtherBroadcasts) {
 	EXPECT_EQ(receivedCount.load(), 1);
 }
 
+TEST_F(WsEventTest, ClearSessions_RemovesAllCallbacks) {
+	std::atomic<int> receivedCount{0};
+	auto s1 = WsPusher::get().addSession([&](std::shared_ptr<std::string> msg) {
+		(void)msg;
+		receivedCount.fetch_add(1);
+	});
+	auto s2 = WsPusher::get().addSession([&](std::shared_ptr<std::string> msg) {
+		(void)msg;
+		receivedCount.fetch_add(1);
+	});
+
+	WsPusher::get().clearSessions();
+	WsPusher::get().broadcast({"test:event", {{"value", 3}}});
+	EXPECT_EQ(receivedCount.load(), 0);
+
+	s1->reset();
+	s2->reset();
+}
+
+TEST_F(WsEventTest, MultipleSessions_BroadcastsToAll) {
+	std::atomic<int> receivedCount{0};
+	auto s1 = WsPusher::get().addSession([&](std::shared_ptr<std::string> msg) {
+		(void)msg;
+		receivedCount.fetch_add(1);
+	});
+	auto s2 = WsPusher::get().addSession([&](std::shared_ptr<std::string> msg) {
+		(void)msg;
+		receivedCount.fetch_add(1);
+	});
+
+	WsPusher::get().broadcast({"test:event", {{"value", 4}}});
+	EXPECT_EQ(receivedCount.load(), 2);
+
+	s1->reset();
+	s2->reset();
+}
+
+TEST_F(WsEventTest, SessionRegistration_ResetIsIdempotent) {
+	std::atomic<int> receivedCount{0};
+	auto registration = WsPusher::get().addSession([&](std::shared_ptr<std::string> msg) {
+		(void)msg;
+		receivedCount.fetch_add(1);
+	});
+
+	registration->reset();
+	registration->reset();
+	WsPusher::get().broadcast({"test:event", {{"value", 5}}});
+	EXPECT_EQ(receivedCount.load(), 0);
+}
+
 } // namespace quickmemes

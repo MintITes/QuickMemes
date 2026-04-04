@@ -47,6 +47,9 @@ set(TEST_SOURCES
     core/test_task_queue_stress.cpp
     db/test_search_perf.cpp
     core/test_core_fixes.cpp
+    core/test_server_lifecycle.cpp
+    core/test_main_entry.cpp
+    vision/test_http_client.cpp
     test_globals.cpp
 )
 

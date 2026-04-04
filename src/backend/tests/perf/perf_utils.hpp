@@ -6,15 +6,35 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace quickmemes::testing::perf {
 
+struct PerfSample {
+	std::string label;
+	double      ms = 0.0;
+};
+
 struct PerfStats {
-	void add(double ms) { samplesMs.push_back(ms); }
+	void add(double ms) {
+		add("sample_" + std::to_string(samplesMs.size()), ms);
+	}
+
+	void add(std::string label, double ms) {
+		samplesMs.push_back(ms);
+		samples_.push_back(PerfSample{std::move(label), ms});
+	}
+
+	void merge(const PerfStats &other) {
+		samplesMs.insert(samplesMs.end(), other.samplesMs.begin(), other.samplesMs.end());
+		samples_.insert(samples_.end(), other.samples_.begin(), other.samples_.end());
+	}
 
 	[[nodiscard]] double averageMs() const {
 		if (samplesMs.empty()) { return 0.0; }
@@ -37,12 +57,41 @@ struct PerfStats {
 		return sorted[index];
 	}
 
+	[[nodiscard]] std::vector<PerfSample> topSlowestSamples(size_t count) const {
+		if (count == 0 || samplesMs.empty()) { return {}; }
+		std::vector<PerfSample> sorted = samples_;
+		std::sort(sorted.begin(), sorted.end(), [](const PerfSample &lhs, const PerfSample &rhs) {
+			return lhs.ms > rhs.ms;
+		});
+		if (sorted.size() > count) { sorted.resize(count); }
+		return sorted;
+	}
+
+	[[nodiscard]] std::vector<double> topSlowestMs(size_t count) const {
+		std::vector<double> values;
+		for (const auto &sample : topSlowestSamples(count)) { values.push_back(sample.ms); }
+		return values;
+	}
+
 	void print(const std::string &label, uint64_t seed, size_t sampleCount) const {
+		const size_t topCount = std::min<size_t>(5, samplesMs.size());
+		const auto topSlowest = topSlowestSamples(topCount);
+		std::ostringstream oss;
+		if (!topSlowest.empty()) {
+			oss << " top_slowest_ms=[";
+			for (size_t i = 0; i < topSlowest.size(); ++i) {
+				if (i != 0) { oss << ", "; }
+				oss << topSlowest[i].label << ":" << topSlowest[i].ms;
+			}
+			oss << "]";
+		}
 		std::cout << "[perf] " << label << " seed=" << seed << " samples=" << sampleCount
-		          << " avg_ms=" << averageMs() << " p95_ms=" << p95Ms() << " max_ms=" << maxMs() << '\n';
+		          << " avg_ms=" << averageMs() << " p95_ms=" << p95Ms() << " max_ms=" << maxMs()
+		          << oss.str() << '\n';
 	}
 
 	std::vector<double> samplesMs;
+	std::vector<PerfSample> samples_;
 };
 
 template <typename Fn> [[nodiscard]] double measureMs(Fn &&fn) {
