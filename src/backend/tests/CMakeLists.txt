@@ -54,6 +54,7 @@ set(TEST_SOURCES
 # 定义性能测试源文件
 set(PERF_TEST_SOURCES
     core/test_import_perf.cpp
+    core/test_hot_path_perf.cpp
     db/test_search_perf.cpp
 )
 
