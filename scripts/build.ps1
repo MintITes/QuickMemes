@@ -21,7 +21,7 @@ if ($Test) {
     Write-Host "Cleaning test artifacts..."
     $TestsDir = Join-Path $BuildDir "tests"
     $TestingDir = Join-Path $BuildDir "Testing"
-    if (Test-Path $TestsDir) #{ Remove-Item -Recurse -Force $TestsDir }
+    #if (Test-Path $TestsDir) { Remove-Item -Recurse -Force $TestsDir }
     if (Test-Path $TestingDir) { Remove-Item -Recurse -Force $TestingDir }
 }
 
