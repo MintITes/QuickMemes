@@ -74,25 +74,36 @@ struct PerfStats {
 	}
 
 	void print(const std::string &label, uint64_t seed, size_t sampleCount) const {
-		const size_t topCount = std::min<size_t>(5, samplesMs.size());
+		const size_t totalSamples = samplesMs.size();
+		const size_t topCount = std::min<size_t>(5, totalSamples);
 		const auto topSlowest = topSlowestSamples(topCount);
-		std::ostringstream oss;
-		if (!topSlowest.empty()) {
-			oss << " top_slowest_ms=[";
-			for (size_t i = 0; i < topSlowest.size(); ++i) {
-				if (i != 0) { oss << ", "; }
-				oss << topSlowest[i].label << ":" << topSlowest[i].ms;
-			}
-			oss << "]";
-		}
 		std::cout << "[perf] " << label << " seed=" << seed << " samples=" << sampleCount
+		          << " collected=" << totalSamples
 		          << " avg_ms=" << averageMs() << " p95_ms=" << p95Ms() << " max_ms=" << maxMs()
-		          << oss.str() << '\n';
+		          << " top_slowest_count=" << topCount << '\n';
+		for (size_t i = 0; i < topSlowest.size(); ++i) {
+			std::cout << "[perf][top_slowest] " << label << " rank=" << (i + 1)
+			          << " sample_label=" << topSlowest[i].label << " ms=" << topSlowest[i].ms << '\n';
+		}
 	}
 
 	std::vector<double> samplesMs;
 	std::vector<PerfSample> samples_;
 };
+
+inline void printPerfNode(std::string_view group, size_t index, std::string_view label, double ms) {
+	std::cout << "[perf][node] " << group << " index=" << (index + 1) << " label=" << label
+	          << " ms=" << ms << '\n';
+}
+
+inline void printPerfTopSlowest(std::string_view group, const PerfStats &stats, size_t count = 5) {
+	const auto topSlowest = stats.topSlowestSamples(count);
+	std::cout << "[perf][top_slowest] " << group << " count=" << topSlowest.size() << '\n';
+	for (size_t i = 0; i < topSlowest.size(); ++i) {
+		std::cout << "[perf][top_slowest] " << group << " rank=" << (i + 1)
+		          << " label=" << topSlowest[i].label << " ms=" << topSlowest[i].ms << '\n';
+	}
+}
 
 template <typename Fn> [[nodiscard]] double measureMs(Fn &&fn) {
 	auto start = std::chrono::steady_clock::now();

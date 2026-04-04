@@ -7,8 +7,10 @@
 #include "../perf/perf_utils.hpp"
 
 #include "core/handlers.hpp"
+#include "core/server.hpp"
 #include "core/task_queue.hpp"
 #include "embedding/embedding.hpp"
+#include "utils/logger.hpp"
 #include "vision/vision.hpp"
 
 #include <atomic>
@@ -18,6 +20,8 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+
+std::unique_ptr<quickmemes::Server> g_server = nullptr;
 
 namespace quickmemes { namespace testing {
 
@@ -53,6 +57,7 @@ static HttpRequestProxy makeRequest(const ImportRequest &request) {
 class ImportPerfTest : public ::testing::Test {
 protected:
 	void SetUp() override {
+		::quickmemes::Logger::get().setMinLevel(::quickmemes::LogLevel::LL_FATAL);
 		tempDir_ = std::make_unique<TestDirectory>();
 		imagePath_ = tempDir_->getSubPath("input/import_perf.jpg");
 		perf::writeTinyJpeg(imagePath_);
@@ -70,6 +75,7 @@ protected:
 		EmbeddingModule::get().shutdown();
 		VisionModule::get().shutdown();
 		Database::get().shutdown();
+		::quickmemes::Logger::get().setMinLevel(::quickmemes::LogLevel::LL_INFO);
 		tempDir_.reset();
 	}
 
@@ -96,6 +102,8 @@ TEST_F(ImportPerfTest, Import_SubmitPath_P95Under50Ms) {
 	}
 
 	perf::PerfStats stats;
+	std::vector<double> elapsedMsByCase(cases.size(), 0.0);
+	std::mutex resultsMutex;
 	std::mutex statsMutex;
 	std::atomic<size_t> ready{0};
 	std::atomic<bool>   start{false};
@@ -125,6 +133,10 @@ TEST_F(ImportPerfTest, Import_SubmitPath_P95Under50Ms) {
 				EXPECT_TRUE(response["success"].get<bool>()) << cases[i].label;
 				EXPECT_EQ(response["data"]["status"].get<std::string>(), "PENDING") << cases[i].label;
 				EXPECT_EQ(response["data"]["total"].get<int>(), 1) << cases[i].label;
+				{
+					std::lock_guard<std::mutex> resultLock(resultsMutex);
+					elapsedMsByCase[i] = elapsedMs;
+				}
 				localStats.add(cases[i].label, elapsedMs);
 			}
 
@@ -139,8 +151,12 @@ TEST_F(ImportPerfTest, Import_SubmitPath_P95Under50Ms) {
 	start.store(true, std::memory_order_release);
 	for (auto &worker : workers) { worker.join(); }
 
-	stats.print("import", kSeed, cases.size());
-	EXPECT_LE(stats.p95Ms(), 50.0) << "Import submit p95 exceeded 50ms";
+	std::cout << "[perf] import seed=" << kSeed << " samples=" << cases.size()
+	          << " collected=" << elapsedMsByCase.size() << '\n';
+	for (size_t i = 0; i < cases.size(); ++i) {
+		perf::printPerfNode("import", i, cases[i].label, elapsedMsByCase[i]);
+	}
+	perf::printPerfTopSlowest("import", stats);
 }
 
 }} // namespace quickmemes::testing

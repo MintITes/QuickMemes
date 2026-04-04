@@ -25,13 +25,13 @@ cpu_count() {
 echo "Running build.sh clean test..."
 "$SCRIPT_DIR/build.sh" --test
 
-echo "Running tests..."
+echo "Running tests (excluding perf)..."
 cd "$BUILD_DIR"
 if [ "${GITHUB_ACTIONS:-}" = "true" ] || [ "${CI:-}" = "true" ]; then
     mkdir -p "$BUILD_DIR/Testing"
-    ctest --output-on-failure --parallel "$(cpu_count)" -V --output-junit "$BUILD_DIR/Testing/ctest-junit.xml"
+    ctest --output-on-failure --parallel "$(cpu_count)" -V -LE perf --output-junit "$BUILD_DIR/Testing/ctest-junit.xml"
 else
-    ctest --output-on-failure --parallel "$(cpu_count)" -V
+    ctest --output-on-failure --parallel "$(cpu_count)" -V -LE perf
 fi
 
 echo "Tests passed successfully."

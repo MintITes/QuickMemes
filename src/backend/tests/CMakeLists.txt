@@ -18,7 +18,7 @@ FetchContent_MakeAvailable(googletest)
 # 包含 GoogleTest 配置
 include(GoogleTest)
 
-# 定义所有测试源文件
+# 定义普通测试源文件
 set(TEST_SOURCES
     core/test_router.cpp
     core/test_task_queue.cpp
@@ -39,13 +39,11 @@ set(TEST_SOURCES
     integration/test_ws_events.cpp
     core/test_handlers_extra.cpp
     core/test_concurrency_race.cpp
-    core/test_import_perf.cpp
     db/test_last_used.cpp
     core/test_rebuild_embeddings.cpp
     core/test_config_api.cpp
     core/test_trash_purge.cpp
     core/test_task_queue_stress.cpp
-    db/test_search_perf.cpp
     core/test_core_fixes.cpp
     core/test_server_lifecycle.cpp
     core/test_main_entry.cpp
@@ -53,8 +51,17 @@ set(TEST_SOURCES
     test_globals.cpp
 )
 
+# 定义性能测试源文件
+set(PERF_TEST_SOURCES
+    core/test_import_perf.cpp
+    db/test_search_perf.cpp
+)
+
 # 编译测试可执行文件
 add_executable(quickmemes_tests ${TEST_SOURCES})
+
+# 编译性能测试可执行文件
+add_executable(quickmemes_perf_tests ${PERF_TEST_SOURCES})
 
 # 链接后端核心库和 GTest
 target_link_libraries(quickmemes_tests PRIVATE
@@ -66,9 +73,20 @@ target_link_libraries(quickmemes_tests PRIVATE
     gtest_main
     gmock
 )
+
+target_link_libraries(quickmemes_perf_tests PRIVATE
+    quickmemes_core
+    quickmemes_db
+    quickmemes_embedding
+    quickmemes_vision
+    quickmemes_utils
+    gtest_main
+    gmock
+)
 # 使用后端共享 PCH（避免重复编译常用头）
 set(PCH_HEADER ${CMAKE_CURRENT_LIST_DIR}/../src/pch.hpp)
 target_precompile_headers(quickmemes_tests PRIVATE ${PCH_HEADER})
+target_precompile_headers(quickmemes_perf_tests PRIVATE ${PCH_HEADER})
 
 if(MSVC)
     add_custom_command(TARGET quickmemes_tests POST_BUILD
@@ -77,10 +95,22 @@ if(MSVC)
         $<TARGET_FILE_DIR:quickmemes_tests>
         COMMAND_EXPAND_LISTS
     )
+    add_custom_command(TARGET quickmemes_perf_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_RUNTIME_DLLS:quickmemes_perf_tests>
+        $<TARGET_FILE_DIR:quickmemes_perf_tests>
+        COMMAND_EXPAND_LISTS
+    )
 endif()
 
 # 注册测试以供 CTest 运行
 gtest_discover_tests(
     quickmemes_tests
     DISCOVERY_MODE PRE_TEST
+)
+
+gtest_discover_tests(
+    quickmemes_perf_tests
+    DISCOVERY_MODE PRE_TEST
+    PROPERTIES LABELS perf
 )

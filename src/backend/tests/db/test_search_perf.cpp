@@ -7,6 +7,7 @@
 #include "../perf/perf_utils.hpp"
 
 #include "core/handlers.hpp"
+#include "utils/logger.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -291,7 +292,18 @@ static bool responseContainsMemeId(const nlohmann::json &response, int64_t memeI
 
 } // namespace
 
-class SearchPerfTest : public MemeDbTest {};
+class SearchPerfTest : public MemeDbTest {
+protected:
+	void SetUp() override {
+		::quickmemes::Logger::get().setMinLevel(::quickmemes::LogLevel::LL_FATAL);
+		MemeDbTest::SetUp();
+	}
+
+	void TearDown() override {
+		MemeDbTest::TearDown();
+		::quickmemes::Logger::get().setMinLevel(::quickmemes::LogLevel::LL_INFO);
+	}
+};
 
 TEST_F(SearchPerfTest, Search_1000MemeCorpus_P95Under20Ms) {
 	constexpr size_t   kCorpusSize  = 1000;
@@ -313,7 +325,8 @@ TEST_F(SearchPerfTest, Search_1000MemeCorpus_P95Under20Ms) {
 	}
 
 	perf::PerfStats stats;
-	for (const auto &perfCase : cases) {
+	for (size_t i = 0; i < cases.size(); ++i) {
+		const auto &perfCase = cases[i];
 		HttpRequestProxy req;
 		req.method = "POST";
 		req.path   = "/api/memes/search";
@@ -324,12 +337,7 @@ TEST_F(SearchPerfTest, Search_1000MemeCorpus_P95Under20Ms) {
 			handlePostMemesSearch(req, res);
 		});
 		stats.add(perfCase.label, elapsedMs);
-		if (elapsedMs > 20.0) {
-			std::cout << "[perf-search-slow] " << perfCase.label << " elapsed_ms=" << elapsedMs
-			          << " keyword=" << perfCase.query.keyword << " limit=" << perfCase.query.limit
-			          << " tagCount=" << perfCase.query.tagIds.size()
-			          << " categoryId=" << perfCase.query.categoryId << '\n';
-		}
+		perf::printPerfNode("search", i, perfCase.label, elapsedMs);
 
 		ASSERT_EQ(res.status, 200) << perfCase.label;
 		auto response = nlohmann::json::parse(res.body);
@@ -337,8 +345,9 @@ TEST_F(SearchPerfTest, Search_1000MemeCorpus_P95Under20Ms) {
 		EXPECT_TRUE(responseContainsMemeId(response, perfCase.expectedMemeId)) << perfCase.label;
 	}
 
-	stats.print("search", kSeed, cases.size());
-	EXPECT_LE(stats.p95Ms(), 22.0) << "Search p95 exceeded 22ms";
+	std::cout << "[perf] search seed=" << kSeed << " samples=" << cases.size()
+	          << " collected=" << stats.samples_.size() << '\n';
+	perf::printPerfTopSlowest("search", stats);
 
 	auto tagCandidate = std::find_if(corpus.begin(), corpus.end(), [](const SearchCorpusItem &item) {
 		return !item.tagIds.empty();

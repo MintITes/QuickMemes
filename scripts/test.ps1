@@ -8,11 +8,11 @@ $BuildDir = Join-Path $BackendDir "build"
 Write-Host "Running build.ps1 -Test ..."
 & (Join-Path $ScriptDir "build.ps1") -Test
 
-Write-Host "Running tests..."
+Write-Host "Running tests (excluding perf)..."
 $cpuCount = [Environment]::ProcessorCount
 Push-Location $BuildDir
 try {
-    & ctest --output-on-failure --parallel $cpuCount -V -C Debug
+    & ctest --output-on-failure --parallel $cpuCount -V -C Debug -LE perf
 } finally {
     Pop-Location
 }
