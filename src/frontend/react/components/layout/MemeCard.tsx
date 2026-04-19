@@ -1,0 +1,201 @@
+import React, { useEffect, useState, useRef, memo } from 'react';
+import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
+import clsx from 'clsx';
+import { useUiStore } from '../../stores/UiStore';
+import { getThumbnailUrl, revokeAssetUrl } from '../../services/assetService';
+import type { Meme } from '../../types';
+import { useShallow } from 'zustand/react/shallow';
+
+import { MemeCardMedia } from '../meme/MemeCardMedia';
+import { MoreButton } from '../meme/MoreButton';
+import { CopyButton } from '../meme/CopyButton';
+
+interface MemeCardProps {
+    meme: Meme;
+    isSelected: boolean;
+    viewMode: 'grid' | 'masonry';
+    imageFit: 'contain' | 'cover';
+    showTags: boolean;
+}
+
+function MemeCardImpl({ meme, isSelected, viewMode, imageFit, showTags }: MemeCardProps) {
+    const { t } = useTranslation();
+    const { selectMeme, setContextMenu, setLightboxMemeId } = useUiStore(
+        useShallow((state) => ({
+            selectMeme: state.selectMeme,
+            setContextMenu: state.setContextMenu,
+            setLightboxMemeId: state.setLightboxMemeId,
+        }))
+    );
+
+    const [src, setSrc] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isCopyFlashing, setIsCopyFlashing] = useState(false);
+
+    // Manage stable meme ID to prevent flickering on data updates
+    const [lastMemeId, setLastMemeId] = useState<number>(meme.id);
+    const clickTimeout = useRef<number | null>(null);
+    const flashTimeout = useRef<number | null>(null);
+
+    if (meme.id !== lastMemeId) {
+        setLastMemeId(meme.id);
+        setIsLoading(true);
+        setSrc(null);
+    }
+
+    useEffect(() => {
+        let cancelled = false;
+        void getThumbnailUrl(meme.id).then((nextUrl) => {
+            if (!cancelled) {
+                setSrc(nextUrl);
+            }
+        }).catch(() => {
+            if (!cancelled) {
+                setSrc(null);
+                setIsLoading(false);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+            revokeAssetUrl(`thumb:${meme.id}`);
+        };
+    }, [meme.id]);
+
+    const handleCopySuccess = () => {
+        // Clear any pending reset to allow re-trigger
+        if (flashTimeout.current) {
+            clearTimeout(flashTimeout.current);
+            setIsCopyFlashing(false);
+            // Let the class be removed first, then re-apply on the next tick
+            requestAnimationFrame(() => {
+                setIsCopyFlashing(true);
+                flashTimeout.current = window.setTimeout(() => {
+                    setIsCopyFlashing(false);
+                    flashTimeout.current = null;
+                }, 460);
+            });
+        } else {
+            setIsCopyFlashing(true);
+            flashTimeout.current = window.setTimeout(() => {
+                setIsCopyFlashing(false);
+                flashTimeout.current = null;
+            }, 460);
+        }
+    };
+
+    const handleClick = (event: React.MouseEvent) => {
+        // Prevent event bubbling to avoid conflicts with child elements
+        event.stopPropagation();
+
+        const isMulti = event.metaKey || event.ctrlKey;
+
+        if (clickTimeout.current) {
+            clearTimeout(clickTimeout.current);
+            clickTimeout.current = null;
+            return; // Handled by double click
+        }
+
+        clickTimeout.current = window.setTimeout(() => {
+            selectMeme(meme.id, isMulti);
+            clickTimeout.current = null;
+        }, 200);
+    };
+
+    const handleDoubleClick = (event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (clickTimeout.current) {
+            clearTimeout(clickTimeout.current);
+            clickTimeout.current = null;
+        }
+        selectMeme(meme.id, false); // Make sure it's the only one selected
+        setLightboxMemeId(meme.id); // Open lightbox on double click
+    };
+
+    const handleContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+
+        // If not already selected, select only this one.
+        if (!isSelected) {
+            selectMeme(meme.id, false);
+        }
+
+        setContextMenu({
+            memeId: meme.id,
+            x: e.clientX,
+            y: e.clientY
+        });
+    };
+
+    return (
+        <motion.div
+            layout={false}
+            className="flex flex-col cursor-pointer select-none group/card relative gpu-transform-opacity"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -4 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
+            onContextMenu={handleContextMenu}
+            transition={{
+                opacity: { duration: 0.25 },
+                y: { type: "spring", stiffness: 400, damping: 25 },
+                scale: { duration: 0.1 }
+            }}
+        >
+            <div className="relative isolate">
+                <MemeCardMedia
+                    meme={meme}
+                    src={src}
+                    isLoading={isLoading}
+                    isSelected={isSelected}
+                    viewMode={viewMode}
+                    imageFit={imageFit}
+                    showTags={showTags}
+                    onImageLoad={() => setIsLoading(false)}
+                />
+
+                {/* Shimmer sweep overlay on copy */}
+                {isCopyFlashing && (
+                    <div className="card-shimmer-wrapper">
+                        <div className="card-shimmer-beam" />
+                    </div>
+                )}
+
+                {/* Floating Action Buttons - Enhanced visibility on hover */}
+                <div className={clsx(
+                    'absolute bottom-2 right-2 z-30 flex gap-2 transition-all duration-300 transform-gpu gpu-transform-opacity',
+                    isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover/card:opacity-100 group-hover/card:scale-100'
+                )}>
+                    <CopyButton
+                        memeId={meme.id}
+                        memeName={meme.name}
+                        isVisible={true} // Controlled by parent visibility classes
+                        onCopySuccess={handleCopySuccess}
+                    />
+                    <MoreButton
+                        memeId={meme.id}
+                        isVisible={true} // Controlled by parent visibility classes
+                        title={t('gallery.item.more')}
+                    />
+                </div>
+            </div>
+
+            {/* Subtle glow effect for selected item */}
+            {isSelected && (
+                <div
+                    className="absolute inset-0 z-10 pointer-events-none gpu-layer"
+                    style={{
+                        borderRadius: 'var(--corner-radius)',
+                        background: 'radial-gradient(circle at top left, color-mix(in srgb, var(--accent-color), transparent 75%), transparent 56%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent-color), transparent 82%), transparent 62%)',
+                        boxShadow: `inset 0 0 0 1px color-mix(in srgb, var(--accent-color), transparent 45%)`
+                    }}
+                />
+            )}
+        </motion.div>
+    );
+}
+
+export const MemeCard = memo(MemeCardImpl);

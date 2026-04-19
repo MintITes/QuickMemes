@@ -1,0 +1,635 @@
+#include "core/server.hpp"
+
+#include "core/router.hpp"
+#include "core/task_queue.hpp"
+#include "core/ws_pusher.hpp"
+#include "db/database.hpp"
+#include "embedding/embedding.hpp"
+#include "utils/logger.hpp"
+#include "vision/vision.hpp"
+
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/websocket.hpp>
+#include <atomic>
+#include <filesystem>
+#include <shared_mutex>
+#include <thread>
+#include <variant>
+#include <deque>
+
+namespace quickmemes {
+
+namespace net = boost::asio;
+using tcp     = boost::asio::ip::tcp;
+
+namespace beast = boost::beast;
+namespace http  = beast::http;
+
+class ServerImpl;
+
+namespace {
+bool hasRecentDatabaseBackup(const std::string &dbPath, std::chrono::hours maxAge) {
+	try {
+		const auto dbFileName = std::filesystem::path(dbPath).filename().string() + ".bak.";
+		const auto now        = std::filesystem::file_time_type::clock::now();
+		const auto parentDir  = std::filesystem::path(dbPath).parent_path();
+
+		if (parentDir.empty() || !std::filesystem::exists(parentDir)) { return false; }
+
+		for (const auto &entry : std::filesystem::directory_iterator(parentDir)) {
+			if (!entry.is_regular_file()) continue;
+			const auto fileName = entry.path().filename().string();
+			if (fileName.rfind(dbFileName, 0) != 0) continue;
+
+			const auto ftime = std::filesystem::last_write_time(entry);
+			if (now >= ftime && std::chrono::duration_cast<std::chrono::hours>(now - ftime) <= maxAge) { return true; }
+		}
+	} catch (...) {}
+
+	return false;
+}
+} // namespace
+
+template <typename Body> void applyCorsHeaders(http::response<Body> &res) {
+	res.set(http::field::access_control_allow_origin, "*");
+	res.set(http::field::access_control_allow_methods, "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+	res.set(http::field::access_control_allow_headers, "Authorization, Content-Type");
+	res.set(http::field::access_control_max_age, "86400");
+}
+
+class WsSession : public std::enable_shared_from_this<WsSession> {
+	beast::websocket::stream<beast::tcp_stream> ws_;
+	beast::flat_buffer                          buffer_;
+	WsPusher::Registration                      subscription_;
+	std::deque<std::shared_ptr<std::string>>    sendQueue_;
+	bool                                        isWriting_ = false;
+	std::atomic<bool>                           closed_{false};
+
+public:
+	explicit WsSession(beast::tcp_stream stream)
+	    : ws_(std::move(stream)) {}
+	~WsSession() {
+		closeSession();
+	}
+
+	template <class Body, class Allocator> void run(http::request<Body, http::basic_fields<Allocator>> req) {
+		beast::websocket::stream_base::timeout opt{
+		    std::chrono::seconds(30),              // handshake_timeout
+		    beast::websocket::stream_base::none(), // idle_timeout disabled for one-way push clients
+		    true                                   // keep_alive_pings
+		};
+		ws_.set_option(opt);
+
+		ws_.async_accept(req, beast::bind_front_handler(&WsSession::onAccept, shared_from_this()));
+	}
+
+	void onAccept(beast::error_code ec) {
+		if (ec) return;
+
+		auto weakSelf = weak_from_this();
+		subscription_ = WsPusher::get().addSession([weakSelf](std::shared_ptr<std::string> msg) {
+			if (auto self = weakSelf.lock()) { self->enqueueMsg(std::move(msg)); }
+		});
+
+		doRead();
+	}
+
+	void doRead() {
+		ws_.async_read(buffer_, beast::bind_front_handler(&WsSession::onRead, shared_from_this()));
+	}
+
+	void onRead(beast::error_code ec, std::size_t bytes_transferred) {
+		boost::ignore_unused(bytes_transferred);
+		if (ec == beast::websocket::error::closed || ec) {
+			closeSession();
+			return;
+		}
+
+		// 严禁无意义堆分配：直接根据接收大小消耗掉 buffer 即可
+		buffer_.consume(buffer_.size());
+		doRead();
+	}
+
+	void enqueueMsg(std::shared_ptr<std::string> msg) {
+		// 配合之前 Critical 处的 strand dispatch：
+		net::dispatch(ws_.get_executor(), [self = shared_from_this(), msg = std::move(msg)]() mutable {
+			bool shouldStartWrite = false;
+			// 使用 std::move 完美转移生命周期，严禁不必要的原子 +1 操作
+			self->sendQueue_.push_back(std::move(msg));
+			if (!self->isWriting_) {
+				self->isWriting_ = true;
+				shouldStartWrite = true;
+			}
+			if (shouldStartWrite) { self->doWrite(); }
+		});
+	}
+
+	void doWrite() {
+		std::shared_ptr<std::string> msg;
+		if (sendQueue_.empty()) {
+			isWriting_ = false;
+			return;
+		}
+		// 无锁获取队列头部
+		msg = std::move(sendQueue_.front());
+		sendQueue_.pop_front();
+
+		ws_.text(true);
+		ws_.async_write(net::buffer(*msg), beast::bind_front_handler(&WsSession::onWrite, shared_from_this()));
+	}
+
+	void onWrite(beast::error_code ec, std::size_t bytes_transferred) {
+		boost::ignore_unused(bytes_transferred);
+		if (ec) {
+			closeSession();
+			return;
+		}
+		doWrite();
+	}
+
+	void closeSession() {
+		bool expected = false;
+		if (!closed_.compare_exchange_strong(expected, true)) { return; }
+		if (subscription_) { subscription_->reset(); }
+		subscription_.reset();
+	}
+};
+
+class HttpSession : public std::enable_shared_from_this<HttpSession> {
+public:
+	HttpSession(tcp::socket &&socket, std::shared_ptr<Router> router)
+	    : stream_(std::move(socket))
+	    , router_(std::move(router)) {}
+
+	void run() {
+		doRead();
+	}
+
+private:
+	beast::tcp_stream                stream_;
+	beast::flat_buffer               buffer_;
+	http::request<http::string_body> req_;
+	std::shared_ptr<Router>          router_;
+
+	std::variant<std::monostate,
+	             http::response<http::string_body>,
+	             http::response<http::file_body>>
+	    res_storage_;
+
+	void doRead() {
+		req_ = {};
+
+		stream_.expires_after(std::chrono::seconds(300));
+
+		http::async_read(stream_, buffer_, req_, beast::bind_front_handler(&HttpSession::onRead, shared_from_this()));
+	}
+
+	void onRead(beast::error_code ec, std::size_t bytes_transferred) {
+		boost::ignore_unused(bytes_transferred);
+
+		if (ec == http::error::end_of_stream) {
+			doClose();
+			return;
+		}
+		if (ec == beast::error::timeout) {
+			doClose();
+			return;
+		}
+		if (ec) {
+			LOG_ERROR("session", "Read error: " + ec.message());
+			return;
+		}
+
+		handleRequest();
+	}
+
+	void handleRequest() {
+		if (req_.method() == http::verb::options) {
+			auto &res = res_storage_.emplace<http::response<http::string_body>>(http::status::no_content, req_.version());
+			res.set(http::field::server, "QuickMemes/1.0");
+			res.set(http::field::content_type, "application/json");
+			applyCorsHeaders(res);
+			res.keep_alive(req_.keep_alive());
+			res.prepare_payload();
+
+			auto self = shared_from_this();
+			http::async_write(stream_, res, [self](beast::error_code ec, std::size_t /*b*/) {
+				if (ec || std::get<http::response<http::string_body>>(self->res_storage_).need_eof()) {
+					self->doClose();
+					return;
+				}
+				self->doRead();
+			});
+			return;
+		}
+
+		if (beast::websocket::is_upgrade(req_)) {
+			std::string_view  path          = req_.target();
+			const bool        isWsPath      = path.starts_with("/ws"); // strict path prefix check
+			bool              authOk        = false;
+			const std::string& expectedToken = router_->getAuthToken();
+
+			if (isWsPath) {
+				if (expectedToken.empty()) {
+					authOk = true; // WS auth disabled
+				} else {
+					size_t pos = path.find("?token=");
+					if (pos == std::string_view::npos) { pos = path.find("&token="); }
+
+					if (pos != std::string_view::npos) {
+						std::string_view t         = path.substr(pos + 7);
+						auto             ampersand = t.find('&');
+						if (ampersand != std::string_view::npos) t = t.substr(0, ampersand);
+						if (Router::verifyAuthToken(t, expectedToken)) { authOk = true; }
+					}
+				}
+			}
+
+			if (authOk) {
+				stream_.expires_never();
+				auto session = std::make_shared<WsSession>(std::move(stream_));
+				session->run(std::move(req_));
+				return;
+			} else {
+				HttpResponseProxy resProxy;
+				resProxy.status = isWsPath ? 401 : 404;
+				resProxy.body   = isWsPath
+				                    ? R"({"success": false, "data": null, "error": "Unauthorized WS", "code": 1001})"
+				                    : R"({"success": false, "data": null, "error": "Not Found", "code": 1002})";
+				auto &res = res_storage_.emplace<http::response<http::string_body>>(
+				    static_cast<http::status>(resProxy.status), req_.version());
+				res.set(http::field::server, "QuickMemes/1.0");
+				res.set(http::field::content_type, "application/json");
+				applyCorsHeaders(res);
+				res.keep_alive(req_.keep_alive());
+				res.body() = std::move(resProxy.body);
+				res.prepare_payload();
+				auto self = shared_from_this();
+				http::async_write(stream_, res, [self](beast::error_code ec, std::size_t /*b*/) {
+					self->doClose();
+				});
+				return;
+			}
+		}
+
+		HttpRequestProxy proxy;
+		proxy.method = std::string(req_.method_string());
+		proxy.path   = std::string(req_.target());
+		proxy.body   = req_.body();
+
+		auto authIt = req_.find(http::field::authorization);
+		if (authIt != req_.end()) { proxy.header_auth = std::string(authIt->value()); }
+
+		auto qpos = proxy.path.find('?');
+		if (qpos != std::string::npos) {
+			proxy.query = proxy.path.substr(qpos + 1);
+			proxy.path  = proxy.path.substr(0, qpos);
+		}
+
+		HttpResponseProxy resProxy;
+		router_->dispatch(proxy, resProxy);
+
+		if (!resProxy.filePath.empty()) {
+			beast::error_code           ev;
+			http::file_body::value_type file;
+			file.open(resProxy.filePath.c_str(), beast::file_mode::scan, ev);
+
+			if (ev) {
+				// File open failed, return 404
+				auto &res =
+				    res_storage_.emplace<http::response<http::string_body>>(http::status::not_found, req_.version());
+				res.set(http::field::server, "QuickMemes/1.0");
+				res.set(http::field::content_type, "application/json");
+				applyCorsHeaders(res);
+				res.keep_alive(req_.keep_alive());
+				res.body() = R"({"success": false, "data": null, "error": "File not found", "code": 1004})";
+				res.prepare_payload();
+
+				auto self = shared_from_this();
+				http::async_write(stream_, res, [self](beast::error_code ec, std::size_t bytes_transferred) {
+					boost::ignore_unused(bytes_transferred);
+					if (ec) {
+						LOG_ERROR("session", "Write error (404 for file): " + ec.message());
+						return;
+					}
+					if (std::get<http::response<http::string_body>>(self->res_storage_).need_eof()) {
+						self->doClose();
+						return;
+					}
+					self->doRead();
+				});
+			} else {
+				auto &res = res_storage_.emplace<http::response<http::file_body>>(
+				    static_cast<http::status>(resProxy.status), req_.version());
+				res.set(http::field::server, "QuickMemes/1.0");
+				res.set(http::field::content_type, resProxy.contentType);
+				applyCorsHeaders(res);
+				res.keep_alive(req_.keep_alive());
+				res.body() = std::move(file);
+				res.prepare_payload();
+
+				auto self = shared_from_this();
+				http::async_write(stream_, res, [self](beast::error_code ec, std::size_t bytes_transferred) {
+					boost::ignore_unused(bytes_transferred);
+					if (ec) {
+						LOG_ERROR("session", "Write error (file): " + ec.message());
+						return;
+					}
+					if (std::get<http::response<http::file_body>>(self->res_storage_).need_eof()) {
+						self->doClose();
+						return;
+					}
+					self->doRead();
+				});
+			}
+		} else {
+			auto &res = res_storage_.emplace<http::response<http::string_body>>(
+			    static_cast<http::status>(resProxy.status), req_.version());
+			res.set(http::field::server, "QuickMemes/1.0");
+			res.set(http::field::content_type, resProxy.contentType);
+			applyCorsHeaders(res);
+			res.keep_alive(req_.keep_alive());
+			res.body() = std::move(resProxy.body);
+			res.prepare_payload();
+
+			auto self = shared_from_this();
+			http::async_write(stream_, res, [self](beast::error_code ec, std::size_t bytes_transferred) {
+				boost::ignore_unused(bytes_transferred);
+				if (ec) {
+					LOG_ERROR("session", "Write error: " + ec.message());
+					return;
+				}
+				if (std::get<http::response<http::string_body>>(self->res_storage_).need_eof()) {
+					self->doClose();
+					return;
+				}
+				self->doRead();
+			});
+		}
+	}
+
+	void doClose() {
+		beast::error_code ec;
+		stream_.socket().shutdown(tcp::socket::shutdown_send, ec);
+	}
+};
+
+class ServerImpl {
+public:
+	ServerConfig                       config;
+	mutable std::shared_mutex           configMtx;
+	net::io_context                    ioc;
+	std::unique_ptr<tcp::acceptor>     acceptor;
+	std::vector<std::thread>           ioThreads;
+	std::shared_ptr<Router>            router;
+	std::shared_ptr<net::steady_timer> maintTimer;
+	std::atomic<bool>                  stopped{true};
+
+	void doAccept() {
+		if (!acceptor || !acceptor->is_open()) return;
+		acceptor->async_accept(boost::asio::make_strand(ioc), [this](boost::beast::error_code ec, tcp::socket socket) {
+			if (!ec) {
+				std::make_shared<HttpSession>(std::move(socket), router)->run();
+			} else {
+				LOG_ERROR("server", "Accept error: " + ec.message());
+			}
+			doAccept();
+		});
+	}
+
+	void doMaintenance() {
+		if (!maintTimer) return;
+		maintTimer->expires_after(std::chrono::hours(24));
+		maintTimer->async_wait([this](boost::beast::error_code ec) {
+			if (!ec) {
+				// 获取 Server 实例并执行维护（这里假设 ServerImpl 到 Server 的某种引用，
+				// 或者直接在此处调用逻辑并让 Server 调用此处，
+				// 但最清晰的办法是将逻辑抽离到本类的一个方法，然后 Server 调用它）
+				performMaintenanceInternal();
+				doMaintenance();
+			}
+		});
+	}
+
+	void performMaintenanceInternal() {
+		ServerConfig cfg;
+		{
+			std::shared_lock<std::shared_mutex> lock(configMtx);
+			cfg = config;
+		}
+
+		if (cfg.logRetentionEnabled) { Logger::get().cleanOldLogs(cfg.logRetentionDays); }
+
+		Database::get().purgeDeletedMemes(cfg.recycleBinRetentionDays);
+
+		if (cfg.backupEnabled) {
+			try {
+				auto now = std::filesystem::file_time_type::clock::now();
+				for (const auto &entry :
+				     std::filesystem::directory_iterator(std::filesystem::path(cfg.dbPath).parent_path())) {
+					if (entry.is_regular_file() && entry.path().string().find(".bak.") != std::string::npos) {
+						auto ftime = std::filesystem::last_write_time(entry);
+						if (std::chrono::duration_cast<std::chrono::hours>(now - ftime).count() >
+						    24 * cfg.backupRetentionDays) {
+							std::filesystem::remove(entry.path());
+						}
+					}
+				}
+			} catch (...) {}
+		}
+	}
+};
+
+namespace {
+void rollbackServerStart(ServerImpl &impl,
+                         bool        taskQueueInitialized,
+                         bool        visionInitialized,
+                         bool        databaseInitialized,
+                         bool        embeddingInitialized) {
+	try {
+		if (impl.maintTimer) {
+			impl.maintTimer->cancel();
+			impl.maintTimer.reset();
+		}
+		if (impl.acceptor) {
+			boost::beast::error_code ec;
+			impl.acceptor->close(ec);
+			impl.acceptor.reset();
+		}
+		impl.ioc.stop();
+		for (auto &thread : impl.ioThreads) {
+			if (thread.joinable()) { thread.join(); }
+		}
+		impl.ioThreads.clear();
+		WsPusher::get().clearSessions();
+		if (taskQueueInitialized) { TaskQueue::get().shutdown(); }
+		if (visionInitialized) { VisionModule::get().shutdown(); }
+		if (databaseInitialized) { Database::get().shutdown(); }
+		if (embeddingInitialized) { EmbeddingModule::get().shutdown(); }
+	} catch (...) {}
+}
+} // namespace
+
+Server::Server()
+    : impl_(std::make_unique<ServerImpl>()) {}
+Server::~Server() = default;
+
+bool Server::start(const ServerConfig &config) {
+	{
+		std::unique_lock<std::shared_mutex> lock(impl_->configMtx);
+		impl_->config = config;
+	}
+	impl_->router = std::make_shared<Router>();
+	impl_->router->setAuthToken(config.authToken);
+	impl_->stopped.store(false);
+
+	bool embeddingInitialized = false;
+	bool databaseInitialized  = false;
+	bool visionInitialized    = false;
+	bool taskQueueInitialized = false;
+
+	LOG_INFO("server", "Starting Server initialization...");
+	EmbeddingModule::get().initialize(config.embeddingConfig);
+	embeddingInitialized = true;
+	{
+		std::unique_lock<std::shared_mutex> lock(impl_->configMtx);
+		impl_->config.embeddingConfig = EmbeddingModule::get().getConfig();
+	}
+
+	try {
+		if (!Database::get().initialize(config.dbPath, EmbeddingModule::get().getDimensions())) {
+			LOG_ERROR("server", "Database initialization returned false.");
+			rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+			impl_->stopped.store(true);
+			return false;
+		}
+		databaseInitialized = true;
+		if (!Database::get().checkIntegrity()) {
+			LOG_ERROR("server", "Database integrity check failed. Attempting to recover from latest backup...");
+			std::string                     latestBackup;
+			std::filesystem::file_time_type latestTime = std::filesystem::file_time_type::min();
+			try {
+				for (const auto &entry :
+				     std::filesystem::directory_iterator(std::filesystem::path(config.dbPath).parent_path())) {
+					if (entry.is_regular_file() && entry.path().string().find(".bak.") != std::string::npos) {
+						auto ftime = std::filesystem::last_write_time(entry);
+						if (ftime > latestTime) {
+							latestTime   = ftime;
+							latestBackup = entry.path().string();
+						}
+					}
+				}
+			} catch (...) {}
+
+			if (!latestBackup.empty() && Database::get().restoreDatabase(latestBackup)) {
+				LOG_INFO("server", "Successfully recovered from backup: " + latestBackup);
+				if (!Database::get().checkIntegrity()) {
+					LOG_ERROR("server", "Integrity check still failed after restore.");
+					rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+					impl_->stopped.store(true);
+					return false;
+				}
+			} else {
+				LOG_ERROR("server", "No valid backup available or restore failed.");
+				rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+				impl_->stopped.store(true);
+				return false;
+			}
+		} else if (config.backupEnabled) {
+			if (!hasRecentDatabaseBackup(config.dbPath, std::chrono::hours(24))) {
+				auto backupPath = Database::get().backupDatabase();
+				if (!backupPath.empty()) { LOG_INFO("server", "Created startup database backup: " + backupPath); }
+			} else {
+				LOG_INFO("server", "Skipped startup database backup because a recent backup already exists.");
+			}
+		}
+		Database::get().recoverFromCrash();
+	} catch (const std::exception &e) {
+		LOG_ERROR("server", std::string("Database init failed: ") + e.what());
+		rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+		impl_->stopped.store(true);
+		return false;
+	}
+
+	VisionModule::get().initialize(config.visionConfig);
+	visionInitialized = true;
+
+	TaskQueue::get().initialize(config.workerCount, config.maxQueueSize, config.storagePath);
+	taskQueueInitialized = true;
+
+	try {
+		auto address    = net::ip::make_address(config.bindAddress);
+		impl_->acceptor = std::make_unique<tcp::acceptor>(impl_->ioc, tcp::endpoint(address, config.port));
+
+		LOG_INFO("server", "Server listening on " + config.bindAddress + ":" + std::to_string(config.port));
+		impl_->doAccept();
+
+		impl_->maintTimer = std::make_shared<net::steady_timer>(impl_->ioc);
+		impl_->doMaintenance();
+
+		impl_->ioThreads.reserve(config.workerCount);
+		for (auto i = 0; i < config.workerCount; ++i) {
+			impl_->ioThreads.emplace_back([this] { impl_->ioc.run(); });
+		}
+
+	} catch (const std::exception &e) {
+		LOG_ERROR("server", std::string("Server failed to bind/start: ") + e.what());
+		rollbackServerStart(*impl_, taskQueueInitialized, visionInitialized, databaseInitialized, embeddingInitialized);
+		impl_->stopped.store(true);
+		return false;
+	}
+
+	return true;
+}
+
+void Server::stop() {
+	if (impl_->stopped.exchange(true)) { return; }
+
+	LOG_INFO("server", "Server stopping...");
+
+	if (impl_->maintTimer) {
+		impl_->maintTimer->cancel();
+		impl_->maintTimer.reset();
+	}
+	if (impl_->acceptor) {
+		boost::beast::error_code ec;
+		impl_->acceptor->close(ec);
+		impl_->acceptor.reset();
+	}
+	impl_->ioc.stop();
+
+	WsPusher::get().clearSessions();
+	TaskQueue::get().shutdown();
+	EmbeddingModule::get().shutdown();
+	VisionModule::get().shutdown();
+	Database::get().shutdown();
+
+	LOG_INFO("server", "Server stopped.");
+}
+
+void Server::waitForStop() {
+	for (auto &t : impl_->ioThreads) {
+		if (t.joinable()) t.join();
+	}
+}
+
+ServerConfig Server::getConfig() const {
+	std::shared_lock<std::shared_mutex> lock(impl_->configMtx);
+	return impl_->config;
+}
+
+void Server::updateConfig(const ServerConfig &config) {
+	std::unique_lock<std::shared_mutex> lock(impl_->configMtx);
+	impl_->config = config;
+}
+
+void Server::runMaintenanceTasks() {
+	impl_->performMaintenanceInternal();
+}
+
+} // namespace quickmemes

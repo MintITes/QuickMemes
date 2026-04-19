@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: http://127.0.0.1:* http://localhost:*; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*;" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>frontend</title>
+  <script>
+    (() => {
+      const LIGHT_BG = '#e3e3e3';
+      const DARK_BG = '#0a0a0a';
+      const STORAGE_KEY = 'quick-memes-ui-storage';
+      const root = document.documentElement;
+
+      let theme = 'system';
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const stored = JSON.parse(raw);
+          theme = stored?.state?.theme ?? stored?.theme ?? theme;
+        }
+      } catch (_) {
+        theme = 'system';
+      }
+
+      const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const backgroundColor = isDark ? DARK_BG : LIGHT_BG;
+
+      root.classList.toggle('dark', isDark);
+      root.style.colorScheme = isDark ? 'dark' : 'light';
+
+      const style = document.createElement('style');
+      style.textContent = `html,body,#root{background-color:${backgroundColor} !important}`;
+      document.head.appendChild(style);
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/react/main.tsx"></script>
+</body>
+
+</html>

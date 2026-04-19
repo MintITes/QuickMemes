@@ -1,0 +1,117 @@
+/* macOS Styles */
+.window-controls-macos {
+    height: 100%;
+}
+
+.macos-btn {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0.5px solid rgba(0, 0, 0, 0.1);
+    transition: filter 0.1s ease;
+    cursor: default;
+    position: relative;
+    padding: 0;
+}
+
+.macos-btn:active {
+    filter: brightness(0.8);
+}
+
+.macos-close {
+    background-color: #ff5f56;
+}
+
+.macos-minimize {
+    background-color: #ffbd2e;
+}
+
+.macos-maximize {
+    background-color: #27c93f;
+}
+
+.macos-maximize-icon {
+    width: 6px;
+    height: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.5);
+    position: relative;
+}
+
+.macos-maximize-icon::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 2px;
+    height: 2px;
+    background: #27c93f;
+    z-index: 1;
+}
+
+.macos-inactive {
+    background-color: #d1d1d1 !important;
+}
+
+.dark .macos-inactive {
+    background-color: #4a4a4a !important;
+}
+
+.macos-btn svg {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+/* Windows / Linux Styles */
+.window-controls-win {
+    -webkit-app-region: no-drag;
+    gap: 4px;
+    padding-right: 8px;
+}
+
+.win-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.1s ease, color 0.1s ease, transform 0.1s ease;
+    color: currentColor;
+    opacity: 0.8;
+    background: transparent;
+    border: none;
+    padding: 0;
+}
+
+.win-btn:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+    opacity: 1;
+}
+
+.dark .win-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.win-btn:active {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+.dark .win-btn:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.win-close:hover {
+    background-color: #e81123 !important;
+    color: white !important;
+}
+
+.win-close:active {
+    background-color: #f1707a !important;
+    color: white !important;
+}
+
+.win-inactive {
+    opacity: 0.4 !important;
+}

@@ -1,0 +1,48 @@
+---
+BasedOnStyle: LLVM
+
+UseTab: ForIndentation
+TabWidth: 4
+IndentWidth: 4
+ColumnLimit: 120
+
+BreakBeforeBraces: Attach
+PointerAlignment: Right
+NamespaceIndentation: None
+AccessModifierOffset: -4
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: AcrossComments
+AlignConsecutiveDeclarations: AcrossComments
+AlignConsecutiveMacros: AcrossComments
+AlignArrayOfStructures: Right
+AlignConsecutiveBitFields: AcrossComments
+AlignEscapedNewlines: Left
+AlignOperands: AlignAfterOperator
+AlignTrailingComments: true
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AlwaysBreakBeforeMultilineStrings: false
+BitFieldColonSpacing: Both
+BreakConstructorInitializers: BeforeComma
+BreakInheritanceList: BeforeComma
+CompactNamespaces: true
+LambdaBodyIndentation: Signature
+
+BreakBeforeTernaryOperators: true
+AllowShortBlocksOnASingleLine: Always
+AlwaysBreakTemplateDeclarations: No
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortLoopsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLambdasOnASingleLine: Inline
+EmptyLineBeforeAccessModifier: LogicalBlock
+
+Standard: Latest
+Cpp11BracedListStyle: true
+SortIncludes: true
+IncludeBlocks: Regroup
+...

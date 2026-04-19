@@ -1,0 +1,266 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      docs: ${{ steps.filter.outputs.docs }}
+      workflow: ${{ steps.filter.outputs.workflow }}
+      full_ci: ${{ steps.full_ci.outputs.full_ci }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect full CI marker
+        id: full_ci
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            commit_sha="${{ github.event.pull_request.head.sha }}"
+          else
+            commit_sha="${{ github.sha }}"
+          fi
+
+          message="$(git log -1 --pretty=%B "$commit_sha")"
+          if printf '%s' "$message" | grep -Eqi '\[full-ci\]'; then
+            echo "full_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect impacted areas
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          base: ${{ github.ref }}
+          filters: |
+            backend:
+              - 'src/backend/**'
+              - 'scripts/build.sh'
+              - 'scripts/build.ps1'
+              - 'scripts/test.sh'
+              - 'scripts/test.ps1'
+            frontend:
+              - 'src/frontend/**'
+              - 'scripts/frontend-*.sh'
+              - 'scripts/frontend-*.ps1'
+            docs:
+              - 'docs/**'
+              - '**/*.md'
+            workflow:
+              - '.github/workflows/**'
+
+      - name: Write change summary
+        run: |
+          {
+            echo "### Change Detection"
+            echo ""
+            echo "- full_ci: ${{ steps.full_ci.outputs.full_ci }}"
+            echo "- backend: ${{ steps.filter.outputs.backend }}"
+            echo "- frontend: ${{ steps.filter.outputs.frontend }}"
+            echo "- docs: ${{ steps.filter.outputs.docs }}"
+            echo "- workflow: ${{ steps.filter.outputs.workflow }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  backend:
+    name: Backend (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.full_ci == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Cache backend FetchContent
+        uses: actions/cache@v5
+        with:
+          path: src/backend/.deps
+          key: backend-deps-${{ matrix.os }}-${{ hashFiles('src/backend/CMakeLists.txt', 'src/backend/tests/CMakeLists.txt', 'scripts/build.sh', 'scripts/build.ps1', 'scripts/test.sh', 'scripts/test.ps1') }}
+          restore-keys: |
+            backend-deps-${{ matrix.os }}-
+
+      - name: Install OpenSSL (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: brew list openssl@3 >/dev/null 2>&1 || brew install openssl@3
+
+      - name: Cache vcpkg (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v5
+        with:
+          path: |
+            C:\vcpkg\downloads
+            C:\vcpkg\buildtrees
+            C:\vcpkg\packages
+            C:\vcpkg\installed
+          key: backend-vcpkg-${{ matrix.os }}-${{ hashFiles('src/backend/CMakeLists.txt', 'src/backend/tests/CMakeLists.txt', 'scripts/build.sh', 'scripts/build.ps1', 'scripts/test.sh', 'scripts/test.ps1') }}
+          restore-keys: |
+            backend-vcpkg-${{ matrix.os }}-
+
+      - name: Build and Test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/test.sh
+
+      - name: Build and Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/test.ps1
+
+      - name: Upload backend diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: backend-${{ matrix.os }}-logs
+          path: |
+            src/backend/build/Testing/**
+            src/backend/build/**/*.log
+            src/backend/build/**/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  frontend:
+    name: Frontend (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.full_ci == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-install.sh
+
+      - name: Lint (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-lint.sh
+
+      - name: Test (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-test.sh
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./scripts/frontend-build.sh
+
+      - name: Install dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-install.ps1
+
+      - name: Lint (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-lint.ps1
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-test.ps1
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/frontend-build.ps1
+
+      - name: Upload frontend diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-${{ matrix.os }}-logs
+          path: |
+            src/frontend/test-results/**
+            src/frontend/**/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  security-lite:
+    name: Security Lite
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Lint GitHub Actions workflow files
+        uses: rhysd/actionlint@v1.7.8
+
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+
+  summary:
+    name: CI Summary
+    needs:
+      - changes
+      - backend
+      - frontend
+      - security-lite
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Summarize results
+        shell: bash
+        run: |
+          {
+            echo "### CI Summary"
+            echo ""
+            echo "- backend changed: ${{ needs.changes.outputs.backend }}"
+            echo "- frontend changed: ${{ needs.changes.outputs.frontend }}"
+            echo "- docs changed: ${{ needs.changes.outputs.docs }}"
+            echo "- workflow changed: ${{ needs.changes.outputs.workflow }}"
+            echo ""
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            echo "| backend | ${{ needs.backend.result }} |"
+            echo "| frontend | ${{ needs.frontend.result }} |"
+            echo "| security-lite | ${{ needs.security-lite.result }} |"
+            echo ""
+            echo "Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"

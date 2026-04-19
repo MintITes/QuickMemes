@@ -1,0 +1,341 @@
+{
+    "common": {
+        "all_memes": "Library",
+        "categories": "Categories",
+        "add": "Add",
+        "settings": "Settings",
+        "layout": "Layout",
+        "magic_store": {
+            "title": "Magic Store",
+            "bucket": "Bucket"
+        },
+        "theme": {
+            "light": "Light",
+            "dark": "Dark",
+            "system": "System"
+        },
+        "confirm": "Confirm",
+        "cancel": "Cancel",
+        "save_failed": "Save Failed",
+        "copy_failed": "Copy Failed",
+        "export_failed": "Export Failed",
+        "not_implemented": "Coming Soon"
+    },
+    "layouts": {
+        "full": "Full View",
+        "left_only": "Sidebar",
+        "right_only": "Inspector",
+        "simple": "Focused"
+    },
+    "search": {
+        "placeholder": "Search memes...",
+        "history": "History",
+        "suggestions": "Suggestions",
+        "advanced": "Advanced Search",
+        "clear_history": "Clear History",
+        "advanced_keywords": "Keywords",
+        "advanced_mode": "Match Mode",
+        "mode_fuzzy": "Fuzzy",
+        "mode_word": "Word",
+        "mode_regex": "Regex",
+        "advanced_category": "Category",
+        "advanced_tags": "Tags",
+        "advanced_media": "Media Type",
+        "advanced_date": "Date Range",
+        "media_all": "All Types",
+        "media_image": "Images",
+        "media_video": "Videos",
+        "media_gif": "GIFs",
+        "date_all": "Any Time",
+        "date_today": "Today",
+        "date_week": "Week",
+        "date_month": "Month",
+        "date_year": "Year",
+        "no_suggestions": "No suggestions",
+        "no_tags_available": "No tags",
+        "type_history": "History",
+        "type_tag": "Tag",
+        "type_category": "Category",
+        "type_browsing": "Recent",
+        "reset_filters": "Reset Filters",
+        "clear_selected": "Clear Selected"
+    },
+    "notifications": {
+        "title": "Notifications",
+        "empty": "No notifications",
+        "clear_all": "Clear All"
+    },
+    "import": {
+        "title": "Quick Import",
+        "drop_zone": "Drop files here",
+        "drop_zone_active": "Release to import",
+        "select_file": "Select Files",
+        "or": "or",
+        "formats_desc": "Supports PNG, JPG, GIF, WebP, BMP",
+        "invalid_format": "Unsupported format. Accepted: PNG, JPG, GIF, WebP, BMP.",
+        "success": "Import Successful",
+        "failed": "Import Failed",
+        "processing": "Importing...",
+        "url_dialog_title": "Import from URL",
+        "url_placeholder": "Paste image or GIF URL...",
+        "cancel": "Cancel",
+        "confirm": "Import"
+    },
+    "dropdown": {
+        "quick": "Quick Import",
+        "quick_desc": "Open drag-and-drop window",
+        "clipboard": "From Clipboard",
+        "clipboard_desc": "Read image from clipboard",
+        "file": "From File",
+        "file_desc": "Select local images",
+        "url": "From URL",
+        "url_desc": "Enter an image web link"
+    },
+    "sidebar": {
+        "repository_title": "Library",
+        "all_memes_nav": "All Memes",
+        "untagged": "Untagged",
+        "trash": "Trash",
+        "recent": "Recent",
+        "starred": "Starred",
+        "shortcuts": "Quick Access",
+        "categories": "Categories"
+    },
+    "gallery": {
+        "empty": {
+            "no_memes": "No memes yet",
+            "no_memes_desc": "Drag some images here or click below to get started!",
+            "import_first": "Import Your First Meme",
+            "search_no_results": "No results found",
+            "search_no_results_desc": "Nothing matched \"{{keyword}}\".",
+            "clear_search": "Clear Search",
+            "trash_empty": "Trash is empty",
+            "trash_empty_desc": "Nothing to see here. Trash is clear.",
+            "untagged_empty": "All memes are tagged",
+            "untagged_empty_desc": "Great job! Every meme in your library has been tagged.",
+            "category_empty": "No memes in this category",
+            "category_empty_desc": "Drag memes here or assign them via Edit Details."
+        },
+        "controls": {
+            "back": "Back",
+            "forward": "Forward",
+            "original_ratio": "Contain",
+            "fill_crop": "Cover",
+            "hide_tags": "Hide Tags",
+            "show_tags": "Show Tags",
+            "grid_view": "Grid",
+            "masonry_view": "Masonry"
+        },
+        "item": {
+            "copy_image": "Copy",
+            "copy_success": "Copied to clipboard",
+            "view_details": "Details",
+            "more": "More"
+        },
+        "context_menu": {
+            "copy": "Copy Image",
+            "export": "Export...",
+            "edit_tags": "Edit Details",
+            "view_original": "View Original",
+            "move_to": "Move to",
+            "move_to_trash": "Move to Trash",
+            "restore": "Restore",
+            "restore_success": "Restored",
+            "delete_permanently": "Delete Permanently",
+            "delete_permanently_success": "Permanently Deleted",
+            "trash_undo": "Undo",
+            "trash_success": "Moved to Trash",
+            "export_title": "Select Export Directory",
+            "export_success": "Export Successful",
+            "export_result": "Done: {{success}}, Failed: {{failed}}",
+            "move_success": "Moved",
+            "move_failed": "Move Failed",
+            "n_items": "{{count}} items"
+        }
+    },
+    "fab": {
+        "selected": "selected",
+        "copy": "Copy",
+        "copy_disabled_hint": "Multi-select copy is not supported",
+        "export": "Export",
+        "bucket": "Bucket",
+        "delete": "Delete",
+        "restore": "Restore",
+        "delete_permanently": "Delete Permanently",
+        "cancel_selection": "Cancel Selection",
+        "bucket_added": "{{count}} saved to bucket",
+        "bucket_added_desc": "View the bucket to manage staged items",
+        "delete_failed": "Delete Failed",
+        "restore_success": "Restored {{count}} items",
+        "delete_permanently_success": "Permanently deleted {{count}} items"
+    },
+    "inspector": {
+        "title": "Meme Details",
+        "batch_title": "Details ({{count}})",
+        "basic_info": "Info",
+        "tags": "Tags",
+        "add_tag": "Add Tag",
+        "ocr_text": "OCR Text",
+        "source": "Source",
+        "loading_asset": "Loading...",
+        "no_tags": "No tags",
+        "ocr_placeholder": "Describe this meme, or wait for OCR...",
+        "ocr_trigger": "Re-run OCR",
+        "ocr_started": "OCR started",
+        "source_placeholder": "Paste source URL...",
+        "no_selection": "Nothing Selected",
+        "no_selection_desc": "Select one or more memes to view details.",
+        "labels": {
+            "name": "Name",
+            "format": "Format",
+            "size": "Size",
+            "resolution": "Resolution",
+            "added": "Added",
+            "modified": "Modified"
+        },
+        "batch": {
+            "editing": "Batch Edit",
+            "selected_desc": "{{count}} memes selected",
+            "tagging": "Batch Tags",
+            "tag_input_tip": "Press Enter to add tag to all selected items.",
+            "operations": "Actions",
+            "export": "Export All",
+            "delete": "Move to Trash",
+            "bulk_footer": "Changes apply to all {{count}} selected items."
+        }
+    },
+    "settings": {
+        "title": "Settings",
+        "tabs": {
+            "general": "General",
+            "appearance": "Appearance",
+            "storage": "Storage",
+            "ocr": "OCR",
+            "ai": "AI Vision",
+            "shortcuts": "Shortcuts",
+            "about": "About"
+        },
+        "general": {
+            "title": "General",
+            "theme": {
+                "label": "Theme",
+                "desc": "Choose light or dark appearance",
+                "light": "Light",
+                "dark": "Dark",
+                "system": "System"
+            },
+            "platform": {
+                "label": "Window Controls",
+                "desc": "Override visual style of title bar buttons",
+                "auto": "Auto",
+                "macos": "macOS",
+                "win_linux": "Windows / Linux"
+            },
+            "auto_start": {
+                "label": "Launch at Login",
+                "desc": "Start automatically with the system"
+            },
+            "language": {
+                "label": "Language",
+                "desc": "Change the display language",
+                "zh_CN": "简体中文",
+                "en_US": "English",
+                "system": "Follow System"
+            }
+        },
+        "appearance": {
+            "title": "Appearance",
+            "glass": {
+                "label": "Frosted Glass Effect",
+                "experimental": "Experimental",
+                "desc": "Disable to improve performance and reduce render artifacts"
+            },
+            "blur": {
+                "label": "Blur Level",
+                "warning": "Requires glass effect to be enabled"
+            },
+            "radius": "Corner Radius",
+            "gap": "Content Spacing",
+            "accent": "Accent Color"
+        },
+        "storage": {
+            "title": "Storage",
+            "path": {
+                "label": "Storage Path",
+                "desc": "Root directory where all memes are saved",
+                "change": "Change"
+            },
+            "thumbnail_size": {
+                "label": "Thumbnail Size Limit",
+                "desc": "Max width/height for generated thumbnails (px)"
+            }
+        },
+        "ocr": {
+            "title": "OCR",
+            "auto_ocr": {
+                "label": "Auto OCR",
+                "desc": "Extract text in the background after import"
+            },
+            "apiUrl": {
+                "label": "API Endpoint",
+                "desc": "Custom endpoint for OCR text recognition"
+            },
+            "apiKey": {
+                "label": "API Key",
+                "desc": "Authentication key for the OCR service"
+            },
+            "provider": {
+                "label": "Provider",
+                "desc": "OCR service provider (supports PaddleOCR and OcrSpace)",
+                "none": "None"
+            }
+        },
+        "ai": {
+            "title": "AI Vision",
+            "provider": {
+                "label": "AI Provider",
+                "desc": "Vision and embedding service provider (JinaAI only)",
+                "none": "Disabled"
+            },
+            "model": {
+                "label": "Model",
+                "desc": "Model for image analysis and embeddings",
+                "none": "Disabled"
+            },
+            "apiUrl": {
+                "label": "API URL",
+                "desc": "Base URL for the AI service"
+            },
+            "apiKey": {
+                "label": "API Key",
+                "desc": "Authentication token for the AI service"
+            },
+            "dimensions": {
+                "label": "Dimensions",
+                "desc": "Fixed size of the feature embedding vector"
+            },
+            "timeout": {
+                "label": "Timeout (s)",
+                "desc": "Max wait time per network request (seconds)"
+            },
+            "retries": {
+                "label": "Max Retries",
+                "desc": "Retry attempts on network failure"
+            }
+        },
+        "shortcuts": {
+            "title": "Shortcuts",
+            "global_call": "Global Trigger",
+            "quick_import": "Quick Screenshot Import",
+            "open_settings": "Open Settings",
+            "not_set": "Not Set"
+        },
+        "about": {
+            "desc": "A cross-platform meme manager for organizing, finding, and sharing memes.",
+            "license": "Released under GPL-3.0",
+            "license_desc": "You are free to use, modify, and distribute this software. Derivative works must remain open source under the same GPLv3 license.",
+            "source_code": "Source Code",
+            "official_website": "Website"
+        }
+    }
+}
